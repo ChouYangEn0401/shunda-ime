@@ -97,6 +97,22 @@
 - 設定頁與輸入法是不同行程：輸入法每個按鍵前比對 `PRAGMA data_version`，有變動才重新載入。
 - 備份：設定頁匯出 `.smartime`（zip：`config.json` + 詞庫），匯入時**合併**（手動詞與分類加入、次數相加、封鎖保留），不覆蓋。
 
+### 2.4 輸入法方案：注音、拼音、倉頡（`decoder.scheme`）
+
+- 解碼器的 `decode(..., scheme=)` 決定中文怎麼打；英文、數字、標點、Viterbi 都共用。中英自動一次只混一種中文
+  （`config.chinese_scheme`），因為同一個字母在三種打法意思不同；純拼音、純倉頡是獨立模式（`Mode.PINYIN`／`CANGJIE`）。
+- **拼音**（`engine/pinyin.py`）：詞庫裡每個無聲調注音音節自動轉成標準拼音（ü＝v，另收 lue/nue），反查成打字表。
+  `_pinyin_table` 從每個位置找出可能的音節，後面可以接聲調數字 1–5 與一個結束用的空白；`_py_edges` 把音節串起來，
+  用 `zh.plain`（讀音去聲調）查詞，有打聲調的音節再過濾讀音。未完成的尾巴（`pending_pinyin`）比完整音節貴，
+  所以 `women` 立刻顯示「我們」而不是「我 + men」。
+- **倉頡五代**：`cangjie` 資料表（碼、字、重碼順位）。1–5 碼後接空白才成字；連續 2–3 個字時，若組成詞庫裡的詞
+  （`Lexicon.text_info` 以字查詞）就用詞的分數，否則用單字分數加上順位成本（`cangjie_rank`）。
+- 三種方案的段落都帶注音讀音（倉頡由字反查），所以學習、接續、修正模式的注音檢視都共用；
+  Tab 接續插入的按鍵由 `Decoder.unit_keys(scheme, 字, 音節)` 產生（注音鍵、拼音字母或倉頡碼＋空白）。
+- 拼音、倉頡下 `, . ;` 是標點（`PLAIN_PUNCT`），也不做雜鍵略過（字母都有意義）。
+- 詞庫是 schema 2（`tools/build_data.py` 產生 `zh.plain` 與 `cangjie`）；舊詞庫時 `Lexicon.has_pinyin`／`has_cangjie`
+  為假，這兩個模式自動隱藏。
+
 ## 3. PIME 協定重點（`src/smartime/pime`）
 
 - 請求：`<client_id>|<json>`；回覆：`PIME_MSG|<client_id>|<json>`。stdout 只能輸出協定訊息，紀錄寫到 `%APPDATA%\SmartIME\logs\backend.log`。
@@ -194,7 +210,7 @@
 
 ## 10. 已知限制（0.3.0）
 
-- 鍵盤：大千、倚天；許氏（一鍵多義）尚未支援。容錯有「順序錯」與「多按雜鍵」，少按/相鄰鍵尚未做。
+- 鍵盤：大千、倚天；許氏（一鍵多義）尚未支援。拼音、倉頡五代在開發版（見 §2.4）。容錯有「順序錯」與「多按雜鍵」，少按/相鄰鍵尚未做。
 - 詞庫缺台灣口語讀音（例：欸 只有 ㄞˇ/ㄟˋ，沒有 ㄟ），需要口語讀音補充表。
 - 語言模型只有詞頻（unigram）：同音字靠詞頻選（例：「打逗號」可能成「打鬥號」），需要學習或 bigram。
 - Chromium 系的自動化實機測試只有 Edge；VS Code、LINE 等 Electron App 靠同一套 `KEEP_APPS` 規則，尚未逐一實測。
