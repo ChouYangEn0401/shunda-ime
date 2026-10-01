@@ -83,8 +83,9 @@ def test_backspace_in_unfinished_syllable_removes_one_key(session):
     assert v.hint == "ㄧ"
 
 
-def test_escape_clears_without_commit(session):
-    out, v = run(session, "ji3ap7{ESC}")
+def test_escape_twice_clears_without_commit(session):
+    # the first Esc enters correction mode (tests/test_correction.py)
+    out, v = run(session, "ji3ap7{ESC}{ESC}")
     assert out == ""
     assert v.composition == ""
 

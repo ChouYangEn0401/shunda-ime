@@ -30,6 +30,7 @@ from .keys import (
 from .layouts import Layout
 from .lexicon import Lexicon
 from .userdict import UserDict
+from .correction import CorrectionMixin
 
 VK_D = 0x44
 SHIFT_TAP_SECONDS = 0.5
@@ -115,6 +116,8 @@ class View:
     suggestion: str = ""
     notice: str = ""  # one-off feedback ("已加入詞庫：…"), shown once
     mode: Mode = Mode.AUTO
+    correcting: bool = False  # correction mode (Esc)
+    layer: str = "text"  # its view: text | zhuyin | keys
 
 
 @dataclass
@@ -149,7 +152,7 @@ class Engine:
             self._config_mtime = mtime
 
 
-class Session:
+class Session(CorrectionMixin):
     def __init__(self, engine: Engine):
         self.engine = engine
         self.mode = Mode(self.cfg.start_mode)
@@ -165,6 +168,7 @@ class Session:
         self._notice = ""
         self._shift_down_at: float | None = None
         self._shift_scan = 0
+        self._init_correction()
 
     # ================================================================ API
     @property
@@ -188,11 +192,16 @@ class Session:
         )
         self._commit = ""
         v.notice, self._notice = self._notice, ""
+        if self.correcting:
+            v.composition, v.cursor = self._correction_view()
+            v.correcting, v.layer = True, self.layer
         if self.cand is not None:
             page = self.cand.page_items()
             v.candidates = [c.text for c in page]
             v.candidate_notes = [c.annotation for c in page]
             v.candidate_index = self.cand.index % self.cand.page_size
+        elif self.correcting:
+            v.hint = self._correction_hint()
         else:
             v.hint = self._hint()
             if not v.hint and self.suggestion is not None:
@@ -214,6 +223,10 @@ class Session:
             if self._candidate_key(key):
                 return True
             self.cand = None  # any other key closes the window and is typed
+        if self.correcting:
+            if self._correction_key(key):
+                return True
+            self.exit_correction()  # e.g. Ctrl+symbol: back to typing
         return self._edit_key(key)
 
     def filter_key_up(self, key: KeyInput) -> bool:
@@ -242,6 +255,8 @@ class Session:
             self.chinese_mode = mode
 
     def commit_all(self) -> None:
+        if self.correcting:
+            self.exit_correction()
         self.cand = None
         if self.keys:
             self._commit += self.decoding.text
@@ -307,7 +322,10 @@ class Session:
         if vk == VK_RETURN:
             self.commit_all()
         elif vk == VK_ESCAPE:
-            self._reset_buffer()
+            if self.cfg.correction_mode:
+                self.enter_correction()  # a second Esc (in correction mode) clears
+            else:
+                self._reset_buffer()
         elif vk == VK_BACK:
             self._delete_unit(before=True)
         elif vk == VK_DELETE:
@@ -442,6 +460,11 @@ class Session:
         self.cursor = 0
         self.decoding = Decoding((), 0.0)
         self.suggestion = None
+        # nothing left to correct
+        self.correcting = False
+        self.layer = "text"
+        self._cycle = None
+        self._undo.clear()
 
     def _redecode(self) -> None:
         self.decoding = self.engine.decoder.decode(self.keys, self.pins, allow_english=self.mode is Mode.AUTO)
@@ -478,9 +501,14 @@ class Session:
         return len(units) - 1
 
     def _open_candidates(self) -> None:
+        items = self._candidate_items()
+        if items:
+            self.cand = CandidateList(items, self.cfg.candidates_per_page)
+
+    def _candidate_items(self) -> list[Candidate]:
         t = self._target_unit()
         if t is None:
-            return
+            return []
         units = self.decoding.units()
         a, b, _, seg_idx = units[t]
         seg = self.decoding.segments[seg_idx]
@@ -504,8 +532,7 @@ class Session:
             if key not in seen:
                 seen.add(key)
                 unique.append(c)
-        if unique:
-            self.cand = CandidateList(unique, self.cfg.candidates_per_page)
+        return unique
 
     def _zh_alternatives(self, start: int) -> list[Candidate]:
         return [Candidate(s.text, replace(s, pinned=True), self._note(s.text, "-".join(s.readings)))
@@ -617,6 +644,12 @@ class Session:
         self.pins.append(pin)
         self.pins.sort(key=lambda p: p.start)
         self.cand = None
+        if self.correcting:
+            self._learn(pin)
+            self._redecode()
+            self.cursor = pin.start
+            self._snap_to_unit()
+            return
         if self.cursor < len(self.keys):
             self.cursor = pin.end
         self._learn(pin)
@@ -710,9 +743,15 @@ class Session:
         # letters and wrong guesses are easy to spot.
         if not self.cfg.key_hint_on_move:
             return ""
+        return self._unit_info()
+
+    def _unit_info(self) -> str:
+        """「字 注音 ⌨ 按鍵」for the character after the cursor, with any
+        stray keys dropped just before it."""
         t = self._target_unit()
         if t is None:
             return ""
+        layout = self.engine.layout
         a, b, ch, seg_idx = self.decoding.units()[t]
         seg = self.decoding.segments[seg_idx]
         start = self._dropped_before(a)
@@ -729,7 +768,8 @@ class Session:
 
     def _update_suggestion(self) -> None:
         self.suggestion = None
-        if not self.cfg.autocomplete or self.cand is not None or self.cursor != len(self.keys):
+        if (not self.cfg.autocomplete or self.cand is not None or self.cursor != len(self.keys)
+                or self.correcting):
             return
         segs = self.decoding.segments
         if not segs or segs[-1].kind is not Kind.ZH:

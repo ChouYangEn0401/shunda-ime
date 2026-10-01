@@ -53,6 +53,9 @@ class Config:
     drop_stray_keys: str = "standard"  # "off" | "conservative" | "standard"
     single_letter_context: bool = True  # lone i / o are zhuyin unless English context
 
+    # Correction mode: Esc while composing enters it (Vim-like); off = Esc clears
+    correction_mode: bool = True
+
     # Memory (my dictionary)
     learn: bool = True  # remember candidates I pick and continuations I accept
     default_category: str = "常用詞"  # where Ctrl+D puts a new word
