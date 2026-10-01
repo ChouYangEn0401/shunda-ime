@@ -29,10 +29,13 @@ def test_cursor_lands_on_last_character_and_moves_with_h_l(session):
 
 
 def test_views_text_zhuyin_keys(session):
+    # the composition keeps the real text; the other views are in the hint
     _, v = run(session, "ji3e/4dj94{ESC}v")
-    assert v.layer == "zhuyin" and v.composition == "ㄨㄛˇ ㄍㄥˋ ㄎㄨㄞˋ"
+    assert v.layer == "zhuyin" and v.composition == "我更快"
+    assert "ㄨㄛˇ ㄍㄥˋ ［ㄎㄨㄞˋ］" in v.hint
     _, v = run(session, "v")
-    assert v.layer == "keys" and v.composition == "ji3e/4dj94"
+    assert v.layer == "keys" and v.composition == "我更快"
+    assert "ji3e/4［d］j94" in v.hint
     _, v = run(session, "v")
     assert v.layer == "text" and v.composition == "我更快"
 
@@ -40,11 +43,11 @@ def test_views_text_zhuyin_keys(session):
 def test_keys_view_shows_and_deletes_a_stray_key(session):
     # the stray "e" was dropped silently; the 按鍵 view shows it
     _, v = run(session, "ji3ee/4dj94{ESC}vv")
-    assert v.composition == "ji3ee/4dj94"
+    assert v.composition == "我更快"
     # go to key 3 (the stray e) and delete just that key
     run(session, "{HOME}lll")
     _, v = run(session, "")
-    assert "被略過的鍵" in v.hint
+    assert "ji3［e］e/4dj94" in v.hint and "被略過的鍵" in v.hint
     _, v = run(session, "xv")  # 按鍵 -> 國字
     assert v.layer == "text" and v.composition == "我更快"
     assert "".join(k.char for k in session.keys) == "ji3e/4dj94"

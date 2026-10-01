@@ -307,29 +307,32 @@ class CorrectionMixin:
         self._learn(c.items[c.index].pin)
 
     # ------------------------------------------------------------ rendering
+    # The composition always holds the real (Chinese) text; the 注音 and 按鍵
+    # views are drawn in the hint box. If an app ends the composition at any
+    # moment (some browser editors do), what lands in the document is the
+    # text, never zhuyin or raw keys.
+
     def _correction_view(self) -> tuple[str, int]:
-        """(composition, cursor) for the current view."""
+        """(composition, cursor in characters) — always the 國字 text."""
+        units = self.decoding.units()
+        # in the 按鍵 view: before the character that contains the cursor key
+        return self.decoding.text, sum(1 for a, b, _, _ in units if b <= self.cursor)
+
+    def _layer_text(self) -> str:
+        """The 注音 or 按鍵 view as one line, with ［ ］ around the cursor."""
         if self.layer == "keys":
-            return "".join("␣" if k.char == " " else k.char for k in self.keys), self.cursor
-        if self.layer == "text":
-            units = self.decoding.units()
-            return self.decoding.text, sum(1 for a, b, _, _ in units if b <= self.cursor)
-        out = ""
-        cursor = 0
+            out = []
+            for i, k in enumerate(self.keys):
+                ch = "␣" if k.char == " " else k.char
+                out.append(f"［{ch}］" if i == self.cursor else ch)
+            return "".join(out)
+        parts = []
         segs = self.decoding.segments
-        prev_zh = False
         for a, b, ch, seg_idx in self.decoding.units():
             seg = segs[seg_idx]
-            is_zh = seg.kind is Kind.ZH
-            if is_zh and prev_zh:
-                out += " "
-            if a == self.cursor or (a < self.cursor and b > self.cursor):
-                cursor = len(out)
-            out += seg.readings[seg.bounds.index(a)] if is_zh else ch
-            prev_zh = is_zh
-            if b <= self.cursor:
-                cursor = len(out)
-        return out, cursor
+            text = seg.readings[seg.bounds.index(a)] if seg.kind is Kind.ZH else ch
+            parts.append(f"［{text}］" if a <= self.cursor < b or a == self.cursor else text)
+        return " ".join(parts)
 
     def _correction_hint(self) -> str:
         label = f"【修正·{LAYER_LABEL[self.layer]}】"
@@ -340,5 +343,7 @@ class CorrectionMixin:
             info = f"⌨ {'␣' if k == ' ' else k}" + (f"（{sym or '一聲'}）" if sym is not None else "")
             if dropped:
                 info += " 被略過的鍵"
-            return f"{label}{info} · x 刪這個鍵 · v 換檢視 · i 打字"
+            return f"{label}{self._layer_text()}　{info} · x 刪這個鍵 · v 換檢視 · i 打字"
+        if self.layer == "zhuyin":
+            return f"{label}{self._layer_text()} · {HELP}"
         return f"{label}{self._unit_info()} · {HELP}"

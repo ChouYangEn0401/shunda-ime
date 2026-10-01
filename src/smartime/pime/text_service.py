@@ -16,6 +16,7 @@ from ..engine.keys import (
     VK_CAPITAL, VK_CONTROL, VK_LMENU, VK_MENU, VK_RMENU, VK_SHIFT, KeyInput,
 )
 from ..engine.session import Engine, Mode, Session
+from .winapp import foreground_app
 
 log = logging.getLogger(__name__)
 
@@ -122,7 +123,12 @@ class SmartTextService:
         elif method == "onCompositionTerminated":
             if msg.get("forced", False):
                 # The app ended our composition (click elsewhere, focus
-                # change); TSF already left the text in the document.
+                # change, or the app's own editor logic); TSF leaves the
+                # composition text in the document. Logged without the text,
+                # to find apps that drop it (reported: "later text lost").
+                if s.composing:
+                    log.info("composition ended by the app: app=%s chars=%d keys=%d correcting=%s",
+                             foreground_app() or "?", len(s.decoding.text), len(s.keys), s.correcting)
                 s.reset()
                 self._clear_ui(reply, composition=False)
             else:
