@@ -37,6 +37,7 @@ TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE = 0x4
 WS_POPUP = 0x80000000
 WS_VISIBLE = 0x10000000
 WS_BORDER = 0x00800000
+ES_AUTOHSCROLL = 0x0080  # without it a single-line EDIT rejects text wider than the box
 WS_EX_TOPMOST = 0x00000008
 WM_SETFONT = 0x0030
 EM_SETEDITSTYLE = 0x0400 + 204
@@ -44,6 +45,7 @@ SES_USECTF = 0x00010000
 INPUT_KEYBOARD = 1
 KEYEVENTF_KEYUP = 0x0002
 VK_SHIFT = 0x10
+VK_CONTROL = 0x11
 VK_RETURN = 0x0D
 PM_REMOVE = 1
 
@@ -146,13 +148,91 @@ class Aborted(Exception):
     pass
 
 
+# --- Never fight the user for the keyboard -------------------------------
+# Low-level hooks only look at the "injected" flag to tell our SendInput keys
+# from real ones; key codes are neither recorded nor blocked.
+WH_KEYBOARD_LL = 13
+WH_MOUSE_LL = 14
+LLKHF_INJECTED = 0x10
+LLMHF_INJECTED = 0x01
+MOUSE_BUTTON_DOWN = {0x0201, 0x0204, 0x0207, 0x020B}  # L/R/M/X button down
+
+
+class _KBDLLHOOKSTRUCT(ctypes.Structure):
+    _fields_ = [("vkCode", wintypes.DWORD), ("scanCode", wintypes.DWORD), ("flags", wintypes.DWORD),
+                ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+
+
+class _MSLLHOOKSTRUCT(ctypes.Structure):
+    _fields_ = [("pt", wintypes.POINT), ("mouseData", wintypes.DWORD), ("flags", wintypes.DWORD),
+                ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+
+
+_HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_ssize_t, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+user32.SetWindowsHookExW.restype = wintypes.HHOOK
+user32.SetWindowsHookExW.argtypes = [ctypes.c_int, _HOOKPROC, wintypes.HINSTANCE, wintypes.DWORD]
+user32.CallNextHookEx.restype = ctypes.c_ssize_t
+user32.CallNextHookEx.argtypes = [wintypes.HHOOK, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM]
+user32.UnhookWindowsHookEx.argtypes = [wintypes.HHOOK]
+
+
+class _LASTINPUTINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+
+
+class UserGuard:
+    """Detects physical keyboard/mouse-click input while the test runs."""
+
+    def __init__(self) -> None:
+        self.user_input = False
+        self._kb = _HOOKPROC(self._on_key)
+        self._ms = _HOOKPROC(self._on_mouse)
+        self._hooks = [user32.SetWindowsHookExW(WH_KEYBOARD_LL, self._kb, None, 0),
+                       user32.SetWindowsHookExW(WH_MOUSE_LL, self._ms, None, 0)]
+
+    def _on_key(self, code, wparam, lparam):
+        if code >= 0 and not ctypes.cast(lparam, ctypes.POINTER(_KBDLLHOOKSTRUCT)).contents.flags & LLKHF_INJECTED:
+            self.user_input = True
+        return user32.CallNextHookEx(None, code, wparam, lparam)
+
+    def _on_mouse(self, code, wparam, lparam):
+        if code >= 0 and wparam in MOUSE_BUTTON_DOWN:
+            if not ctypes.cast(lparam, ctypes.POINTER(_MSLLHOOKSTRUCT)).contents.flags & LLMHF_INJECTED:
+                self.user_input = True
+        return user32.CallNextHookEx(None, code, wparam, lparam)
+
+    def close(self) -> None:
+        for h in self._hooks:
+            if h:
+                user32.UnhookWindowsHookEx(h)
+
+
+def idle_seconds() -> float:
+    info = _LASTINPUTINFO(cbSize=ctypes.sizeof(_LASTINPUTINFO))
+    user32.GetLastInputInfo(ctypes.byref(info))
+    return ((kernel32.GetTickCount() - info.dwTime) & 0xFFFFFFFF) / 1000.0
+
+
+def wait_until_idle(seconds: float = 5.0, timeout: float = 180.0) -> bool:
+    """Wait until nobody has touched keyboard/mouse for ``seconds``."""
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        if idle_seconds() >= seconds:
+            return True
+        time.sleep(0.25)
+    return False
+
+
+GUARD: UserGuard | None = None
+
+
 class TestWindow:
     def __init__(self, richedit: bool = False) -> None:
         cls = "EDIT"
         if richedit:
             ctypes.WinDLL("msftedit")  # registers RICHEDIT50W
             cls = "RICHEDIT50W"
-        self.hwnd = user32.CreateWindowExW(WS_EX_TOPMOST, cls, "", WS_POPUP | WS_VISIBLE | WS_BORDER,
+        self.hwnd = user32.CreateWindowExW(WS_EX_TOPMOST, cls, "", WS_POPUP | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
                                            40, 40, 520, 48, None, None, kernel32.GetModuleHandleW(None), None)
         if not self.hwnd:
             raise OSError(f"CreateWindowEx failed ({ctypes.get_last_error()})")
@@ -187,39 +267,58 @@ class TestWindow:
         user32.DestroyWindow(self.hwnd)
 
     def _send(self, vk: int, up: bool) -> None:
+        if GUARD is not None and GUARD.user_input:
+            raise Aborted("you used the keyboard/mouse; stopped so we don't type over you")
         if user32.GetForegroundWindow() != self.hwnd:
             raise Aborted("test window lost the foreground; stopped sending keys")
         inp = INPUT(type=INPUT_KEYBOARD)
         inp.u.ki = KEYBDINPUT(wVk=vk, wScan=user32.MapVirtualKeyW(vk, 0), dwFlags=KEYEVENTF_KEYUP if up else 0)
         user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
 
-    def tap(self, vk: int, shift: bool = False) -> None:
-        if shift:
-            self._send(VK_SHIFT, False)
-        self._send(vk, False)
-        self._send(vk, True)
-        if shift:
-            self._send(VK_SHIFT, True)
-        pump(0.06)
+    def tap(self, vk: int, shift: bool = False, ctrl: bool = False) -> None:
+        tap_keys(self._send, vk, shift, ctrl)
 
-    def type(self, script: str) -> None:
-        i = 0
-        while i < len(script):
-            if script[i] == "{":
-                name = script[i + 1:script.index("}", i)]
-                self.tap(NAMED_VK[name])
+
+def tap_keys(send, vk: int, shift: bool = False, ctrl: bool = False) -> None:
+    """Press and release one key with modifiers through ``send(vk, up)``."""
+    if ctrl:
+        send(VK_CONTROL, False)
+    if shift:
+        send(VK_SHIFT, False)
+    send(vk, False)
+    send(vk, True)
+    if shift:
+        send(VK_SHIFT, True)
+    if ctrl:
+        send(VK_CONTROL, True)
+    pump(0.06)
+
+
+def type_script(tap, script: str) -> None:
+    """Type a key script (simulator syntax) with ``tap(vk, shift, ctrl)``."""
+    i = 0
+    while i < len(script):
+        if script[i] == "{":
+            name = script[i + 1:script.index("}", i)]
+            if name.startswith(("C-", "CS-")):
+                mods, base = name.split("-", 1)
+                tap(OEM_VK.get(base, ord(base.upper())), mods == "CS", True)
+            else:
+                tap(NAMED_VK[name], False, False)
                 if name == "RSHIFT":
                     pump(0.1)
-                i += len(name) + 2
-                continue
-            ch = script[i]
-            shift = ch in SHIFTED
-            base = SHIFTED.get(ch, ch)
-            vk = OEM_VK.get(base, ord(base.upper()))
-            self.tap(vk, shift)
-            i += 1
+            i += len(name) + 2
+            continue
+        ch = script[i]
+        shift = ch in SHIFTED
+        base = SHIFTED.get(ch, ch)
+        tap(OEM_VK.get(base, ord(base.upper())), shift, False)
+        i += 1
 
 
+# (script, expected). expected=None means "whatever the engine simulator
+# produces for the same keys": the real app must behave exactly like the
+# simulation (this is what catches TSF/PIME integration bugs).
 CASES = [
     ("ji3ap7{ENTER}", "我們"),  # first syllable must convert too (regression)
     ("su3cl3<", "你好，"),  # clause punctuation commits
@@ -229,16 +328,38 @@ CASES = [
     ("ji3a87{LEFT}{UP}2{ENTER}", "我嘛"),  # candidate for the char after the cursor
     ("ao6u.3{TAB}{ENTER}", "沒有用"),  # Tab completion
     ("{RSHIFT}abc{RSHIFT}ji3{ENTER}", "abc我"),  # lone right Shift toggles English
+    ("k27{ENTER}", "的"),  # keys out of order (fast typing)
+    ("2; ji3rup wu0 t;6g4283{ENTER}", "當我今天嘗試打"),  # 283 is 打, not a number
+    ("su3cl3{C-,}", "你好，"),  # Ctrl+, full-width comma
+    ("{C-[}ji3{C-]}{ENTER}", "「我」"),
+    # > 30 characters: automatic partial commit mid-sentence (broke in VS Code)
+    ("b06c.4283tj x96k27y4b/6b06j6z83fm4u/ jp6k27jp4wu6ru.4cjo4y94vscodexu3ua04yjo4284k27t8 u4{ENTER}", None),
 ]
+
+
+def expected_text(script: str) -> str:
+    from ..pime.server import build_engine
+    from ..engine.session import Session
+    from .simulate import run
+
+    out, view = run(Session(build_engine()), script.replace("{RSHIFT}", "{SHIFT}"))
+    return out + view.composition
 
 
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
+    global GUARD
     richedit = "--richedit" in sys.argv[1:]
+    cases = [(s, e if e is not None else expected_text(s)) for s, e in CASES]
+    print("waiting until keyboard/mouse have been idle for 5 s ...")
+    if not wait_until_idle():
+        print("ABORT: the computer is in use; try again later (no keys were sent)")
+        return 2
     ole32.CoInitializeEx(None, 0x2)  # COINIT_APARTMENTTHREADED
     mgr = ProfileMgr()
     previous = mgr.active()
+    GUARD = UserGuard()
     win = TestWindow(richedit)
     print('control:', 'RichEdit (TSF)' if richedit else 'EDIT (IMM/CUAS)')
     failures = 0
@@ -252,15 +373,16 @@ def main() -> int:
             print(f"FAIL: ActivateProfile returned {hr & 0xFFFFFFFF:#x}")
             return 1
         pump(0.8)  # let TSF load PIMETextService.dll and connect to the launcher
-        for script, expected in CASES:
+        for script, expected in cases:
             win.clear()
             pump(0.1)
-            win.type(script)
+            type_script(win.tap, script)
             pump(0.3)
             got = win.text()
             ok = got == expected
             failures += not ok
-            print(f"{'PASS' if ok else 'FAIL'}  {script!r:30} -> {got!r}  (expected {expected!r})")
+            label = script if len(script) <= 34 else script[:31] + "..."
+            print(f"{'PASS' if ok else 'FAIL'}  {label!r:36} -> {got!r}" + ("" if ok else f"  (expected {expected!r})"))
         return 1 if failures else 0
     except Aborted as e:
         print("ABORT:", e)
@@ -269,6 +391,7 @@ def main() -> int:
         mgr.activate(previous.dwProfileType, previous.langid, previous.clsid, previous.guidProfile,
                      previous.hkl, TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE)
         win.destroy()
+        GUARD.close()
         pump(0.1)
 
 
