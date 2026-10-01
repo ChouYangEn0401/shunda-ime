@@ -8,6 +8,12 @@ def test_letters_show_raw_with_zhuyin_hint(session):
     assert v.hint == "ㄧㄡ"
 
 
+def test_hint_shows_canonical_order_for_swapped_keys(session):
+    # typing ㄜ then ㄉ (fast-typing order) hints the syllable it will become
+    _, v = run(session, "k2")
+    assert v.hint == "ㄉㄜ"
+
+
 def test_tone_key_converts(session):
     _, v = run(session, "ji3ap7")
     assert v.composition == "我們"
@@ -114,6 +120,41 @@ def test_space_and_enter_pass_through_when_idle(session):
     out, v = run(session, " ")
     assert out == " "
     assert v.composition == ""
+
+
+def test_ctrl_punctuation_commits_clause(session):
+    # 微軟新注音 / 華碩 convention; previously passed to the app (VS Code
+    # opened Settings on Ctrl+, and Quick Fix on Ctrl+.)
+    out, v = run(session, "su3cl3{C-,}")
+    assert out == "你好，"
+    assert v.composition == ""
+
+
+def test_ctrl_punctuation_when_idle_and_with_shift(session):
+    out, _ = run(session, "{C-.}{CS-/}{CS-1}")
+    assert out == "。？！"
+
+
+def test_ctrl_bracket_stays_in_composition(session):
+    _, v = run(session, "{C-[}ji3{C-]}")
+    assert v.composition == "「我」"
+
+
+def test_ctrl_punctuation_passes_through_in_english_mode(session):
+    from smartime.devtools.simulate import press
+    from smartime.engine.keys import VK_OEM_COMMA, KeyInput
+
+    run(session, "{SHIFT}")
+    handled, _ = press(session, KeyInput(vk=VK_OEM_COMMA, ctrl=True))
+    assert handled is False
+
+
+def test_ctrl_other_keys_still_pass_through(session):
+    from smartime.devtools.simulate import press
+    from smartime.engine.keys import KeyInput
+
+    handled, _ = press(session, KeyInput(vk=ord("C"), ctrl=True))  # Ctrl+C
+    assert handled is False
 
 
 def test_overflow_commits_oldest_text(session, engine):

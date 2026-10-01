@@ -18,10 +18,12 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 
 from ..config import Config
+from . import bopomofo
 from .decoder import CLAUSE_PUNCT, FULLWIDTH_PUNCT, Decoder, Decoding, Key, Kind, Segment
 from .keys import (
     MODIFIER_VKS, SCAN_LSHIFT, SCAN_RSHIFT, VK_BACK, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE,
-    VK_HOME, VK_LEFT, VK_NEXT, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SHIFT, VK_SPACE, VK_TAB,
+    VK_HOME, VK_LEFT, VK_NEXT, VK_OEM_1, VK_OEM_2, VK_OEM_4, VK_OEM_6, VK_OEM_7, VK_OEM_COMMA,
+    VK_OEM_MINUS, VK_OEM_PERIOD, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SHIFT, VK_SPACE, VK_TAB,
     VK_UP, KeyInput,
 )
 from .layouts import Layout
@@ -30,6 +32,17 @@ from .lexicon import Lexicon
 SHIFT_TAP_SECONDS = 0.5
 SELECTION_DIGITS = "123456789"
 SINGLE_CHAR_SUGGEST_MARGIN = 1.5  # stricter autocomplete threshold for 1-char context
+
+# Ctrl(+Shift)+key -> full-width punctuation, following 微軟新注音 (華碩 uses
+# the same convention). Key: (virtual key, shift held).
+CTRL_PUNCT = {
+    (VK_OEM_COMMA, False): "，", (VK_OEM_PERIOD, False): "。", (VK_OEM_1, False): "；",
+    (VK_OEM_7, False): "、", (VK_OEM_2, False): "…", (VK_OEM_MINUS, False): "—",
+    (VK_OEM_4, False): "「", (VK_OEM_6, False): "」",
+    (VK_OEM_COMMA, True): "《", (VK_OEM_PERIOD, True): "》", (VK_OEM_1, True): "：",
+    (VK_OEM_7, True): "＂", (VK_OEM_2, True): "？", (0x31, True): "！",
+    (VK_OEM_4, True): "『", (VK_OEM_6, True): "』", (0x39, True): "（", (0x30, True): "）",
+}
 
 # Keys we consume while composing even though they produce no character.
 _COMPOSING_NAV = frozenset(
@@ -186,10 +199,17 @@ class Session:
         self._reset_buffer()
 
     # ========================================================= key routing
+    def _ctrl_punct(self, key: KeyInput) -> str | None:
+        if not (key.ctrl and not key.alt and self.cfg.ctrl_punctuation and self.mode is Mode.MIXED):
+            return None
+        return CTRL_PUNCT.get((key.vk, key.shift))
+
     def _wants(self, key: KeyInput) -> bool:
         if key.vk in MODIFIER_VKS:
             return False
         if self.cand is not None:
+            return True
+        if self._ctrl_punct(key) is not None:
             return True
         if key.ctrl or key.alt:
             return False
@@ -219,6 +239,12 @@ class Session:
 
     def _edit_key(self, key: KeyInput) -> bool:
         vk = key.vk
+        punct = self._ctrl_punct(key)
+        if punct is not None:
+            # Inserted as a key whose character *is* the punctuation, so it
+            # flows through the decoder (and clause punctuation commits).
+            self._insert(Key(punct))
+            return True
         if vk == VK_RETURN:
             self.commit_all()
         elif vk == VK_ESCAPE:
@@ -316,10 +342,21 @@ class Session:
         self._refresh()
 
     def _commit_overflow(self) -> None:
+        """Keep the composition from growing without bound.
+
+        Never fires while a syllable is still being typed (that would decide
+        the earlier text without the context of the syllable). When it fires,
+        it commits down to well below the limit, so partial commits — each one
+        ends and restarts the TSF composition — stay rare.
+        """
         limit = self.cfg.max_buffer_chars
-        while len(self.decoding.units()) > limit and len(self.decoding.segments) > 1:
+        segs = self.decoding.segments
+        if len(self.decoding.units()) <= limit or not segs or segs[-1].kind is Kind.PENDING:
+            return
+        target = max(limit // 2, limit - 10)
+        while len(self.decoding.units()) > target and len(self.decoding.segments) > 1:
             first = self.decoding.segments[0]
-            if first.end > self.cursor or first.kind is Kind.PENDING:
+            if first.end > self.cursor:
                 break
             self._commit += first.text
             self._delete_keys(0, first.end)
@@ -461,7 +498,10 @@ class Session:
             return ""
         last = self.decoding.segments[-1]
         if last.kind is Kind.PENDING and self.cursor == len(self.keys):
-            return self.engine.layout.symbols_for_keys(last.text)
+            layout = self.engine.layout
+            # Show what the keys will become, in canonical order (k2 -> ㄉㄜ).
+            canon = bopomofo.canonical(layout.symbol(c) or "" for c in last.text)
+            return canon or layout.symbols_for_keys(last.text)
         return ""
 
     def _update_suggestion(self) -> None:

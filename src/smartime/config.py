@@ -33,6 +33,10 @@ class Config:
     max_buffer_chars: int = 30  # older text is committed automatically beyond this
     commit_on_clause_punct: bool = True  # ，。？！：； commit the buffer
 
+    # Ctrl+symbol -> full-width punctuation (微軟新注音 / 華碩 convention),
+    # in mixed mode only so Ctrl+, / Ctrl+. still reach apps in English mode.
+    ctrl_punctuation: bool = True
+
     # Assistance
     spelling_hint: bool = True  # show zhuyin of the unfinished syllable
     autocomplete: bool = True  # Tab to accept a phrase continuation

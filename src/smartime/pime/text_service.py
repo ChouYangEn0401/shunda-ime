@@ -103,10 +103,17 @@ class SmartTextService:
                 self._clear_ui(reply)
             self._update_mode_icon(reply, force=True)
         elif method == "onCompositionTerminated":
-            # The app ended our composition (click elsewhere, focus change).
-            # Whatever was on screen has been committed by TSF already.
-            s.reset()
-            self._clear_ui(reply, composition=False)
+            if msg.get("forced", False):
+                # The app ended our composition (click elsewhere, focus
+                # change); TSF already left the text in the document.
+                s.reset()
+                self._clear_ui(reply, composition=False)
+            else:
+                # PIME ended it itself: that is the echo of our own commit
+                # (commitString ends the old composition, then PIME starts a
+                # new one for the remaining text). Keep the buffer — resetting
+                # here broke long sentences after an automatic partial commit.
+                log.debug("composition ended by our own commit; keeping buffer")
         else:
             success = False
 

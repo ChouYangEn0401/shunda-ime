@@ -16,7 +16,8 @@ import sys
 from collections.abc import Iterator
 
 from ..engine.keys import (
-    SCAN_RSHIFT, VK_BACK, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE, VK_HOME, VK_LEFT, VK_RETURN,
+    SCAN_RSHIFT, VK_BACK, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE, VK_HOME, VK_LEFT, VK_OEM_1,
+    VK_OEM_2, VK_OEM_4, VK_OEM_6, VK_OEM_7, VK_OEM_COMMA, VK_OEM_MINUS, VK_OEM_PERIOD, VK_RETURN,
     VK_RIGHT, VK_SHIFT, VK_SPACE, VK_TAB, VK_UP, KeyInput,
 )
 from ..engine.session import Session, View
@@ -26,14 +27,21 @@ NAMED = {
     "LEFT": VK_LEFT, "RIGHT": VK_RIGHT, "UP": VK_UP, "DOWN": VK_DOWN, "HOME": VK_HOME,
     "END": VK_END, "SPACE": VK_SPACE,
 }
-_TOKEN = re.compile(r"\{([A-Z]+)\}|(.)", re.S)
+# Physical key for Ctrl combinations, written as {C-,} or {CS-/} (Ctrl+Shift).
+CTRL_KEY_VK = {",": VK_OEM_COMMA, ".": VK_OEM_PERIOD, ";": VK_OEM_1, "'": VK_OEM_7, "/": VK_OEM_2,
+               "-": VK_OEM_MINUS, "[": VK_OEM_4, "]": VK_OEM_6}
+_TOKEN = re.compile(r"\{(CS?)-(.)\}|\{([A-Z]+)\}|(.)", re.S)
 
 
-def parse(script: str) -> Iterator[str | int]:
-    """Yield characters, or VK codes for named keys ({SHIFT} -> VK_SHIFT)."""
+def parse(script: str) -> Iterator[str | int | KeyInput]:
+    """Yield characters, VK codes for named keys ({SHIFT} -> VK_SHIFT), or a
+    ready KeyInput for Ctrl combinations ({C-,}, {CS-/})."""
     for m in _TOKEN.finditer(script):
-        name, ch = m.groups()
-        if name:
+        mods, ctrl_key, name, ch = m.groups()
+        if mods:
+            vk = CTRL_KEY_VK.get(ctrl_key, ord(ctrl_key.upper()))
+            yield KeyInput(vk=vk, ctrl=True, shift=mods == "CS")
+        elif name:
             if name == "SHIFT":
                 yield VK_SHIFT
             elif name == "SPACE":
@@ -44,8 +52,11 @@ def parse(script: str) -> Iterator[str | int]:
             yield ch
 
 
-def press(session: Session, item: str | int) -> tuple[bool, View]:
+def press(session: Session, item: str | int | KeyInput) -> tuple[bool, View]:
     """Send one key the way PIME would (filter, then handle). Returns (handled, view)."""
+    if isinstance(item, KeyInput):
+        handled = session.filter_key_down(item) and session.key_down(item)
+        return handled, session.view()
     if item == VK_SHIFT:
         down = KeyInput(vk=VK_SHIFT, shift=True, scan=SCAN_RSHIFT)
         session.filter_key_down(down)
@@ -105,7 +116,10 @@ def main() -> None:
         handled, view = press(session, item)
         committed.append(view.commit)
         if args.steps:
-            label = item if isinstance(item, str) else f"<vk {item:#x}>"
+            if isinstance(item, KeyInput):
+                label = f"<ctrl{'+shift' if item.shift else ''} {item.vk:#x}>"
+            else:
+                label = item if isinstance(item, str) else f"<vk {item:#x}>"
             print(f"{label!r:>10} {'' if handled else '(pass) '}{describe(view)}")
     print("committed:", repr("".join(committed)))
     print("final    :", describe(view))
