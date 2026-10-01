@@ -24,6 +24,7 @@ class Config:
     # Keyboard
     layout: str = "dachen"
     toggle_shift: str = "right"  # which lone Shift tap toggles English <-> the Chinese-side mode
+    shift_cycle: str = "two"  # "two": 英文 <-> 中文側模式；"three": 自動 -> 純中文 -> 純英文 循環
     start_mode: str = "auto"  # "auto"（中英自動）| "chinese"（純中文）| "english"（純英文）
 
     # Candidate window
@@ -75,6 +76,8 @@ class Config:
             setattr(cfg, key, type(default)(value))
         if cfg.toggle_shift not in TOGGLE_SHIFT_CHOICES:
             cfg.toggle_shift = "right"
+        if cfg.shift_cycle not in ("two", "three"):
+            cfg.shift_cycle = "two"
         cfg.start_mode = _MODE_ALIASES.get(cfg.start_mode, cfg.start_mode)
         if cfg.start_mode not in MODE_CHOICES:
             cfg.start_mode = "auto"

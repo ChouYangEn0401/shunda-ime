@@ -162,6 +162,15 @@ def test_shift_returns_to_last_chinese_side_mode(session):
     assert v.mode is Mode.CHINESE
 
 
+def test_shift_can_cycle_through_three_modes(session):
+    session.cfg.shift_cycle = "three"
+    modes = []
+    for _ in range(3):
+        _, v = run(session, "{SHIFT}")
+        modes.append(v.mode)
+    assert modes == [Mode.CHINESE, Mode.ENGLISH, Mode.AUTO]
+
+
 def test_set_mode_commits_pending_text(session):
     out, _ = run(session, "ji3")
     session.set_mode(Mode.CHINESE)

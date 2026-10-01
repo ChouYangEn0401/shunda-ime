@@ -16,7 +16,7 @@ ICONS = {
     # file: (text, background, foreground)
     "ime.ico": ("智", "#2563EB", "#FFFFFF"),
     # tray icons, one per mode
-    "auto.ico": ("智", "#2563EB", "#FFFFFF"),  # 中英自動
+    "auto.ico": ("自", "#2563EB", "#FFFFFF"),  # 中英自動
     "chinese.ico": ("中", "#0F766E", "#FFFFFF"),  # 純中文
     "english.ico": ("英", "#4B5563", "#FFFFFF"),  # 純英文
 }
