@@ -3,8 +3,8 @@
 免切換中英混打的注音輸入法（Windows）。打字手感參考華碩智慧輸入法：字母先出現、旁邊顯示注音提示、按聲調鍵轉成中文、Tab 接續；
 底層改用「整句重新解碼」的 lattice 解碼器，從根本解決順序打反、多按雜鍵、誤判英文等問題，並記住你的用詞（學錯可以刪）。
 
-> 狀態：**0.2.0**。已完成：混打解碼與容錯、三種輸入模式、我的詞庫與學習記憶、Vim 式修正模式、符號面板、設定頁、倚天鍵盤、單一安裝檔。
-> 進行中：本地語音輸入（按住右 Ctrl 說話）。
+> 狀態：**0.2.0**。已完成：混打解碼與容錯、三種輸入模式、我的詞庫與學習記憶、Vim 式修正模式、符號面板、設定頁、倚天鍵盤、單一安裝檔、
+> 本地語音輸入（按住右 Ctrl 說話）。
 > 調查報告：[docs/research/phase0-1-research.md](docs/research/phase0-1-research.md)
 
 ## 安裝（Windows 10/11）
@@ -88,10 +88,22 @@
 - 設定頁「我的詞庫」可以新增、修改、分類（例如「朋友」放朋友的名字）、刪除；學錯的詞可以刪掉或封鎖
 - 資料只存在這台電腦（`%APPDATA%\SmartIME\user.db`）
 
+### 語音輸入（按住右 Ctrl 說話）
+
+1. 設定頁 →「語音輸入」：第一次先按「安裝語音元件」（不需要系統管理員權限；下載約 110 MB，有 NVIDIA 顯示卡再加約 1.3 GB 的 CUDA 元件）
+2. 下載模型：有 NVIDIA 顯示卡選 **Breeze-ASR-25**（3.1 GB，台灣華語與中英夾雜最準），沒有就選 **SenseVoice**（170 MB，CPU 也很快）
+3. 打開「使用語音輸入」，在任何程式按住右 `Ctrl` 說話、放開，文字就打在游標位置
+
+- 需要麥克風（藍牙耳機要先連上，Windows 才會有輸入裝置）；找不到時提示框會說明
+- 全部在這台電腦上辨識，聲音不會上傳；只有按住右 `Ctrl` 時麥克風才會開啟
+- 右 `Ctrl` 和其他鍵一起按（例如 `右Ctrl+C`）是一般快捷鍵，不會錄音
+- 我的詞庫裡自己加的詞（朋友名字、專案術語）會提示辨識器，英文詞照你的拼法輸出
+- 速度參考：RTX 4070 + Breeze-ASR-25，8.5 秒的話約 0.5 秒辨識完；i9-14900K + SenseVoice 約 0.15 秒
+
 ## 開發
 
 ```powershell
-uv sync --group dev --group build-data          # 建立 .venv（Python 3.13）
+uv sync --group dev --group build-data          # 建立 .venv（Python 3.13）；要開發語音輸入再加 --group voice
 uv run --group build-data python tools/build_data.py   # 建詞庫 -> data/generated/smartime.db
 uv run pytest                                    # 測試
 uv run python -m smartime.devtools.simulate --steps "ji3ap7{DOWN}"   # 不安裝也能模擬打字
@@ -111,7 +123,8 @@ uv run python -m smartime.settings               # 開設定頁（本機網頁�
 src/smartime/engine/    輸入引擎（純標準函式庫）：注音、鍵盤配置、詞庫、使用者詞庫、解碼器、session、修正模式、符號
 src/smartime/pime/      PIME 後端協定（stdin/stdout JSON）與 text service 轉接
 src/smartime/settings/  設定頁：本機 HTTP 伺服器 + 網頁介面（Edge／Chrome App 視窗）
-src/smartime/devtools/  模擬器與實機打字測試（EDIT、RichEdit、Edge）
+src/smartime/voice/     語音輸入：按住右 Ctrl 錄音、本機辨識、打到游標位置（獨立行程）
+src/smartime/devtools/  模擬器與實機測試（EDIT、RichEdit、Edge 打字；語音輸入）
 backend/                PIME 看到的後端資料夾（server.py、settings.py、ime.json、圖示）
 installer/              Inno Setup 安裝檔腳本與安裝時用的輔助程式
 tools/                  建置工具（詞庫、圖示、安裝檔）

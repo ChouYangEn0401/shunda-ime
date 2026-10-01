@@ -24,7 +24,7 @@
 - 引擎只用標準函式庫，所以 embeddable Python 不需要安裝任何套件。
 - 另外兩個行程，都不在打字的路徑上：
   - **設定頁**（`backend/settings.py` → `smartime.settings`）：本機 HTTP 伺服器 + Edge/Chrome App 視窗（見 §5）。
-  - **語音輸入**（`smartime.voice.service`）：開啟語音輸入時才啟動，用另外安裝的 Python 套件。
+  - **語音輸入**（`smartime.voice.service`）：開啟語音輸入時才啟動，用另外安裝的 Python 套件（見 §7）。
 - 三個行程只透過使用者資料夾溝通：`config.json`（後端比對修改時間後重新載入）與 `user.db`（SQLite WAL）。
 
 ## 2. 引擎分層（`src/smartime/engine`）
@@ -145,13 +145,34 @@
 - 移除時保留 PIME 與其他 PIME 輸入法，也不刪 `%APPDATA%\SmartIME`。
 - 發行前驗證：`tools\test_installer.ps1`（一次 UAC：安裝 → 驗證 → 移除 → 還原開發模式）。安裝檔還沒有程式碼簽章。
 
-## 7. 路徑與可攜性
+## 7. 語音輸入（`src/smartime/voice`）
+
+- 獨立行程，不在打字的路徑上。需要的套件（faster-whisper、sherpa-onnx、sounddevice、numpy、opencc；有 NVIDIA 顯示卡
+  另加 cuBLAS／cuDNN）裝在 `%LOCALAPPDATA%\SmartIME\voice-runtime`：設定頁「安裝語音元件」複製輸入法自己的
+  embeddable Python，用官方 `pip.pyz --target` 安裝，不需要管理員權限（`install.py`）。開發時用 repo 的 `.venv`
+  （`uv sync --group voice`）。找 Python 的順序見 `launch.voice_python()`。
+- 啟動：輸入法 `onActivate` 時若 `voice_enabled` 就 `launch.start()`；設定頁打開開關時也會啟動。mutex
+  `Local\SmartIME.Voice` 保證只有一個。服務每 3 秒讀 `config.json`：關掉就自行結束，換模型就在背景重新載入。
+- 按鍵：`WH_KEYBOARD_LL` 放在專用執行緒（自己的訊息迴圈），不攔截任何按鍵，只記狀態並 PostMessage 給主執行緒，
+  所以主執行緒開麥克風或打長文字時不會拖慢整台電腦的鍵盤（Windows 也會移除逾時的 hook）。
+  右 Ctrl 按下 → 開麥克風；放開 → 辨識；中途按了其他鍵 → 取消（那是快捷鍵）；不到 0.35 秒 → 忽略。
+- 辨識（`asr.py`）：`auto` = 有 CUDA 且 Breeze 已下載 → Breeze-ASR-25（faster-whisper／CTranslate2，float16），
+  否則 SenseVoice Small（sherpa-onnx，int8，CPU）。模型在 `%LOCALAPPDATA%\SmartIME\models`（設定頁下載，可續傳）。
+- 後處理（`text.py`）：OpenCC **s2tw**（只換字形；s2twp 會把使用者說的「文件」換成「檔案」）、去掉中文字間空白、
+  SenseVoice 的全大寫英文改回小寫但保留縮寫（API、MVP）、接回被拆開的縮寫（`MV P` → MVP）、我的詞庫裡的英文拼法優先。
+- 輸出：`SendInput` 的 `KEYEVENTF_UNICODE`（App 收到 `VK_PACKET`，本輸入法一律放行）。提示框是
+  `WS_EX_NOACTIVATE` 的小視窗，不搶焦點，文字才會打進原本的視窗。
+- 隱私：只在按住時開麥克風；紀錄檔（`logs\voice.log`）只記音檔秒數、耗時與字數，不記內容。
+- 驗證：`python -m smartime.devtools.voice_test [--engine breeze|sensevoice]`：以錄好的音檔代替麥克風，
+  其餘全是真的（SendInput 按右 Ctrl、辨識、打進啟用本輸入法的文字框）；同樣等閒置 5 秒、碰到鍵盤滑鼠就停。
+
+## 8. 路徑與可攜性
 
 - 系統資料：相對於套件位置解析（`paths.app_root()`），開發與部署兩種版面都適用。
 - 使用者資料：`%APPDATA%\SmartIME`（可用環境變數 `SMARTIME_USER_DIR` 覆寫，測試即如此）。換電腦時帶走此資料夾即可。
 - 程式碼中不得出現機器相關的絕對路徑。
 
-## 8. 開發流程
+## 9. 開發流程
 
 - `install.ps1 -Dev`：`<PIME>\smartime` 變成指向 `repo\backend` 的 junction；改完 Python 程式後，在系統匣 PIME 圖示選「Restart PIME」重啟後端即可。
 - 改 `ime.json`（名稱、GUID、圖示）後需重新執行安裝（會重新登錄 TSF 語言設定檔）。
@@ -171,12 +192,13 @@
   是分析實機問題的最佳資料（配對 SEND/RECV 的 seqNum 即可重建每個 session）；也因此含有使用者打過的字，除錯完應建議關閉。
 - 用 bash heredoc 產生含反斜線的檔案時，`\\` 可能被吃成 `\`（ime.json 事故）；這類檔案請用編輯器／Write 工具寫，並驗證。
 
-## 9. 已知限制（0.2.0）
+## 10. 已知限制（0.2.0）
 
 - 鍵盤：大千、倚天；許氏（一鍵多義）尚未支援。容錯有「順序錯」與「多按雜鍵」，少按/相鄰鍵尚未做。
 - 詞庫缺台灣口語讀音（例：欸 只有 ㄞˇ/ㄟˋ，沒有 ㄟ），需要口語讀音補充表。
 - 語言模型只有詞頻（unigram）：同音字靠詞頻選（例：「打逗號」可能成「打鬥號」），需要學習或 bigram。
 - Chromium 系的自動化實機測試只有 Edge；VS Code、LINE 等 Electron App 靠同一套 `KEEP_APPS` 規則，尚未逐一實測。
 - 提示與 Tab 建議共用一個 message window，樣式為 PIME 預設（非藍色）。
+- 語音輸入的快速鍵固定為右 Ctrl；還不會串流顯示（放開後才辨識整段）。
 - `-Dev` 模式下圖示放在使用者資料夾內，部分 UWP（AppContainer）App 可能讀不到圖示；一般安裝無此問題。
 - PIME 1.3.0 為 2023 版；主線（2026）有修正但無正式發行，之後評估自行建置。
