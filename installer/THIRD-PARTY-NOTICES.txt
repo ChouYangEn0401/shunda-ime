@@ -21,6 +21,12 @@ Each remains under its own license.
    License: MIT, see licenses\McBopomofo-LICENSE.txt.
    https://github.com/openvanilla/McBopomofo
 
+3a. Cangjie 5 code table (倉頡五代補完計劃)
+   Cangjie codes in app\data\generated\smartime.db.
+   Copyright (c) 2025 朱邦復（發明）/倉頡之友·馬來西亞（修訂）/倉頡五代補完計劃（修訂）
+   License: MIT, see licenses\Cangjie5-LICENSE.txt.
+   https://github.com/Jackchows/Cangjie5
+
 4. wordfreq word frequencies
    English word list in app\data\generated\smartime.db.
    Data license: Creative Commons Attribution-ShareAlike 4.0.

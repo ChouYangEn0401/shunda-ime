@@ -139,6 +139,10 @@ def stage(version: str) -> Path:
     if mcb is None:
         raise SystemExit("McBopomofo LICENSE.txt not found in data/vendor; run tools/build_data.py")
     shutil.copy2(mcb, lic / "McBopomofo-LICENSE.txt")
+    cj = next((ROOT / "data" / "vendor").glob("Cangjie5-*/LICENSE"), None)
+    if cj is None:
+        raise SystemExit("Cangjie5 LICENSE not found in data/vendor; run tools/build_data.py")
+    shutil.copy2(cj, lic / "Cangjie5-LICENSE.txt")
 
     (app / "VERSION.txt").write_text(version + "\n", encoding="ascii")
     return STAGE
