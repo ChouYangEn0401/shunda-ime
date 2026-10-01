@@ -30,3 +30,6 @@ user_data/
 .idea/
 Thumbs.db
 Desktop.ini
+
+# Private Python runtime downloaded by scripts/install.ps1
+backend/runtime/
