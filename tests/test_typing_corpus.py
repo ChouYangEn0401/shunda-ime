@@ -56,6 +56,7 @@ NUMBERS_AND_SYMBOLS = [
     pytest.param("100m06", "100元", marks=NEEDS_CONTEXT),  # 100員
     ("100", "100"),
     ("su3cl3<ji3ap7", "你好，我們"),
+    ('ji3ap7"python"', '我們"python"'),  # Shift+' is a plain quote by default
     ("ji3o ", "我ㄟ"),  # reported: ㄟ became "o "
     ("o ", "ㄟ"),
     ("ij3", "我"),  # reported: ㄛㄨˇ

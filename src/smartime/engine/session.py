@@ -19,7 +19,7 @@ from enum import Enum
 
 from ..config import Config
 from . import bopomofo
-from .decoder import CLAUSE_PUNCT, FULLWIDTH_PUNCT, Decoder, Decoding, Key, Kind, Segment
+from .decoder import CLAUSE_PUNCT, FULLWIDTH_PUNCT, PUNCT_VARIANTS, Decoder, Decoding, Key, Kind, Segment
 from .keys import (
     MODIFIER_VKS, SCAN_LSHIFT, SCAN_RSHIFT, VK_BACK, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE,
     VK_HOME, VK_LEFT, VK_NEXT, VK_OEM_1, VK_OEM_2, VK_OEM_4, VK_OEM_6, VK_OEM_7, VK_OEM_COMMA,
@@ -505,7 +505,9 @@ class Session:
 
     def _punct_candidates(self, seg: Segment) -> list[Candidate]:
         raw = self.keys[seg.start].char
-        options = [FULLWIDTH_PUNCT[raw], raw] if raw in FULLWIDTH_PUNCT else [raw]
+        options = [seg.text]  # current choice first, then the other style
+        if raw in FULLWIDTH_PUNCT:
+            options += [FULLWIDTH_PUNCT[raw], raw, *PUNCT_VARIANTS.get(raw, "")]
         return [Candidate(o, replace(seg, text=o, pinned=True)) for o in dict.fromkeys(options)]
 
     def _candidate_key(self, key: KeyInput) -> bool:

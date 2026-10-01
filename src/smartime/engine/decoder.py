@@ -80,8 +80,8 @@ class Weights:
     # A stray lowercase/layout key typed by accident (fast typing, or left
     # behind by Backspace) is dropped rather than shown as a lone letter.
     drop: float = -6.5  # must stay below the rarest real syllable (ㄟ -5.9 + space)
-    punct_fullwidth: float = -1.0  # Shift+, -> ，
-    punct_ascii_alt: float = -4.0  # Shift+, -> <
+    punct_preferred: float = -1.0  # the configured style for Shift+symbol
+    punct_alternative: float = -4.0  # the other style (still in the candidates)
     punct_layout_key: float = -6.0  # , . / ; - typed as literal punctuation
     punct_other: float = -2.0  # = \ ` etc.
     space: float = -0.5
@@ -94,6 +94,12 @@ FULLWIDTH_PUNCT = {
     "<": "，", ">": "。", "?": "？", "!": "！", ":": "：", '"': "；",
     "'": "、", "[": "「", "]": "」", "{": "『", "}": "』",
     "(": "（", ")": "）", "~": "～", "\\": "＼",
+}
+# Other symbols a punctuation key can stand for, offered in the candidate
+# window after the full-width and half-width forms.
+PUNCT_VARIANTS = {
+    '"': "“”「」", "'": "‘’", "<": "《〈", ">": "》〉", "[": "【〔", "]": "】〕",
+    "{": "｛", "}": "｝", "?": "", "!": "", ":": "", "(": "", ")": "", "~": "", "\\": "",
 }
 # Keys that may be dropped as accidental: lowercase letters and the layout's
 # punctuation keys. Never digits, spaces, capitals or shifted symbols.
@@ -130,10 +136,12 @@ _NONE, _ZH, _EN = 0, 1, 2
 
 
 class Decoder:
-    def __init__(self, lexicon: Lexicon, layout: Layout, weights: Weights | None = None):
+    def __init__(self, lexicon: Lexicon, layout: Layout, weights: Weights | None = None,
+                 halfwidth_symbols: str = '"'):
         self.lex = lexicon
         self.layout = layout
         self.w = weights or Weights()
+        self.halfwidth_symbols = frozenset(halfwidth_symbols)
 
     # ------------------------------------------------------------------
     def decode(self, keys: Sequence[Key], pins: Sequence[Segment] = ()) -> Decoding:
@@ -303,8 +311,12 @@ class Decoder:
         if ch == " ":
             yield Segment(i, i + 1, " ", Kind.SPACE, w.space)
         elif ch in FULLWIDTH_PUNCT:
-            yield Segment(i, i + 1, FULLWIDTH_PUNCT[ch], Kind.PUNCT, w.punct_fullwidth)
-            yield Segment(i, i + 1, ch, Kind.PUNCT, w.punct_ascii_alt)
+            # Full-width unless the user listed the symbol as half-width.
+            fullwidth_first = ch not in self.halfwidth_symbols
+            full, ascii_ = (w.punct_preferred, w.punct_alternative) if fullwidth_first else (
+                w.punct_alternative, w.punct_preferred)
+            yield Segment(i, i + 1, FULLWIDTH_PUNCT[ch], Kind.PUNCT, full)
+            yield Segment(i, i + 1, ch, Kind.PUNCT, ascii_)
         elif self.layout.is_layout_key(ch) and not ch.isalnum():
             yield Segment(i, i + 1, ch, Kind.PUNCT, w.punct_layout_key)
         elif not ch.isalnum() and ch.isprintable():

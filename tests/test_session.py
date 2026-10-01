@@ -27,15 +27,24 @@ def test_enter_commits_buffer(session):
     assert v.composition == ""
 
 
+def test_double_quote_is_halfwidth(session):
+    _, v = run(session, 'ji3ap7"python"')
+    assert v.composition == '我們"python"'
+
+
 def test_clause_punctuation_commits(session):
     out, v = run(session, "su3cl3<")
     assert out == "你好，"
     assert v.composition == ""
-
-
-def test_shifted_punct_alone_commits_fullwidth(session):
     out, _ = run(session, "?")
     assert out == "？"
+
+
+def test_punctuation_variants_in_candidates(session):
+    # the other width and related symbols are one ↓ away
+    _, v = run(session, '"{DOWN}')
+    assert v.candidates[:3] == ['"', "；", "“"]
+    assert "「" in v.candidates
 
 
 def test_english_token_offers_chinese_readings(session):

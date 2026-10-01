@@ -36,6 +36,11 @@ class Config:
     # Ctrl+symbol -> full-width punctuation (微軟新注音 / 華碩 convention),
     # in mixed mode only so Ctrl+, / Ctrl+. still reach apps in English mode.
     ctrl_punctuation: bool = True
+    # Symbol keys normally give full-width punctuation (Shift+1 -> ！,
+    # Shift+; -> ：). Symbols listed here stay half-width instead. Default: the
+    # double quote, which the user expects to be " (not ；, which is Ctrl+;).
+    # The other form is always one ↓ away in the candidate window.
+    halfwidth_symbols: str = '"'
 
     # Assistance
     spelling_hint: bool = True  # show zhuyin of the unfinished syllable

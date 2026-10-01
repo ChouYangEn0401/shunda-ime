@@ -42,7 +42,8 @@ def build_engine() -> Engine:
     config = Config.load(paths.config_path())
     lexicon = Lexicon(paths.system_db_path())
     layout = get_layout(config.layout)
-    return Engine(lexicon=lexicon, layout=layout, decoder=Decoder(lexicon, layout), config=config)
+    decoder = Decoder(lexicon, layout, halfwidth_symbols=config.halfwidth_symbols)
+    return Engine(lexicon=lexicon, layout=layout, decoder=decoder, config=config)
 
 
 def serve(stdin, stdout, engine: Engine, icon_dir: Path) -> None:

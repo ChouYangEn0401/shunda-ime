@@ -25,6 +25,22 @@ def test_exact_typing(decoder, keys, text):
     assert decode(decoder, keys).text == text
 
 
+def test_double_quote_is_halfwidth_by_default(decoder):
+    # the user wanted " and got ；（；is Ctrl+;）
+    assert decode(decoder, '"').text == '"'
+    assert decode(decoder, "!").text == "！"
+
+
+def test_halfwidth_symbols_setting(lexicon):
+    from smartime.engine.decoder import Decoder
+    from smartime.engine.layouts import DACHEN
+
+    d = Decoder(lexicon, DACHEN, halfwidth_symbols="")  # everything full-width
+    assert decode(d, '"').text == "；"
+    d = Decoder(lexicon, DACHEN, halfwidth_symbols='<>?!:"')
+    assert decode(d, "su3cl3<").text == "你好<"
+
+
 def test_stray_key_between_chinese_is_dropped(decoder):
     # 'e' left behind after deleting a failed syllable's tone (real log)
     d = decode(decoder, "ji3ee/4")
