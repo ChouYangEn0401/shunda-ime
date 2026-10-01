@@ -1,0 +1,727 @@
+<title>智慧輸入法設定</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: a desktop settings window — section rail on the left, one pane of grouped rows on the right; rail turns into a chip strip on phones. */
+:root {
+  --bg: #eef1f6;          /* window ground, cool grey biased toward the IME blue */
+  --panel: #ffffff;
+  --rail: #e5e9f1;
+  --fg: #1b2230;
+  --muted: #5c6577;
+  --line: #d6dbe5;
+  --accent: #2563eb;       /* 智 icon blue */
+  --accent-soft: #dbe6fd;
+  --teal: #0f766e;         /* 中 icon */
+  --grey-mode: #4b5563;    /* 英 icon */
+  --ok: #15803d;
+  --ok-soft: #dcf2e3;
+  --plan: #9a5b00;
+  --plan-soft: #fbeccc;
+  --warn: #b42318;
+  --warn-soft: #fbe2df;
+  --key: #f6f7fa;
+  --key-edge: #c3c9d6;
+  --hint: #1d4ed8;
+  --font-ui: "Noto Sans TC", "Microsoft JhengHei UI", "PingFang TC", system-ui, sans-serif;
+  --font-key: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151d; --panel: #1a202b; --rail: #151a23; --fg: #e6e9ef; --muted: #9aa3b5; --line: #2c3442;
+    --accent: #6b9bff; --accent-soft: #1f2d4d; --teal: #3fb8ac; --grey-mode: #9aa3b5;
+    --ok: #4ade80; --ok-soft: #143222; --plan: #f2b553; --plan-soft: #3a2a0e; --warn: #ff8a7a; --warn-soft: #3d1a17;
+    --key: #222937; --key-edge: #3a4456; --hint: #8fb2ff; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151d; --panel: #1a202b; --rail: #151a23; --fg: #e6e9ef; --muted: #9aa3b5; --line: #2c3442;
+  --accent: #6b9bff; --accent-soft: #1f2d4d; --teal: #3fb8ac; --grey-mode: #9aa3b5;
+  --ok: #4ade80; --ok-soft: #143222; --plan: #f2b553; --plan-soft: #3a2a0e; --warn: #ff8a7a; --warn-soft: #3d1a17;
+  --key: #222937; --key-edge: #3a4456; --hint: #8fb2ff; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 15px; line-height: 1.6; }
+.page { padding-inline: 16px; padding-block: 20px 40px; max-width: 1180px; margin: 0 auto; }
+
+.titlebar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.appicon { width: 34px; height: 34px; border-radius: 8px; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 20px; flex: none; }
+.titlebar h1 { font-size: 20px; font-weight: 700; margin: 0; text-wrap: balance; }
+.titlebar .sub { color: var(--muted); font-size: 13px; }
+.legend { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); align-items: center; }
+
+.window { display: grid; grid-template-columns: 220px minmax(0, 1fr); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; min-height: 640px; }
+nav.rail { background: var(--rail); padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line); }
+nav.rail button { all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; color: var(--fg); font-size: 14px; }
+nav.rail button .glyph { width: 22px; text-align: center; font-family: var(--font-key); color: var(--muted); font-size: 13px; }
+nav.rail button:hover { background: color-mix(in srgb, var(--accent-soft) 60%, transparent); }
+nav.rail button[aria-current="page"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+nav.rail button[aria-current="page"] .glyph { color: var(--accent); }
+nav.rail button:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+main.pane { padding: 22px 28px 32px; min-width: 0; }
+section.view > h2 { font-size: 22px; margin: 0 0 4px; text-wrap: balance; }
+section.view > .lead { color: var(--muted); margin: 0 0 18px; max-width: 65ch; }
+
+.group { border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 18px; }
+.group > h3 { font-size: 13px; letter-spacing: .06em; color: var(--muted); font-weight: 500; margin: 0; padding: 10px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 20px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.row .label { font-weight: 500; }
+.row .desc { color: var(--muted); font-size: 13px; max-width: 62ch; }
+.row .full { grid-column: 1 / -1; min-width: 0; }
+
+.badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.badge.done { background: var(--ok-soft); color: var(--ok); }
+.badge.plan { background: var(--plan-soft); color: var(--plan); }
+.badge.later { background: var(--accent-soft); color: var(--accent); }
+.badge.warn { background: var(--warn-soft); color: var(--warn); }
+
+/* switch */
+.switch { position: relative; width: 44px; height: 24px; flex: none; }
+.switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--key-edge); transition: background .15s; pointer-events: none; }
+.switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.switch input:checked + span { background: var(--accent); }
+.switch input:checked + span::after { transform: translateX(20px); }
+.switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* segmented */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex-wrap: wrap; }
+.seg button { all: unset; cursor: pointer; padding: 6px 14px; font-size: 14px; color: var(--fg); border-right: 1px solid var(--line); display: inline-flex; gap: 6px; align-items: center; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+
+.mode-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.mode-card { all: unset; cursor: pointer; border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: start; }
+.mode-card[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.mode-card .ico { grid-row: span 2; width: 32px; height: 32px; border-radius: 7px; color: #fff; display: grid; place-items: center; font-weight: 700; }
+.mode-card b { font-size: 15px; }
+.mode-card small { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+
+select, input[type="text"], input[type="number"] { font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; min-width: 0; }
+input[type="range"] { accent-color: var(--accent); width: 160px; max-width: 100%; }
+.btn { all: unset; cursor: pointer; padding: 6px 14px; border-radius: 7px; border: 1px solid var(--line); font-size: 14px; white-space: nowrap; }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.danger { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+.btn:hover { filter: brightness(1.05); }
+
+kbd { font-family: var(--font-key); font-size: 12.5px; background: var(--key); border: 1px solid var(--key-edge); border-bottom-width: 2px; border-radius: 5px; padding: 0 6px; white-space: nowrap; }
+code { font-family: var(--font-key); font-size: 13px; }
+
+/* 大千 keyboard */
+.kb { display: grid; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.kb .krow { display: flex; gap: 6px; }
+.kb .krow:nth-child(2) { padding-left: 18px; } .kb .krow:nth-child(3) { padding-left: 30px; } .kb .krow:nth-child(4) { padding-left: 48px; }
+.kcap { width: 46px; height: 46px; flex: none; border: 1px solid var(--key-edge); border-bottom-width: 3px; border-radius: 7px; background: var(--key); position: relative; }
+.kcap .k { position: absolute; top: 3px; left: 6px; font-family: var(--font-key); font-size: 11px; color: var(--muted); }
+.kcap .z { position: absolute; right: 7px; bottom: 3px; font-size: 18px; font-weight: 500; }
+.kcap.tone .z { color: var(--accent); }
+.kcap.space { width: 220px; }
+.kcap.space .z { font-size: 13px; }
+
+/* previews */
+.preview { background: var(--bg); border: 1px dashed var(--line); border-radius: var(--radius); padding: 14px; display: flex; gap: 22px; flex-wrap: wrap; align-items: flex-start; }
+.compose { font-size: 18px; }
+.compose .u { text-decoration: underline dotted; text-underline-offset: 5px; }
+.compose .cur { display: inline-block; width: 2px; height: 1.1em; background: var(--fg); vertical-align: -0.15em; margin: 0 1px; }
+.tip { display: inline-block; margin-top: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 2px 10px; color: var(--hint); font-size: 14px; }
+.cand { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; width: 150px; padding: 6px; box-shadow: 0 6px 18px color-mix(in srgb, var(--fg) 12%, transparent); }
+.cand .head { font-size: 12px; color: var(--muted); padding: 2px 8px 6px; display: flex; justify-content: space-between; }
+.cand ol { list-style: none; margin: 0; padding: 0; }
+.cand li { display: flex; gap: 10px; padding: 3px 8px; border-radius: 6px; font-size: 16px; }
+.cand li .n { color: var(--muted); font-family: var(--font-key); font-size: 13px; width: 12px; padding-top: 2px; }
+.cand li.sel { background: var(--accent); color: #fff; }
+.cand li.sel .n { color: #fff; }
+.cand li .tag { margin-left: auto; font-size: 11px; color: var(--muted); padding-top: 3px; }
+.cand li.sel .tag { color: #fff; }
+
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12.5px; letter-spacing: .03em; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; text-align: right; }
+.scroll { overflow-x: auto; }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { all: unset; cursor: pointer; padding: 3px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; }
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--panel); border-color: var(--fg); }
+.cat { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--key); border: 1px solid var(--line); white-space: nowrap; }
+.wrong td { background: var(--warn-soft); }
+
+.addform { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.note { font-size: 13px; color: var(--muted); }
+.callout { border-left: 3px solid var(--plan); background: var(--plan-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 14px; max-width: 75ch; }
+.callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+.views { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.views div { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--panel); min-width: 0; }
+.views b { display: block; font-size: 12px; color: var(--muted); font-weight: 500; letter-spacing: .04em; }
+.views span { font-size: 18px; overflow-wrap: anywhere; }
+.views .hl { background: var(--warn-soft); color: var(--warn); border-radius: 4px; padding: 0 2px; }
+
+.palette { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px; width: min(100%, 360px); }
+.palette .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.palette .tabs span { font-size: 12px; padding: 2px 8px; border-radius: 6px; color: var(--muted); }
+.palette .tabs span.on { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.palette .grid { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 4px; }
+.palette .grid span { text-align: center; padding: 4px 0; border-radius: 5px; background: var(--key); font-size: 16px; }
+
+@media (max-width: 760px) {
+  .window { grid-template-columns: minmax(0, 1fr); }
+  nav.rail { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  nav.rail button { white-space: nowrap; }
+  main.pane { padding: 16px; }
+  .mode-cards, .views { grid-template-columns: minmax(0, 1fr); }
+  .addform { grid-template-columns: minmax(0, 1fr); }
+  .row { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="page">
+  <div class="titlebar">
+    <div class="appicon" aria-hidden="true">智</div>
+    <div>
+      <h1>智慧輸入法 設定</h1>
+      <div class="sub">設計稿 · 版本 0.1（Phase 4-2）· 所有按鈕都可以點，但不會真的改到你的輸入法</div>
+    </div>
+    <div class="legend">
+      <span class="badge done">已完成</span> 現在就能用
+      <span class="badge plan">提案</span> 等你決定
+      <span class="badge later">Phase 6+</span> 之後的階段
+    </div>
+  </div>
+
+  <div class="window">
+    <nav class="rail" aria-label="設定分類">
+      <button data-view="general" aria-current="page"><span class="glyph">智</span>一般</button>
+      <button data-view="typing"><span class="glyph">ㄅ</span>打字與選字</button>
+      <button data-view="fix"><span class="glyph">✎</span>智慧修正</button>
+      <button data-view="punct"><span class="glyph">，</span>標點與符號</button>
+      <button data-view="dict"><span class="glyph">詞</span>我的詞庫</button>
+      <button data-view="keys"><span class="glyph">⌨</span>快捷鍵一覽</button>
+      <button data-view="voice"><span class="glyph">◉</span>語音輸入</button>
+      <button data-view="data"><span class="glyph">⇅</span>資料與隱私</button>
+      <button data-view="about"><span class="glyph">i</span>關於</button>
+    </nav>
+
+    <main class="pane">
+      <!-- ============ 一般 ============ -->
+      <section class="view" id="view-general">
+        <h2>一般</h2>
+        <p class="lead">輸入模式、切換鍵與鍵盤配置。系統匣圖示會跟著模式改變。</p>
+
+        <div class="group">
+          <h3>輸入模式 <span class="badge done">已完成</span></h3>
+          <div class="row">
+            <div class="full">
+              <div class="mode-cards" id="modes">
+                <button class="mode-card" aria-pressed="true" data-mode="auto">
+                  <span class="ico" style="background: var(--accent)">智</span>
+                  <b>中英自動</b><small>不用切換，整句判斷哪段是中文、哪段是英文。</small>
+                </button>
+                <button class="mode-card" aria-pressed="false" data-mode="chinese">
+                  <span class="ico" style="background: var(--teal)">中</span>
+                  <b>純中文</b><small>每個鍵都是注音，和傳統注音輸入法一樣；數字用數字鍵盤。</small>
+                </button>
+                <button class="mode-card" aria-pressed="false" data-mode="english">
+                  <span class="ico" style="background: var(--grey-mode)">英</span>
+                  <b>純英文</b><small>按鍵直接交給程式，例如在 VS Code 用 <kbd>Ctrl</kbd>+<kbd>,</kbd> 開設定。</small>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div><div class="label">開啟時的模式</div><div class="desc">切到智慧輸入法時先用哪一種。</div></div>
+            <select id="start-mode" aria-label="開啟時的模式"><option>中英自動</option><option>純中文</option><option>純英文</option></select>
+          </div>
+          <div class="row">
+            <div><div class="label">切換英文的 Shift</div><div class="desc">單按一下 Shift：英文 ⇄ 上次用的中文模式。按住 Shift 打大寫不受影響。</div></div>
+            <div class="seg" role="group" aria-label="切換英文的 Shift">
+              <button aria-pressed="false">左</button><button aria-pressed="true">右</button><button aria-pressed="false">兩邊</button><button aria-pressed="false">關閉</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3>鍵盤配置 <span class="badge done">大千</span> <span class="badge later">倚天、許氏之後支援</span></h3>
+          <div class="row"><div class="full">
+            <div class="kb" aria-label="大千注音鍵盤">
+              <div class="krow" id="kb1"></div><div class="krow" id="kb2"></div><div class="krow" id="kb3"></div><div class="krow" id="kb4"></div>
+              <div class="krow" style="padding-left: 160px"><div class="kcap space tone"><span class="k">space</span><span class="z">一聲</span></div></div>
+            </div>
+            <p class="note">藍色是聲調鍵。同一個字的注音順序打反（<kbd>k</kbd><kbd>2</kbd><kbd>7</kbd> 打成 ㄜㄉ˙）也會辨識成「的」。</p>
+          </div></div>
+        </div>
+      </section>
+
+      <!-- ============ 打字與選字 ============ -->
+      <section class="view" id="view-typing" hidden>
+        <h2>打字與選字</h2>
+        <p class="lead">打字時旁邊的提示、Tab 接續，以及候選窗的樣子。</p>
+
+        <div class="group">
+          <h3>預覽</h3>
+          <div class="row"><div class="full preview">
+            <div>
+              <div class="compose"><span class="u">我們今天開</span><span class="cur"></span></div>
+              <div class="tip" id="sugg-tip">會 ⇥</div>
+            </div>
+            <div class="cand" aria-label="候選窗預覽">
+              <div class="head"><span>mvp␣ 按 ↓</span><span>1/2 →</span></div>
+              <ol id="cand-list"></ol>
+            </div>
+          </div></div>
+        </div>
+
+        <div class="group">
+          <h3>提示 <span class="badge done">已完成</span></h3>
+          <div class="row">
+            <div><div class="label">注音提示</div><div class="desc">還沒打聲調時，旁邊顯示會變成的注音（打 <kbd>k</kbd><kbd>2</kbd> 顯示 ㄉㄜ）。</div></div>
+            <label class="switch"><input type="checkbox" checked aria-label="注音提示"><span></span></label>
+          </div>
+          <div class="row">
+            <div><div class="label">游標往回移時顯示按鍵對照</div><div class="desc">例：<span class="tip" style="margin:0">（略過 e）更 ㄍㄥˋ ⌨ e/4</span>，一眼看出多按了哪個鍵。</div></div>
+            <label class="switch"><input type="checkbox" checked aria-label="按鍵對照"><span></span></label>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3>Tab 接續 <span class="badge done">一個建議</span> <span class="badge plan">多個建議</span></h3>
+          <div class="row">
+            <div><div class="label">接續建議</div><div class="desc">打完一個詞，旁邊出現可能接下去的字，按 <kbd>Tab</kbd> 帶入。</div></div>
+            <label class="switch"><input type="checkbox" checked aria-label="接續建議"><span></span></label>
+          </div>
+          <div class="row">
+            <div><div class="label">一次顯示幾個建議</div><div class="desc"><kbd>Tab</kbd> 帶入第一個；<kbd>Shift</kbd>+<kbd>Tab</kbd> 打開完整接續清單（1–9 選）。你選過的接續會排到前面。</div></div>
+            <div style="display:flex; gap:10px; align-items:center"><input type="range" id="sugg-n" min="1" max="5" value="3" aria-label="建議數量"><b id="sugg-n-out" style="font-variant-numeric: tabular-nums">3</b></div>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3>候選窗與送出 <span class="badge done">已完成</span></h3>
+          <div class="row">
+            <div><div class="label">每頁候選數</div></div>
+            <select aria-label="每頁候選數"><option>5</option><option>7</option><option selected>9</option></select>
+          </div>
+          <div class="row">
+            <div><div class="label">候選字大小</div></div>
+            <select aria-label="候選字大小"><option>14</option><option selected>16</option><option>18</option><option>20</option></select>
+          </div>
+          <div class="row">
+            <div><div class="label">句讀標點自動送出</div><div class="desc">打 ，。？！：； 時把整段送出。</div></div>
+            <label class="switch"><input type="checkbox" checked aria-label="句讀送出"><span></span></label>
+          </div>
+          <div class="row">
+            <div><div class="label">組字區最多幾個字</div><div class="desc">超過時自動送出前面的字（正在打的音節不會被打斷）。</div></div>
+            <input type="number" value="30" min="10" max="60" style="width: 80px" aria-label="組字區字數">
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 智慧修正 ============ -->
+      <section class="view" id="view-fix" hidden>
+        <h2>智慧修正</h2>
+        <p class="lead">打快時的錯誤會自動修好；修不好的，用候選窗或修正模式手動改。</p>
+
+        <div class="group">
+          <h3>自動修正 <span class="badge done">已完成</span></h3>
+          <div class="row">
+            <div><div class="label">注音順序容錯</div><div class="desc"><code>k27</code>→的、<code>8a3</code>→碼、<code>ij3</code>→我。</div></div>
+            <label class="switch"><input type="checkbox" checked aria-label="順序容錯"><span></span></label>
+          </div>
+          <div class="row">
+            <div><div class="label">略過多按的雜鍵</div><div class="desc"><code>我e更快</code>→我更快。被略過的鍵可在候選窗「原始按鍵」找回。</div></div>
+            <div class="seg" role="group" aria-label="略過雜鍵的程度">
+              <button aria-pressed="false">關閉</button><button aria-pressed="false">保守</button><button aria-pressed="true">標準</button>
+            </div>
+          </div>
+          <div class="row">
+            <div><div class="label">單一字母依前後文判斷</div><div class="desc"><code>i am a good guy</code> 維持英文；<code>你想我i␣</code> 變成「你想我喔」。</div></div>
+            <label class="switch"><input type="checkbox" checked aria-label="單一字母判斷"><span></span></label>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3>學習 <span class="badge plan">下一步</span></h3>
+          <div class="row">
+            <div><div class="label">記住我選的字</div><div class="desc">從候選窗選過的詞、接續、英文↔中文的選擇，下次排前面。學錯的可以在「我的詞庫」或候選窗直接刪。</div></div>
+            <label class="switch"><input type="checkbox" checked aria-label="記住我選的字"><span></span></label>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3>修正模式（類似 Vim） <span class="badge plan">提案</span></h3>
+          <div class="row"><div class="full">
+            <p class="callout" style="margin-top:0">組字中按 <kbd>Esc</kbd> 進入修正模式（不再直接清除整段；修正模式中再按 <kbd>Esc</kbd> 才清除）。手不用離開主鍵區，就能看到每個字背後的注音和按鍵並直接修改。</p>
+            <div class="views" style="margin: 12px 0">
+              <div><b>國字（v 切換）</b><span>我更快的打字</span></div>
+              <div><b>注音</b><span>ㄨㄛˇ ㄍㄥˋ ㄎㄨㄞˋ ㄉㄜ˙ ㄉㄚˇ ㄗˋ</span></div>
+              <div><b>按鍵</b><span>ji3 <span class="hl">e</span>e/4 dj94 k27 283 y4</span></div>
+            </div>
+            <div class="scroll"><table>
+              <thead><tr><th>按鍵</th><th>動作</th></tr></thead>
+              <tbody>
+                <tr><td><kbd>h</kbd> <kbd>l</kbd></td><td>移到上一個／下一個字</td></tr>
+                <tr><td><kbd>j</kbd> <kbd>k</kbd></td><td>直接換成下一個／上一個候選（不開視窗）</td></tr>
+                <tr><td><kbd>v</kbd></td><td>切換顯示：國字 → 注音 → 按鍵</td></tr>
+                <tr><td><kbd>x</kbd></td><td>刪掉游標上的字；在「按鍵」檢視時只刪一個鍵（例如那個多按的 e）</td></tr>
+                <tr><td><kbd>e</kbd></td><td>這段在 中文 ⇄ 英文 ⇄ 原始按鍵 之間切換</td></tr>
+                <tr><td><kbd>r</kbd></td><td>重打這一個字（其他字不動）</td></tr>
+                <tr><td><kbd>a</kbd></td><td>把游標上的詞加入詞庫，選分類</td></tr>
+                <tr><td><kbd>u</kbd></td><td>復原上一個修正</td></tr>
+                <tr><td><kbd>i</kbd></td><td>回到打字；<kbd>Enter</kbd> 送出整段</td></tr>
+              </tbody>
+            </table></div>
+          </div></div>
+        </div>
+      </section>
+
+      <!-- ============ 標點與符號 ============ -->
+      <section class="view" id="view-punct" hidden>
+        <h2>標點與符號</h2>
+        <p class="lead">每個符號鍵要全形還是半形。另一種寫法永遠在候選窗按 <kbd>↓</kbd> 就有。</p>
+
+        <div class="group">
+          <h3>符號鍵輸出 <span class="badge done">已完成</span></h3>
+          <div class="row">
+            <div><div class="label">快速設定</div></div>
+            <div class="seg" role="group" aria-label="符號鍵快速設定" id="punct-preset">
+              <button aria-pressed="false" data-preset="full">全部全形</button><button aria-pressed="false" data-preset="half">全部半形</button><button aria-pressed="true" data-preset="custom">自訂</button>
+            </div>
+          </div>
+          <div class="row"><div class="full scroll">
+            <table id="punct-table">
+              <thead><tr><th>按鍵</th><th>全形</th><th>半形</th><th>候選窗裡的其他符號</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div></div>
+          <div class="row">
+            <div><div class="label"><kbd>Ctrl</kbd>+符號 打全形標點</div><div class="desc">微軟新注音／華碩的習慣：<kbd>Ctrl</kbd>+<kbd>,</kbd> ，、<kbd>Ctrl</kbd>+<kbd>;</kbd> ；、<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>/</kbd> ？。純英文模式時交給程式。</div></div>
+            <label class="switch"><input type="checkbox" checked aria-label="Ctrl 標點"><span></span></label>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3>符號面板 <span class="badge plan">提案</span></h3>
+          <div class="row"><div class="full preview">
+            <div class="palette" aria-label="符號面板預覽">
+              <div class="tabs"><span class="on">常用</span><span>括號引號</span><span>希臘字母</span><span>數學</span><span>箭頭</span><span>單位</span></div>
+              <div class="grid" id="palette-grid"></div>
+            </div>
+            <div style="max-width: 46ch; min-width: 0">
+              <p style="margin-top:0">按 <kbd>`</kbd> 打開面板（華碩也是這個鍵）。<kbd>Tab</kbd> 換分類、<kbd>1</kbd>–<kbd>9</kbd> 或方向鍵選、連按兩次 <kbd>`</kbd> 輸出 ` 本身。</p>
+              <p class="note">希臘字母、數學符號、箭頭、單位（℃、㎡、％）都在這裡，不用記快捷鍵。常用的符號會自動排前面。</p>
+            </div>
+          </div></div>
+        </div>
+
+        <div class="group">
+          <h3>Alt 快速切換？</h3>
+          <div class="row"><div class="full">
+            <p class="callout warn" style="margin:0">不建議用 <kbd>Alt</kbd>：<kbd>Alt</kbd>+字母是程式選單的快捷鍵，<kbd>Alt</kbd>+<kbd>Shift</kbd> 是 Windows 切換鍵盤，單按 <kbd>Alt</kbd> 會跳到選單列。符號寬度改用上面的設定、候選窗 <kbd>↓</kbd> 和符號面板處理。</p>
+          </div></div>
+        </div>
+      </section>
+
+      <!-- ============ 我的詞庫 ============ -->
+      <section class="view" id="view-dict" hidden>
+        <h2>我的詞庫</h2>
+        <p class="lead">自己加的詞和輸入法學到的詞都在這裡，可以分類、搜尋、刪除。朋友的名字放進「朋友」分類，打注音時會排第一，不用每次找半天。</p>
+
+        <div class="group">
+          <h3>新增詞 <span class="badge plan">提案</span></h3>
+          <div class="row"><div class="full">
+            <form class="addform" id="add-form">
+              <input type="text" id="add-word" placeholder="詞，例如：陳怡君" aria-label="詞">
+              <input type="text" id="add-reading" placeholder="注音（留空會自動產生）" aria-label="注音">
+              <select id="add-cat" aria-label="分類"><option>朋友</option><option>專案術語</option><option>常用英文</option><option>常用詞</option></select>
+              <button class="btn primary" type="submit">加入</button>
+            </form>
+            <p class="note" style="margin-bottom:0">也可以在打字時把詞加進來：修正模式按 <kbd>a</kbd>，或候選窗按 <kbd>Ctrl</kbd>+<kbd>D</kbd>。</p>
+          </div></div>
+        </div>
+
+        <div class="group">
+          <h3>詞條 <span class="badge plan">提案</span> <span class="note" style="letter-spacing:0">下面都是範例資料</span></h3>
+          <div class="row"><div class="full" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+            <div class="chips" id="cat-chips"></div>
+            <input type="text" id="dict-search" placeholder="搜尋詞或注音" aria-label="搜尋詞庫" style="margin-left:auto">
+          </div></div>
+          <div class="row"><div class="full scroll">
+            <table>
+              <thead><tr><th>詞</th><th>讀音／按鍵</th><th>分類</th><th>來源</th><th style="text-align:right">用過</th><th></th></tr></thead>
+              <tbody id="dict-body"></tbody>
+            </table>
+          </div></div>
+        </div>
+
+        <div class="group">
+          <h3>選字時用分類找詞 <span class="badge plan">提案</span></h3>
+          <div class="row"><div class="full">
+            <p style="margin:0">候選窗會在詞旁標上分類（例如「陳怡君 朋友」）。在候選窗按 <kbd>Tab</kbd> 可以只看某一類，打「ㄔㄣˊ」就先看到朋友名字。</p>
+          </div></div>
+        </div>
+      </section>
+
+      <!-- ============ 快捷鍵 ============ -->
+      <section class="view" id="view-keys" hidden>
+        <h2>快捷鍵一覽</h2>
+        <p class="lead">所有按鍵都列在這裡。灰色標籤是還沒做的提案。</p>
+        <div class="group"><div class="scroll"><table id="keys-table">
+          <thead><tr><th>情境</th><th>按鍵</th><th>動作</th><th>狀態</th></tr></thead>
+          <tbody></tbody>
+        </table></div></div>
+      </section>
+
+      <!-- ============ 語音 ============ -->
+      <section class="view" id="view-voice" hidden>
+        <h2>語音輸入</h2>
+        <p class="lead">按住快速鍵說話，放開就把文字打到游標位置。全部在你的電腦上辨識，聲音不會上傳。</p>
+        <div class="group">
+          <h3>語音輸入 <span class="badge later">Phase 6</span></h3>
+          <div class="row">
+            <div><div class="label">快速鍵</div><div class="desc">建議按住右 <kbd>Ctrl</kbd>：單獨按下不會觸發程式功能。</div></div>
+            <select aria-label="語音快速鍵"><option>按住右 Ctrl</option><option>按住 F8</option><option>按一下開始、再按一下結束</option></select>
+          </div>
+          <div class="row">
+            <div><div class="label">辨識模型</div><div class="desc">Breeze-ASR-25：聯發科針對台灣華語與中英夾雜調整，用你的 RTX 4070。SenseVoice：沒有顯示卡也很快。</div></div>
+            <select aria-label="辨識模型"><option>Breeze-ASR-25（顯示卡）</option><option>SenseVoice Small（CPU）</option></select>
+          </div>
+          <div class="row">
+            <div><div class="label">用我的詞庫幫助辨識</div><div class="desc">朋友名字、專案術語會被優先辨識，例如說「MVP」不會變成「MVB」。</div></div>
+            <label class="switch"><input type="checkbox" checked aria-label="詞庫熱詞"><span></span></label>
+          </div>
+          <div class="row">
+            <div><div class="label">輸出繁體（台灣用語）</div></div>
+            <label class="switch"><input type="checkbox" checked aria-label="繁體輸出"><span></span></label>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 資料 ============ -->
+      <section class="view" id="view-data" hidden>
+        <h2>資料與隱私</h2>
+        <p class="lead">你的設定和學到的詞都存在這台電腦，可以匯出帶到另一台電腦。</p>
+        <div class="group">
+          <h3>我的記憶 <span class="badge plan">Phase 7</span></h3>
+          <div class="row">
+            <div><div class="label">資料位置</div><div class="desc"><code>%APPDATA%\SmartIME</code>（設定、詞庫、學習紀錄、紀錄檔）</div></div>
+            <button class="btn">打開資料夾</button>
+          </div>
+          <div class="row">
+            <div><div class="label">匯出／匯入我的記憶</div><div class="desc">換電腦時，在舊電腦匯出一個檔案，到新電腦安裝後匯入，打字習慣和詞庫都會跟過去。</div></div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap"><button class="btn">匯出…</button><button class="btn">匯入…</button></div>
+          </div>
+          <div class="row">
+            <div><div class="label">清除學習紀錄</div><div class="desc">只清掉自動學到的，自己加的詞會保留。</div></div>
+            <button class="btn danger">清除…</button>
+          </div>
+        </div>
+        <div class="group">
+          <h3>除錯紀錄 <span class="badge warn">目前開啟</span></h3>
+          <div class="row">
+            <div><div class="label">PIME 除錯紀錄</div><div class="desc">會把每個按鍵寫進 <code>%LOCALAPPDATA%\PIME\Log</code>，我們用它找出實機問題。測試期結束後建議關閉。</div></div>
+            <label class="switch"><input type="checkbox" checked aria-label="PIME 除錯紀錄"><span></span></label>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 關於 ============ -->
+      <section class="view" id="view-about" hidden>
+        <h2>關於</h2>
+        <p class="lead">智慧輸入法 0.1（Phase 4-2）。免切換中英混打的注音輸入法。</p>
+        <div class="group"><div class="scroll"><table>
+          <thead><tr><th>元件</th><th>用途</th><th>授權</th></tr></thead>
+          <tbody>
+            <tr><td>小麥注音詞庫（McBopomofo）</td><td>中文詞與詞頻</td><td>MIT</td></tr>
+            <tr><td>wordfreq</td><td>英文詞頻</td><td>資料 CC BY-SA 4.0</td></tr>
+            <tr><td>PIME</td><td>Windows 輸入法框架（另外安裝）</td><td>LGPL 2.1</td></tr>
+            <tr><td>Python embeddable</td><td>輸入法引擎執行環境</td><td>PSF</td></tr>
+          </tbody>
+        </table></div></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+(() => {
+  // --- navigation
+  const rail = document.querySelectorAll("nav.rail button");
+  const views = document.querySelectorAll("section.view");
+  function show(id) {
+    views.forEach(v => { v.hidden = v.id !== "view-" + id; });
+    rail.forEach(b => b.setAttribute("aria-current", b.dataset.view === id ? "page" : "false"));
+  }
+  rail.forEach(b => b.addEventListener("click", () => { show(b.dataset.view); try { localStorage.setItem("smartime-view", b.dataset.view); } catch (e) {} }));
+  const hash = location.hash.replace("#", "");
+  let start = "general";
+  try { start = localStorage.getItem("smartime-view") || start; } catch (e) {}
+  if (document.getElementById("view-" + hash)) start = hash;
+  show(start);
+
+  // --- pressed-state groups
+  document.querySelectorAll(".seg").forEach(seg => seg.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    seg.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+  }));
+  const modes = document.getElementById("modes");
+  modes.addEventListener("click", e => {
+    const b = e.target.closest(".mode-card"); if (!b) return;
+    modes.querySelectorAll(".mode-card").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+  });
+
+  // --- 大千 keyboard
+  const rows = [
+    [["1","ㄅ"],["2","ㄉ"],["3","ˇ",1],["4","ˋ",1],["5","ㄓ"],["6","ˊ",1],["7","˙",1],["8","ㄚ"],["9","ㄞ"],["0","ㄢ"],["-","ㄦ"]],
+    [["q","ㄆ"],["w","ㄊ"],["e","ㄍ"],["r","ㄐ"],["t","ㄔ"],["y","ㄗ"],["u","ㄧ"],["i","ㄛ"],["o","ㄟ"],["p","ㄣ"]],
+    [["a","ㄇ"],["s","ㄋ"],["d","ㄎ"],["f","ㄑ"],["g","ㄕ"],["h","ㄘ"],["j","ㄨ"],["k","ㄜ"],["l","ㄠ"],[";","ㄤ"]],
+    [["z","ㄈ"],["x","ㄌ"],["c","ㄏ"],["v","ㄒ"],["b","ㄖ"],["n","ㄙ"],["m","ㄩ"],[",","ㄝ"],[".","ㄡ"],["/","ㄥ"]],
+  ];
+  rows.forEach((r, i) => {
+    const el = document.getElementById("kb" + (i + 1));
+    r.forEach(([k, z, tone]) => {
+      const d = document.createElement("div");
+      d.className = "kcap" + (tone ? " tone" : "");
+      d.innerHTML = `<span class="k">${k}</span><span class="z">${z}</span>`;
+      el.appendChild(d);
+    });
+  });
+
+  // --- candidate preview (real engine output for "mvp␣ ↓")
+  const cands = [["mvp","英文"],["MVP",""],["Mvp",""],["勳","ㄒㄩㄣ"],["薰",""],["燻",""],["勛",""],["醺",""],["熏",""]];
+  const list = document.getElementById("cand-list");
+  cands.forEach(([t, tag], i) => {
+    const li = document.createElement("li");
+    if (i === 0) li.className = "sel";
+    li.innerHTML = `<span class="n">${i + 1}</span><span>${t}</span><span class="tag">${tag}</span>`;
+    list.appendChild(li);
+  });
+
+  // --- suggestion count
+  const sugg = ["會", "會議", "心", "始", "車"];
+  const n = document.getElementById("sugg-n"), out = document.getElementById("sugg-n-out"), tip = document.getElementById("sugg-tip");
+  function renderSugg() {
+    const k = +n.value; out.textContent = k;
+    tip.textContent = sugg.slice(0, k).map((s, i) => i === 0 ? `${s} ⇥` : s).join(" · ");
+  }
+  n.addEventListener("input", renderSugg); renderSugg();
+
+  // --- punctuation table
+  const punct = [
+    ['Shift + \'', '"', "；", '"', "“ ” 「 」"], ["Shift + ,", "<", "，", "<", "《 〈"], ["Shift + .", ">", "。", ">", "》 〉"],
+    ["Shift + /", "?", "？", "?", ""], ["Shift + 1", "!", "！", "!", ""], ["Shift + ;", ":", "：", ":", ""],
+    ["Shift + 9 / 0", "()", "（ ）", "( )", ""], ["[ ]", "[]", "「 」", "[ ]", "【 】 〔 〕"], ["Shift + [ ]", "{}", "『 』", "{ }", "｛ ｝"],
+    ["'", "'", "、", "'", "‘ ’"], ["Shift + `", "~", "～", "~", ""],
+  ];
+  const half = new Set(['"']);
+  const tbody = document.querySelector("#punct-table tbody");
+  function renderPunct() {
+    tbody.innerHTML = "";
+    punct.forEach(([label, id, full, ascii, more]) => {
+      const tr = document.createElement("tr");
+      const name = "p-" + punct.indexOf(punct.find(p => p[1] === id));
+      tr.innerHTML = `<td><kbd>${label}</kbd></td>
+        <td><label><input type="radio" name="${name}" ${half.has(id) ? "" : "checked"}> ${full}</label></td>
+        <td><label><input type="radio" name="${name}" ${half.has(id) ? "checked" : ""}> <code>${ascii}</code></label></td>
+        <td>${more || '<span class="note">—</span>'}</td>`;
+      tr.querySelectorAll("input")[0].addEventListener("change", () => { half.delete(id); setPreset("custom"); });
+      tr.querySelectorAll("input")[1].addEventListener("change", () => { half.add(id); setPreset("custom"); });
+      tbody.appendChild(tr);
+    });
+  }
+  const preset = document.getElementById("punct-preset");
+  function setPreset(p) { preset.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.preset === p ? "true" : "false")); }
+  preset.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.preset === "full") { half.clear(); renderPunct(); }
+    if (b.dataset.preset === "half") { punct.forEach(p => half.add(p[1])); renderPunct(); }
+    setPreset(b.dataset.preset);
+  });
+  renderPunct();
+
+  // --- symbol palette sample
+  const pal = "，。、；：？！…—「」『』（）《》“”αβγΔπΣ±×÷≠≤≥∞√→←↑↓℃㎡％";
+  const pg = document.getElementById("palette-grid");
+  [...pal].slice(0, 27).forEach((c, i) => { const s = document.createElement("span"); s.textContent = c; pg.appendChild(s); });
+
+  // --- dictionary (example rows)
+  const dict = [
+    { w: "陳怡君", r: "ㄔㄣˊ ㄧˊ ㄐㄩㄣ", c: "朋友", src: "手動", n: 12 },
+    { w: "林志豪", r: "ㄌㄧㄣˊ ㄓˋ ㄏㄠˊ", c: "朋友", src: "手動", n: 5 },
+    { w: "智慧輸入法", r: "ㄓˋ ㄏㄨㄟˋ ㄕㄨ ㄖㄨˋ ㄈㄚˇ", c: "專案術語", src: "手動", n: 31 },
+    { w: "候選窗", r: "ㄏㄡˋ ㄒㄩㄢˇ ㄔㄨㄤ", c: "專案術語", src: "學到", n: 9 },
+    { w: "mvp", r: "按鍵 mvp", c: "常用英文", src: "內建", n: 7 },
+    { w: "heuristic", r: "按鍵 heuristic", c: "常用英文", src: "學到", n: 2 },
+    { w: "接續字", r: "ㄐㄧㄝ ㄒㄩˋ ㄗˋ", c: "常用詞", src: "學到", n: 4 },
+    { w: "打鬥號", r: "ㄉㄚˇ ㄉㄡˋ ㄏㄠˋ", c: "常用詞", src: "學到", n: 1, wrong: true },
+  ];
+  const cats = ["全部", "朋友", "專案術語", "常用英文", "常用詞", "學到的"];
+  let cat = "全部", q = "";
+  const chips = document.getElementById("cat-chips");
+  cats.forEach(c => {
+    const b = document.createElement("button"); b.className = "chip"; b.type = "button"; b.textContent = c;
+    b.setAttribute("aria-pressed", c === cat ? "true" : "false");
+    b.addEventListener("click", () => { cat = c; chips.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false")); renderDict(); });
+    chips.appendChild(b);
+  });
+  const body = document.getElementById("dict-body");
+  function renderDict() {
+    body.innerHTML = "";
+    dict.filter(d => (cat === "全部" || d.c === cat || (cat === "學到的" && d.src === "學到")) && (!q || d.w.includes(q) || d.r.includes(q)))
+      .forEach(d => {
+        const tr = document.createElement("tr");
+        if (d.wrong) tr.className = "wrong";
+        tr.innerHTML = `<td>${d.w}${d.wrong ? ' <span class="badge warn">學錯了</span>' : ""}</td><td><code>${d.r}</code></td>
+          <td><span class="cat">${d.c}</span></td><td>${d.src}</td><td class="num">${d.n}</td>
+          <td style="text-align:right"><button class="btn danger" type="button">刪除</button></td>`;
+        tr.querySelector("button").addEventListener("click", () => { dict.splice(dict.indexOf(d), 1); renderDict(); });
+        body.appendChild(tr);
+      });
+    if (!body.children.length) body.innerHTML = '<tr><td colspan="6" class="note">這個分類還沒有詞。用上面的表單加入第一個。</td></tr>';
+  }
+  document.getElementById("dict-search").addEventListener("input", e => { q = e.target.value.trim(); renderDict(); });
+  document.getElementById("add-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const w = document.getElementById("add-word").value.trim(); if (!w) return;
+    const r = document.getElementById("add-reading").value.trim() || "（自動產生）";
+    dict.unshift({ w, r, c: document.getElementById("add-cat").value, src: "手動", n: 0 });
+    document.getElementById("add-word").value = ""; document.getElementById("add-reading").value = "";
+    renderDict();
+  });
+  renderDict();
+
+  // --- shortcut list
+  const D = '<span class="badge done">已完成</span>', P = '<span class="badge plan">提案</span>', L = '<span class="badge later">Phase 6</span>';
+  const keys = [
+    ["打字", "<kbd>␣</kbd> <kbd>6</kbd> <kbd>3</kbd> <kbd>4</kbd> <kbd>7</kbd>", "聲調鍵（一 ˊ ˇ ˋ ˙），把注音轉成中文", D],
+    ["打字", "<kbd>Enter</kbd>", "送出整段", D],
+    ["打字", "<kbd>Backspace</kbd>", "刪一個字（還沒打聲調時刪一個鍵）", D],
+    ["打字", "<kbd>Tab</kbd>", "帶入接續建議", D],
+    ["打字", "<kbd>Shift</kbd>+<kbd>Tab</kbd>", "打開完整接續清單", P],
+    ["選字", "<kbd>↓</kbd> <kbd>↑</kbd>", "打開候選窗（游標前／後的字）", D],
+    ["選字", "<kbd>1</kbd>–<kbd>9</kbd>", "直接選候選", D],
+    ["選字", "<kbd>←</kbd> <kbd>→</kbd>", "翻頁；不在候選窗時移動游標", D],
+    ["選字", "<kbd>Ctrl</kbd>+<kbd>D</kbd>", "把這個候選加入詞庫", P],
+    ["選字", "<kbd>Delete</kbd>", "從記憶中刪掉這個學錯的詞", P],
+    ["修正", "<kbd>Esc</kbd>", "進入修正模式（再按一次清除整段）", P],
+    ["修正", "<kbd>h</kbd> <kbd>j</kbd> <kbd>k</kbd> <kbd>l</kbd> <kbd>v</kbd> <kbd>x</kbd> <kbd>e</kbd> <kbd>r</kbd> <kbd>a</kbd> <kbd>u</kbd> <kbd>i</kbd>", "修正模式的移動與編輯（見「智慧修正」）", P],
+    ["模式", "右 <kbd>Shift</kbd>", "英文 ⇄ 上次用的中文模式", D],
+    ["模式", "系統匣圖示右鍵", "選 中英自動／純中文／純英文", D],
+    ["模式", "<kbd>Caps Lock</kbd>", "直接打英文大寫", D],
+    ["標點", "<kbd>Ctrl</kbd>+<kbd>,</kbd> <kbd>.</kbd> <kbd>;</kbd> <kbd>'</kbd>", "， 。 ； 、", D],
+    ["標點", "<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>;</kbd> <kbd>/</kbd> <kbd>1</kbd>", "： ？ ！", D],
+    ["標點", "<kbd>Ctrl</kbd>+<kbd>[</kbd> <kbd>]</kbd>", "「 」（加 Shift：『 』）", D],
+    ["標點", "<kbd>`</kbd>", "符號面板（希臘字母、數學、箭頭…）", P],
+    ["語音", "按住右 <kbd>Ctrl</kbd>", "說話，放開後打到游標位置", L],
+  ];
+  const kt = document.querySelector("#keys-table tbody");
+  keys.forEach(([ctx, k, what, st]) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${ctx}</td><td>${k}</td><td>${what}</td><td>${st}</td>`;
+    kt.appendChild(tr);
+  });
+})();
+</script>
