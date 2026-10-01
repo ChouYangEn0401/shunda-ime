@@ -1,6 +1,6 @@
 [project]
 name = "smartime"
-version = "0.1.0"
+version = "0.2.0"
 description = "智慧輸入法：免切換中英混打的注音輸入法（Windows / PIME backend）"
 readme = "README.md"
 requires-python = ">=3.13"

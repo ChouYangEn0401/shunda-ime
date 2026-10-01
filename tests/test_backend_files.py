@@ -29,3 +29,17 @@ def test_guid_is_consistent_across_scripts():
 def test_icons_exist():
     for name in ("ime.ico", "auto.ico", "chinese.ico", "english.ico"):
         assert (MANIFEST.parent / "icons" / name).stat().st_size > 1000
+
+
+def test_manifest_matches_product_name_and_version():
+    import smartime
+
+    data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    assert data["name"] == smartime.PRODUCT_NAME
+    assert data["version"] == smartime.__version__
+
+
+def test_installer_scripts_are_ascii():
+    # Windows PowerShell 5.1 reads BOM-less scripts with the ANSI code page.
+    for path in list((ROOT / "installer").glob("*.ps1")) + list((ROOT / "scripts").glob("*.ps1")):
+        path.read_text(encoding="ascii")

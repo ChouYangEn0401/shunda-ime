@@ -1,0 +1,31 @@
+智慧輸入法 (SmartIME) — third-party components
+=============================================
+
+This installer contains or installs the following third-party software.
+Each remains under its own license.
+
+1. PIME (Windows input method framework)
+   Installed separately to C:\Program Files (x86)\PIME when it is missing.
+   License: GNU LGPL 2.1 (with Apache 2.0 and PSF parts).
+   Source code: https://github.com/EasyIME/PIME (tag v1.3.0-stable)
+   The bundled installer is the unmodified official release
+   PIME-1.3.0-stable-setup.exe.
+
+2. Python (embeddable distribution 3.13)
+   Runtime of the SmartIME engine, in runtime\.
+   License: Python Software Foundation License, see runtime\LICENSE.txt.
+   https://www.python.org/
+
+3. McBopomofo dictionary data (小麥注音)
+   Chinese phrases, readings and frequencies in app\data\generated\smartime.db.
+   License: MIT, see licenses\McBopomofo-LICENSE.txt.
+   https://github.com/openvanilla/McBopomofo
+
+4. wordfreq word frequencies
+   English word list in app\data\generated\smartime.db.
+   Data license: Creative Commons Attribution-ShareAlike 4.0.
+   https://github.com/rspeer/wordfreq
+
+5. Inno Setup (used to build this installer)
+   Copyright (C) 1997-2026 Jordan Russell. Portions Copyright (C) 2000-2026 Martijn Laan.
+   https://jrsoftware.org/
