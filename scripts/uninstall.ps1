@@ -22,5 +22,6 @@ if ($p.ExitCode -ne 0) { throw "administrator step failed; see $env:TEMP\smartim
 $launcher = Join-Path $Pime 'PIMELauncher.exe'
 Start-Process -FilePath $launcher -ArgumentList '/quit' -Wait -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 800
-Start-Process -FilePath $launcher
+# via explorer.exe so the launcher is not a child of this console
+Start-Process -FilePath 'explorer.exe' -ArgumentList "`"$launcher`""
 Write-Host 'SmartIME removed.' -ForegroundColor Green

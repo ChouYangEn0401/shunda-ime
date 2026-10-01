@@ -96,12 +96,29 @@ $p = Start-Process -FilePath 'powershell.exe' -ArgumentList $adminArgs -Verb Run
 if ($p.ExitCode -ne 0) { throw "administrator step failed (exit code $($p.ExitCode)); see $env:TEMP\smartime-install-admin.log" }
 
 # 5. Restart PIMELauncher as the current user ------------------------------
+# The launcher reads backends.json and every ime.json only at startup.
+# Start it through explorer.exe so it is not a child of this console (or of
+# a terminal/job object that may be closed later).
 Step 'Restarting PIMELauncher'
 $launcher = Join-Path $Pime 'PIMELauncher.exe'
 Start-Process -FilePath $launcher -ArgumentList '/quit' -Wait -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 800
-Start-Process -FilePath $launcher
+Start-Process -FilePath 'explorer.exe' -ArgumentList "`"$launcher`""
+$deadline = (Get-Date).AddSeconds(10)
+while (-not (Get-Process PIMELauncher -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {
+    Start-Sleep -Milliseconds 200
+}
+if (-not (Get-Process PIMELauncher -ErrorAction SilentlyContinue)) { throw 'PIMELauncher did not start' }
+Start-Sleep -Seconds 1
 
+# 6. Verify: talk to the launcher like an application would ---------------
+Step 'Verifying: launcher -> SmartIME backend -> engine'
+$srcDir = Join-Path $Repo 'src'
+$probe = "import sys; sys.path.insert(0, r'$srcDir'); from smartime.devtools.pime_probe import main; sys.exit(main(['--keys', 'ji3ap7', '--require-conversion']))"
+& $RuntimePython -c $probe
+if ($LASTEXITCODE -ne 0) { throw 'verification failed: the launcher could not reach the SmartIME backend' }
+
+# 7. Keyboard list ---------------------------------------------------------
 if (-not $SkipLanguageList) {
     $tip = "0404:$PimeClsid$ProfileGuid"
     $list = Get-WinUserLanguageList
