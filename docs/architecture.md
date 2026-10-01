@@ -67,6 +67,11 @@
 - PIME 套用回覆的順序：message → candidates → **commit → composition**。所以同一個回覆可以「送出前半段、保留後半段在組字區」。
 - 候選數不可超過 `setSelKeys` 的長度（C++ 端有 assert）。
 - 提示（藍色注音）與 Tab 建議目前都用 PIME 的 message window 顯示；外觀無法客製（要改 PIME C++，列在後續階段）。
+- **陷阱：開始組字的那個回覆不能帶 `showMessage`。** PIME 先處理 message、後處理 composition；
+  若當下沒有組字，它會開一個臨時組字並在回覆結尾結束它，結果第一個按鍵被當成原始字母送出。
+  因此提示從第二個鍵開始顯示（`SmartTextService._composing`，有回歸測試）。
+- Launcher 以**小寫** GUID 對應後端（`init` 的 `id` 必須是小寫）；找不到後端時**不會回覆**，客戶端會卡住。
+- PIME 讀 `ime.json` / `backends.json` 用 jsoncpp：必須是合法 JSON、不可有 BOM（`tests/test_backend_files.py` 檢查）。
 
 ## 4. 資料（`tools/build_data.py`）
 
@@ -87,6 +92,11 @@
 - 改 `ime.json`（名稱、GUID、圖示）後需重新執行安裝（會重新登錄 TSF 語言設定檔）。
 - 不安裝也能測：`python -m smartime.devtools.simulate --steps "<按鍵>"`；測試使用同一套模擬器。
 - `tests/test_reported_issues.py` 記錄使用者回報、尚未修好的問題（xfail strict）；修好時移除標記。
+- 安裝後的三層驗證（任何動到 PIME/TSF 的改動都要跑）：
+  1. `uv run pytest` — 引擎、session、協定、靜態檔案檢查
+  2. `python -m smartime.devtools.pime_probe --require-conversion` — 以 named pipe 直接連 PIMELauncher（如同 App 內的 DLL），驗證 launcher → 後端 → 引擎；`install.ps1` 最後一步也會自動跑
+  3. `python -m smartime.devtools.tsf_typing_test`（與 `--richedit`）— 建立真的文字框、以 TSF 啟用本輸入法、用 SendInput 實際打字並讀回結果；只在測試視窗位於前景時才送鍵
+- 開發模式改完程式後要讓後端載入新碼：結束 `PIME\smartime\runtime\python.exe` 行程（launcher 會自動重啟），或用 PIME 系統匣選單重啟。
 
 ## 7. 已知限制（Phase 3）
 
