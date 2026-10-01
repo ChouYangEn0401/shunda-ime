@@ -212,6 +212,8 @@ class Session(CorrectionMixin):
             v.candidate_notes = [c.annotation for c in page]
             v.candidate_index = self.cand.index % self.cand.page_size
             v.candidate_title = self.cand.title
+            if not v.candidate_title and "學過" in v.candidate_notes:
+                v.candidate_title = "選字框裡按 Delete 可忘記「學過」的詞"
         elif self.correcting:
             v.hint = self._correction_hint()
         else:
@@ -698,12 +700,15 @@ class Session(CorrectionMixin):
         if user is None or not self.cfg.learn:
             return
         if seg.kind is Kind.ZH:
-            user.learn(seg.text, "-".join(seg.readings), "zh")
+            new = user.learn(seg.text, "-".join(seg.readings), "zh")
         elif seg.kind is Kind.EN:
-            user.learn(seg.text.lower(), "", "en")
+            new = user.learn(seg.text.lower(), "", "en")
         else:
             return
         self.engine.lexicon.invalidate()
+        if new and self.cfg.learn_notice:
+            # once per word: learning is visible, and so is how to undo it
+            self._notice = f"記住了「{seg.text}」· 選字框裡按 Delete 可忘記"
 
     def _forget_candidate(self, c: Candidate) -> None:
         user = self.engine.user

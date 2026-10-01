@@ -146,8 +146,12 @@ class UserDict:
         return (phrase, reading) in self.blocked
 
     # ------------------------------------------------------------ writes (engine)
-    def learn(self, phrase: str, reading: str = "", kind: str = "zh") -> None:
+    def learn(self, phrase: str, reading: str = "", kind: str = "zh") -> bool:
+        """Count one explicit use. True when the phrase was not in my memory
+        before (the IME tells the user once)."""
         now = time.time()
+        known = self._con.execute(
+            "SELECT 1 FROM entries WHERE phrase=? AND reading=?", (phrase, reading)).fetchone() is not None
         self._con.execute(
             "INSERT INTO entries (phrase, reading, kind, source, count, last_used, created) "
             "VALUES (?, ?, ?, 'learned', 1, ?, ?) "
@@ -155,6 +159,7 @@ class UserDict:
             (phrase, reading, kind, now, now),
         )
         self._load()
+        return not known
 
     def forget(self, phrase: str, reading: str, kind: str = "zh") -> str:
         """Delete key on a candidate. Returns what happened:

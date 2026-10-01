@@ -453,7 +453,7 @@
       ["選字", "<kbd>1</kbd>–<kbd>9</kbd>", "直接選候選", D],
       ["選字", "<kbd>←</kbd> <kbd>→</kbd>", "翻頁；不在候選窗時移動游標", D],
       ["選字", "<kbd>Ctrl</kbd>+<kbd>D</kbd>", "把選中的候選加入詞庫", D],
-      ["選字", "<kbd>Delete</kbd>", "忘記這個詞的使用紀錄；沒學過的就不再建議", D],
+      ["選字", "選字框裡按 <kbd>Delete</kbd>", "（只在選字框開著時）忘記這個詞的使用紀錄；沒學過的就不再建議", D],
       ["修正", "<kbd>Esc</kbd>", "進入修正模式（再按一次清除整段）", corr],
       ["修正", "<kbd>h</kbd> <kbd>j</kbd> <kbd>k</kbd> <kbd>l</kbd> <kbd>v</kbd> <kbd>x</kbd> <kbd>e</kbd> <kbd>r</kbd> <kbd>a</kbd> <kbd>u</kbd> <kbd>i</kbd>", "修正模式的移動與編輯（見「智慧修正」）", corr],
       ["模式", "單按 <kbd>Shift</kbd>", "切換英文（設定：左／右／兩邊，兩段或三段）", D],

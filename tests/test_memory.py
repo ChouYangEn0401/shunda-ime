@@ -167,3 +167,22 @@ def test_engine_reloads_config_when_the_file_changes(tmp_path, lexicon, decoder)
     assert engine.config.halfwidth_symbols == '"<'
     assert "<" in decoder.halfwidth_symbols
     decoder.halfwidth_symbols = frozenset('"')  # restore the shared fixture
+
+
+def test_first_learning_is_announced_once(tmp_path, monkeypatch):
+    # reported: new users can't tell that the IME learns, or how to undo it
+    from smartime.devtools.simulate import run
+    from smartime.engine.session import Session
+    from smartime.pime.server import build_engine
+
+    monkeypatch.setenv("SMARTIME_USER_DIR", str(tmp_path))
+    session = Session(build_engine())
+    _, v = run(session, "ji3ap7{DOWN}")
+    _, v = run(session, str(v.candidates.index("們") + 1))
+    assert "記住了「們」" in v.notice and "Delete" in v.notice
+
+    _, v = run(session, "{ENTER}ji3ap7{DOWN}")
+    assert "學過" in v.candidate_notes
+    assert "Delete" in v.candidate_title  # how to undo, right where it matters
+    _, v = run(session, str(v.candidates.index("們") + 1))
+    assert v.notice == ""  # announced only the first time

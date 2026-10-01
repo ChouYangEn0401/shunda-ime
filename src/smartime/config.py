@@ -68,6 +68,7 @@ class Config:
 
     # Memory (my dictionary)
     learn: bool = True  # remember candidates I pick and continuations I accept
+    learn_notice: bool = True  # say so the first time a word is learned
     default_category: str = "常用詞"  # where Ctrl+D puts a new word
 
     # Voice input (hold right Ctrl, speak, release)
