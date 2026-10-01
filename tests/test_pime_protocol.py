@@ -79,9 +79,28 @@ def test_hint_message_is_shown_then_hidden(engine):
         *typing(10, "u.3"),
     ]
     replies = {r["seqNum"]: r for r in exchange(engine, msgs)}
-    assert replies[11]["showMessage"]["message"] == "ㄧ"  # after "u"
+    assert replies[11]["compositionString"] == "u"
     assert replies[13]["showMessage"]["message"] == "ㄧㄡ"  # after "."
     assert "showMessage" in replies[15] or replies[15].get("hideMessage")  # after tone
+
+
+def test_no_message_in_reply_that_starts_composition(engine):
+    # Regression (found with the real TSF typing test): PIME handles
+    # showMessage before the composition and, if none exists, ends the
+    # temporary composition it opened — committing our first key raw.
+    msgs = [
+        {"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True},
+        *typing(10, "ji3"),
+        {"method": "onCompositionTerminated", "seqNum": 50, "forced": False},
+        *typing(60, "u"),
+    ]
+    replies = {r["seqNum"]: r for r in exchange(engine, msgs)}
+    first = replies[11]  # onKeyDown 'j' starts the composition
+    assert first["compositionString"] == "j"
+    assert "showMessage" not in first
+    assert replies[13]["showMessage"]["message"] == "ㄨㄛ"  # composition exists now
+    # after the app ended the composition, the next first key again has no message
+    assert "showMessage" not in replies[61]
 
 
 def test_unknown_method_and_bad_json_do_not_crash(engine):

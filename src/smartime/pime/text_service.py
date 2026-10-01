@@ -53,6 +53,7 @@ class SmartTextService:
         self._message = ""
         self._showing_candidates = False
         self._mode_shown: Mode | None = None
+        self._composing = False  # a composition existed after our previous reply
 
     # ------------------------------------------------------------------
     def handle(self, msg: dict) -> dict:
@@ -153,6 +154,14 @@ class SmartTextService:
             message = ""
         if not v.composition:
             message = ""
+        # PIME applies showMessage *before* the composition update, and when
+        # no composition exists yet it opens a temporary one and ends it at
+        # the end of the reply — which commits our first key as raw text.
+        # So never show a message in the reply that starts the composition;
+        # it appears from the next key on.
+        if not self._composing:
+            message = ""
+        self._composing = bool(v.composition)
         if message != self._message:
             if message:
                 reply["showMessage"] = {"message": message, "duration": MESSAGE_DURATION}
@@ -163,6 +172,7 @@ class SmartTextService:
         self._update_mode_icon(reply)
 
     def _clear_ui(self, reply: dict, composition: bool = True) -> None:
+        self._composing = False
         if composition:
             reply["compositionString"] = ""
         if self._showing_candidates:
