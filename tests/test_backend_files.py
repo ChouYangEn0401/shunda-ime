@@ -27,5 +27,5 @@ def test_guid_is_consistent_across_scripts():
 
 
 def test_icons_exist():
-    for name in ("ime.ico", "mixed.ico", "english.ico"):
+    for name in ("ime.ico", "auto.ico", "chinese.ico", "english.ico"):
         assert (MANIFEST.parent / "icons" / name).stat().st_size > 1000

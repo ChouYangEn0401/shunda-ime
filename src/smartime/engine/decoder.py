@@ -144,7 +144,9 @@ class Decoder:
         self.halfwidth_symbols = frozenset(halfwidth_symbols)
 
     # ------------------------------------------------------------------
-    def decode(self, keys: Sequence[Key], pins: Sequence[Segment] = ()) -> Decoding:
+    def decode(self, keys: Sequence[Key], pins: Sequence[Segment] = (), allow_english: bool = True) -> Decoding:
+        """``allow_english=False`` is the 純中文 mode: no English tokens, and
+        digit keys are zhuyin (numbers only from the numeric keypad)."""
         n = len(keys)
         if n == 0:
             return Decoding((), 0.0)
@@ -176,7 +178,7 @@ class Decoder:
             if i in pin_at:
                 edges: list[Segment] = [pin_at[i]]
             else:
-                edges = list(self._edges_from(keys, i, limit[i], syllables))
+                edges = list(self._edges_from(keys, i, limit[i], syllables, allow_english))
             for seg in edges:
                 for state, (score, _, _, _) in best[i].items():
                     lang, prev_kind = state
@@ -272,7 +274,8 @@ class Decoder:
         return table
 
     def _edges_from(
-        self, keys: Sequence[Key], i: int, limit: int, syllables: list[list[tuple[int, str, float]]]
+        self, keys: Sequence[Key], i: int, limit: int, syllables: list[list[tuple[int, str, float]]],
+        allow_english: bool = True,
     ) -> Iterator[Segment]:
         w = self.w
         n = len(keys)
@@ -283,7 +286,7 @@ class Decoder:
         yield from self._zh_edges(i, limit, syllables)
 
         # --- English / alphanumeric tokens, output exactly as typed.
-        if ch in _EN_CHARS and not k.numpad:
+        if allow_english and ch in _EN_CHARS and not k.numpad:
             j = i
             has_letter = False
             while j < limit and j - i < MAX_EN_LEN:
@@ -300,10 +303,10 @@ class Decoder:
                     word = "".join(x.char for x in keys[i:j])
                     yield Segment(i, j, word, Kind.EN, self._en_score(word))
 
-        # --- Numbers.
-        if ch in _DIGITS:
+        # --- Numbers (純中文: numeric keypad only; top-row digits are zhuyin).
+        if ch in _DIGITS and (allow_english or k.numpad):
             j = i
-            while j < limit and keys[j].char in _DIGITS:
+            while j < limit and keys[j].char in _DIGITS and (allow_english or keys[j].numpad):
                 j += 1
                 yield Segment(i, j, "".join(x.char for x in keys[i:j]), Kind.NUM, w.num)
 

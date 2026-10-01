@@ -17,9 +17,11 @@ from ..engine.session import Engine, Mode, Session
 
 log = logging.getLogger(__name__)
 
-ID_MODE_ICON = 1
-ID_TOGGLE_MODE = 2
+ID_MODE_ICON = 1  # left click on the tray icon: same as a Shift tap
 ID_ABOUT = 3
+# Right-click menu entries for the three modes.
+MODE_MENU_IDS = {10: Mode.AUTO, 11: Mode.CHINESE, 12: Mode.ENGLISH}
+MODE_ICONS = {Mode.AUTO: "auto.ico", Mode.CHINESE: "chinese.ico", Mode.ENGLISH: "english.ico"}
 
 MESSAGE_DURATION = 3600  # seconds; we hide the message explicitly
 SELECTION_KEYS = "123456789"
@@ -86,14 +88,16 @@ class SmartTextService:
         elif method == "onPreservedKey":
             ret = False
         elif method == "onCommand":
-            if msg.get("id") in (ID_MODE_ICON, ID_TOGGLE_MODE):
+            command = msg.get("id")
+            if command == ID_MODE_ICON:
                 s.toggle_mode()
+            elif command in MODE_MENU_IDS:
+                s.set_mode(MODE_MENU_IDS[command])
             self._render(reply)
         elif method == "onMenu":
-            ret = [
-                {"text": "切換 中英混合 / 純英文", "id": ID_TOGGLE_MODE},
-                {"text": "關於智慧輸入法", "id": ID_ABOUT},
-            ]
+            ret = [{"text": mode.label, "id": cid, "checked": s.mode is mode}
+                   for cid, mode in MODE_MENU_IDS.items()]
+            ret += [{}, {"text": "關於智慧輸入法", "id": ID_ABOUT}]
         elif method == "onCompartmentChanged":
             pass
         elif method == "onKeyboardStatusChanged":
@@ -197,11 +201,10 @@ class SmartTextService:
         self._mode_shown = mode
         if not self.is_windows8_above:
             return
-        name = "mixed.ico" if mode is Mode.MIXED else "english.ico"
         button = {
             "id": "windows-mode-icon",
-            "icon": str(self.icon_dir / name),
-            "tooltip": "智慧輸入法：中英混合" if mode is Mode.MIXED else "智慧輸入法：純英文",
+            "icon": str(self.icon_dir / MODE_ICONS[mode]),
+            "tooltip": f"智慧輸入法：{mode.label}（Shift 切換英文，右鍵選模式）",
             "commandId": ID_MODE_ICON,
             "enable": self.keyboard_open,
         }

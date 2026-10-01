@@ -14,14 +14,17 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 TOGGLE_SHIFT_CHOICES = ("left", "right", "both", "none")
+MODE_CHOICES = ("auto", "chinese", "english")
+# Values written by older versions.
+_MODE_ALIASES = {"mixed": "auto"}
 
 
 @dataclass
 class Config:
     # Keyboard
     layout: str = "dachen"
-    toggle_shift: str = "right"  # which lone Shift tap toggles 中英混合 / 純英文
-    start_mode: str = "mixed"  # "mixed" | "english"
+    toggle_shift: str = "right"  # which lone Shift tap toggles English <-> the Chinese-side mode
+    start_mode: str = "auto"  # "auto"（中英自動）| "chinese"（純中文）| "english"（純英文）
 
     # Candidate window
     candidates_per_page: int = 9
@@ -72,6 +75,9 @@ class Config:
             setattr(cfg, key, type(default)(value))
         if cfg.toggle_shift not in TOGGLE_SHIFT_CHOICES:
             cfg.toggle_shift = "right"
+        cfg.start_mode = _MODE_ALIASES.get(cfg.start_mode, cfg.start_mode)
+        if cfg.start_mode not in MODE_CHOICES:
+            cfg.start_mode = "auto"
         cfg.candidates_per_page = max(1, min(9, cfg.candidates_per_page))
         return cfg
 

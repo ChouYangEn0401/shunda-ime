@@ -142,7 +142,30 @@ def test_shift_tap_toggles_english_mode(session):
     assert v.mode is Mode.ENGLISH
     assert out == "ji3"  # passed through to the app
     _, v = run(session, "{SHIFT}")
-    assert v.mode is Mode.MIXED
+    assert v.mode is Mode.AUTO
+
+
+def test_pure_chinese_mode_never_outputs_english(session):
+    session.set_mode(Mode.CHINESE)
+    _, v = run(session, "mvp ")
+    assert v.composition == "勳"  # in 中英自動 this stays "mvp "
+    run(session, "{ENTER}")
+    _, v = run(session, "283")
+    assert v.composition == "打"  # top-row digits are zhuyin, never numbers
+
+
+def test_shift_returns_to_last_chinese_side_mode(session):
+    session.set_mode(Mode.CHINESE)
+    _, v = run(session, "{SHIFT}")
+    assert v.mode is Mode.ENGLISH
+    _, v = run(session, "{SHIFT}")
+    assert v.mode is Mode.CHINESE
+
+
+def test_set_mode_commits_pending_text(session):
+    out, _ = run(session, "ji3")
+    session.set_mode(Mode.CHINESE)
+    assert session.view().commit == "我"
 
 
 def test_shift_toggle_commits_pending_text(session):

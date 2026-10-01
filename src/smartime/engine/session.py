@@ -52,8 +52,13 @@ _COMPOSING_NAV = frozenset(
 
 
 class Mode(str, Enum):
-    MIXED = "mixed"  # 中英混合（預設）
+    AUTO = "auto"  # 中英自動：解碼器自行判斷中文或英文（預設）
+    CHINESE = "chinese"  # 純中文：每個鍵都是注音（數字請用數字鍵盤）
     ENGLISH = "english"  # 純英文：按鍵直接交給應用程式
+
+    @property
+    def label(self) -> str:
+        return {"auto": "中英自動", "chinese": "純中文", "english": "純英文"}[self.value]
 
 
 @dataclass
@@ -104,7 +109,7 @@ class View:
     candidate_index: int = 0
     hint: str = ""
     suggestion: str = ""
-    mode: Mode = Mode.MIXED
+    mode: Mode = Mode.AUTO
 
 
 @dataclass
@@ -121,7 +126,9 @@ class Session:
     def __init__(self, engine: Engine):
         self.engine = engine
         self.cfg = engine.config
-        self.mode = Mode.ENGLISH if self.cfg.start_mode == "english" else Mode.MIXED
+        self.mode = Mode(self.cfg.start_mode)
+        # The Chinese-side mode a Shift tap returns to from English.
+        self.chinese_mode = self.mode if self.mode is not Mode.ENGLISH else Mode.AUTO
         self.keys: list[Key] = []
         self.pins: list[Segment] = []
         self.cursor = 0  # position in self.keys
@@ -184,8 +191,14 @@ class Session:
         return True
 
     def toggle_mode(self) -> None:
+        """Shift tap: English <-> the Chinese-side mode used last."""
+        self.set_mode(self.chinese_mode if self.mode is Mode.ENGLISH else Mode.ENGLISH)
+
+    def set_mode(self, mode: Mode) -> None:
         self.commit_all()
-        self.mode = Mode.ENGLISH if self.mode is Mode.MIXED else Mode.MIXED
+        self.mode = mode
+        if mode is not Mode.ENGLISH:
+            self.chinese_mode = mode
 
     def commit_all(self) -> None:
         self.cand = None
@@ -200,7 +213,7 @@ class Session:
 
     # ========================================================= key routing
     def _ctrl_punct(self, key: KeyInput) -> str | None:
-        if not (key.ctrl and not key.alt and self.cfg.ctrl_punctuation and self.mode is Mode.MIXED):
+        if not (key.ctrl and not key.alt and self.cfg.ctrl_punctuation and self.mode is not Mode.ENGLISH):
             return None
         return CTRL_PUNCT.get((key.vk, key.shift))
 
@@ -385,7 +398,7 @@ class Session:
         self.suggestion = None
 
     def _redecode(self) -> None:
-        self.decoding = self.engine.decoder.decode(self.keys, self.pins)
+        self.decoding = self.engine.decoder.decode(self.keys, self.pins, allow_english=self.mode is Mode.AUTO)
         self._snap_cursor()
         self._update_suggestion()
 

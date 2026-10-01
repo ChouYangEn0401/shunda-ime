@@ -15,8 +15,10 @@ SIZES = [16, 20, 24, 32, 40, 48, 64, 256]
 ICONS = {
     # file: (text, background, foreground)
     "ime.ico": ("智", "#2563EB", "#FFFFFF"),
-    "mixed.ico": ("中", "#2563EB", "#FFFFFF"),
-    "english.ico": ("英", "#4B5563", "#FFFFFF"),
+    # tray icons, one per mode
+    "auto.ico": ("智", "#2563EB", "#FFFFFF"),  # 中英自動
+    "chinese.ico": ("中", "#0F766E", "#FFFFFF"),  # 純中文
+    "english.ico": ("英", "#4B5563", "#FFFFFF"),  # 純英文
 }
 
 
