@@ -104,10 +104,18 @@ class SettingsApp:
 
     def voice_state(self) -> dict:
         py = voice_launch.voice_python()
+        running = voice_launch.running()
+        status = {}
+        if running:
+            try:
+                status = json.loads((paths.user_dir() / "voice-status.json").read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                status = {"state": "loading"}
         return {
+            "status": status,
             "models": voice_models.status(),
             "runtime": bool(py),
-            "running": voice_launch.running(),
+            "running": running,
             "download": dict(self.download),
             "install": dict(self.install_state, log=list(self.install_state.get("log", []))[-8:]),
         }

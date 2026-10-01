@@ -14,7 +14,9 @@ is typed where the cursor is, in any application.
 from __future__ import annotations
 
 import gc
+import json
 import logging
+import os
 import logging.handlers
 import queue
 import sys
@@ -34,6 +36,28 @@ HIDE = win.WM_APP + 12
 RELOAD = "reload"  # worker job: load the engine chosen in Settings
 
 
+def microphone(refresh: bool = False) -> str:
+    """Name of the default input device, "" when there is none. PortAudio
+    lists devices once; ``refresh`` re-reads them (a Bluetooth headset
+    connected later). Never call it while recording."""
+    import sounddevice as sd
+
+    if refresh:
+        try:
+            sd._terminate()
+            sd._initialize()
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        return str(sd.query_devices(kind="input")["name"])
+    except Exception:  # noqa: BLE001 - PortAudioError: no default input device
+        return ""
+
+
+def status_path():
+    return paths.user_dir() / "voice-status.json"
+
+
 class Recorder:
     def __init__(self) -> None:
         self.stream = None
@@ -43,10 +67,8 @@ class Recorder:
     def start(self) -> None:
         import sounddevice as sd
 
-        try:
-            sd.query_devices(kind="input")
-        except Exception:  # noqa: BLE001 - PortAudioError: no default input device
-            raise RuntimeError("找不到麥克風。請接上麥克風，或到 Windows 設定 > 系統 > 音效 選擇輸入裝置") from None
+        if not microphone() and not microphone(refresh=True):
+            raise RuntimeError("找不到麥克風。請接上麥克風，或到 Windows 設定 > 系統 > 音效 選擇輸入裝置")
         self.chunks = []
         self.started = time.monotonic()
         self.stream = sd.InputStream(samplerate=asr.SAMPLE_RATE, channels=1, dtype="float32",
@@ -77,6 +99,8 @@ class VoiceService:
         self.results: queue.Queue = queue.Queue()
         self.recorder = recorder or Recorder()
         self.recording = False
+        self.mic = microphone()
+        self.mic_checked = time.monotonic()
         self.msg = win.MessageWindow({
             win.PushToTalkHook.PRESS: lambda w, l: self.on_press(),
             win.PushToTalkHook.RELEASE: lambda w, l: self.on_release(),
@@ -97,6 +121,7 @@ class VoiceService:
         self.engine = None  # drop the old model first (GPU memory)
         gc.collect()
         self.engine_error = ""
+        self.write_status()
         try:
             t0 = time.perf_counter()
             self.engine = asr.create(self.config.voice_engine)
@@ -104,6 +129,21 @@ class VoiceService:
         except Exception as e:  # noqa: BLE001
             self.engine_error = str(e)
             log.exception("cannot load the speech engine")
+        self.write_status()
+
+    def write_status(self) -> None:
+        """For the settings page: what is loaded, and is there a microphone."""
+        e = self.engine
+        state = "ready" if e is not None else "error" if self.engine_error else "loading"
+        data = {"pid": os.getpid(), "state": state, "engine": getattr(e, "name", ""),
+                "device": getattr(e, "device", "cpu") if e is not None else "",
+                "error": self.engine_error, "mic": self.mic}
+        try:
+            tmp = status_path().with_suffix(".tmp")
+            tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(status_path())
+        except OSError:
+            pass
 
     def worker(self) -> None:
         self.load_engine()
@@ -204,6 +244,7 @@ class VoiceService:
             log.info("voice input turned off; exiting")
             self.hook.close()
             self.jobs.put(None)
+            status_path().unlink(missing_ok=True)
             win.quit_message_loop()
             return
         changed = cfg.voice_engine != self.config.voice_engine
@@ -211,6 +252,13 @@ class VoiceService:
         if changed:
             log.info("engine changed to %s; reloading", cfg.voice_engine)
             self.jobs.put(RELOAD)
+        if not self.recording and time.monotonic() - self.mic_checked > 30:
+            # a headset connected or removed since: keep Settings truthful
+            self.mic_checked = time.monotonic()
+            mic = microphone(refresh=True)
+            if mic != self.mic:
+                self.mic = mic
+                self.write_status()
 
 
 def _setup_logging() -> None:

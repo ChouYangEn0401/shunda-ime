@@ -524,9 +524,22 @@
     instBtn.textContent = inst.active ? "安裝中…" : "安裝語音元件";
     document.getElementById("voice-install-log").textContent =
       (inst.log || []).join("\n") + (inst.error ? "\n錯誤：" + inst.error : "");
+    // what the service itself reports (voice-status.json): loading / ready / error, microphone
+    const st = v.status || {};
+    let text = "未開啟", cls = "later";
+    if (!config.voice_enabled) { text = v.running ? "關閉中…" : "未開啟"; }
+    else if (!v.running) { text = "啟動中…"; cls = "plan"; }
+    else if (st.state === "ready") { text = `待命中 · ${st.engine}（${st.device === "cuda" ? "顯示卡" : "CPU"}）`; cls = "done"; }
+    else if (st.state === "error") { text = "模型載入失敗"; cls = "warn"; }
+    else { text = "載入模型中…"; cls = "plan"; }
     const badge = document.getElementById("voice-running");
-    badge.className = "badge " + (v.running ? "done" : "later");
-    badge.textContent = v.running ? "待命中" : (config.voice_enabled ? "啟動中…" : "未開啟");
+    badge.className = "badge " + cls;
+    badge.textContent = text;
+    const warn = document.getElementById("voice-warn");
+    const noMic = v.running && st.mic === "";
+    warn.hidden = !(config.voice_enabled && v.running && (st.state === "error" || noMic));
+    warn.textContent = st.state === "error" ? `模型載入失敗：${st.error}`
+      : "找不到麥克風：請接上麥克風（藍牙耳機要先連上），或到 Windows 設定 > 系統 > 音效 選擇輸入裝置。";
     const body = document.getElementById("voice-models");
     body.innerHTML = "";
     const dl = v.download || {};
@@ -553,7 +566,10 @@
       body.appendChild(tr);
     });
     clearTimeout(voiceTimer);
-    if (dl.active || inst.active || (config.voice_enabled && !v.running)) voiceTimer = setTimeout(loadVoice, 1000);
+    // keep the page current while it is open (turning voice on/off takes a few seconds)
+    const visible = !document.getElementById("view-voice").hidden;
+    if (dl.active || inst.active) voiceTimer = setTimeout(loadVoice, 1000);
+    else if (visible) voiceTimer = setTimeout(loadVoice, 2000);
   }
   document.getElementById("voice-install").addEventListener("click", async () => {
     try { await api("POST", "/api/voice/install"); loadVoice(); } catch (e) { toast(e.message, true); }
