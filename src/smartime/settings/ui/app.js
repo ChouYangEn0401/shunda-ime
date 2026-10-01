@@ -74,6 +74,7 @@
     document.querySelectorAll("[data-out]").forEach(el => { el.textContent = config[el.dataset.out]; });
     renderSuggestions();
     renderPunct();
+    renderKeyboard();
   }
 
   let pending = {};
@@ -134,12 +135,20 @@
   }
 
   // ------------------------------------------------------------ keyboard (大千)
-  const kbRows = [
-    [["1","ㄅ"],["2","ㄉ"],["3","ˇ",1],["4","ˋ",1],["5","ㄓ"],["6","ˊ",1],["7","˙",1],["8","ㄚ"],["9","ㄞ"],["0","ㄢ"],["-","ㄦ"]],
-    [["q","ㄆ"],["w","ㄊ"],["e","ㄍ"],["r","ㄐ"],["t","ㄔ"],["y","ㄗ"],["u","ㄧ"],["i","ㄛ"],["o","ㄟ"],["p","ㄣ"]],
-    [["a","ㄇ"],["s","ㄋ"],["d","ㄎ"],["f","ㄑ"],["g","ㄕ"],["h","ㄘ"],["j","ㄨ"],["k","ㄜ"],["l","ㄠ"],[";","ㄤ"]],
-    [["z","ㄈ"],["x","ㄌ"],["c","ㄏ"],["v","ㄒ"],["b","ㄖ"],["n","ㄙ"],["m","ㄩ"],[",","ㄝ"],[".","ㄡ"],["/","ㄥ"]],
-  ];
+  const KB = {
+    dachen: [
+      [["1","ㄅ"],["2","ㄉ"],["3","ˇ",1],["4","ˋ",1],["5","ㄓ"],["6","ˊ",1],["7","˙",1],["8","ㄚ"],["9","ㄞ"],["0","ㄢ"],["-","ㄦ"]],
+      [["q","ㄆ"],["w","ㄊ"],["e","ㄍ"],["r","ㄐ"],["t","ㄔ"],["y","ㄗ"],["u","ㄧ"],["i","ㄛ"],["o","ㄟ"],["p","ㄣ"]],
+      [["a","ㄇ"],["s","ㄋ"],["d","ㄎ"],["f","ㄑ"],["g","ㄕ"],["h","ㄘ"],["j","ㄨ"],["k","ㄜ"],["l","ㄠ"],[";","ㄤ"]],
+      [["z","ㄈ"],["x","ㄌ"],["c","ㄏ"],["v","ㄒ"],["b","ㄖ"],["n","ㄙ"],["m","ㄩ"],[",","ㄝ"],[".","ㄡ"],["/","ㄥ"]],
+    ],
+    eten: [
+      [["1","˙",1],["2","ˊ",1],["3","ˇ",1],["4","ˋ",1],["5",""],["6",""],["7","ㄑ"],["8","ㄢ"],["9","ㄣ"],["0","ㄤ"],["-","ㄥ"],["=","ㄦ"]],
+      [["q","ㄟ"],["w","ㄝ"],["e","ㄧ"],["r","ㄜ"],["t","ㄊ"],["y","ㄡ"],["u","ㄩ"],["i","ㄞ"],["o","ㄛ"],["p","ㄆ"]],
+      [["a","ㄚ"],["s","ㄙ"],["d","ㄉ"],["f","ㄈ"],["g","ㄐ"],["h","ㄏ"],["j","ㄖ"],["k","ㄎ"],["l","ㄌ"],[";","ㄗ"],["'","ㄘ"]],
+      [["z","ㄠ"],["x","ㄨ"],["c","ㄒ"],["v","ㄍ"],["b","ㄅ"],["n","ㄋ"],["m","ㄇ"],[",","ㄓ"],[".","ㄔ"],["/","ㄕ"]],
+    ],
+  };
   function cap(k, z, cls) {
     const d = document.createElement("div");
     d.className = "kcap" + (cls ? " " + cls : "");
@@ -149,14 +158,21 @@
     return d;
   }
   const kb = document.getElementById("keyboard");
-  kbRows.forEach(r => {
-    const row = document.createElement("div"); row.className = "krow";
-    r.forEach(([k, z, tone]) => row.appendChild(cap(k, z, tone ? "tone" : "")));
-    kb.appendChild(row);
-  });
-  const spaceRow = document.createElement("div"); spaceRow.className = "krow space";
-  spaceRow.appendChild(cap("space", "一聲", "tone wide"));
-  kb.appendChild(spaceRow);
+  let kbShown = "";
+  function renderKeyboard() {
+    const name = KB[config.layout] ? config.layout : "dachen";
+    if (name === kbShown) return;
+    kbShown = name;
+    kb.innerHTML = "";
+    KB[name].forEach(r => {
+      const row = document.createElement("div"); row.className = "krow";
+      r.forEach(([k, z, tone]) => row.appendChild(cap(k, z, tone ? "tone" : "")));
+      kb.appendChild(row);
+    });
+    const spaceRow = document.createElement("div"); spaceRow.className = "krow space";
+    spaceRow.appendChild(cap("space", "一聲", "tone wide"));
+    kb.appendChild(spaceRow);
+  }
 
   // ------------------------------------------------------------ previews
   const candList = document.getElementById("cand-list");

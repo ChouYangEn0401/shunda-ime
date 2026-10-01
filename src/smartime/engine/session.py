@@ -157,6 +157,7 @@ class Engine:
             if self._config_mtime:  # not the first check
                 self.config = Config.load(self.config_path)
                 self.decoder.apply_config(self.config)
+                self.layout = self.decoder.layout  # 大千 / 倚天 switch
             self._config_mtime = mtime
 
 

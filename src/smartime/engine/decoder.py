@@ -101,9 +101,10 @@ PUNCT_VARIANTS = {
     '"': "“”「」", "'": "‘’", "<": "《〈", ">": "》〉", "[": "【〔", "]": "】〕",
     "{": "｛", "}": "｝", "?": "", "!": "", ":": "", "(": "", ")": "", "~": "", "\\": "",
 }
-# Keys that may be dropped as accidental: lowercase letters and the layout's
-# punctuation keys. Never digits, spaces, capitals or shifted symbols.
-_DROPPABLE = frozenset("abcdefghijklmnopqrstuvwxyz,./;-")
+# Keys that may be dropped as accidental: lowercase letters plus the layout's
+# own non-letter zhuyin keys (大千 , . / ; -  倚天 , . / ; ' - =). Never
+# digits, spaces, capitals or shifted symbols.
+_LOWER = frozenset("abcdefghijklmnopqrstuvwxyz")
 # Punctuation that closes a clause; the session commits the buffer on these.
 CLAUSE_PUNCT = frozenset("，。？！：；")
 
@@ -144,10 +145,20 @@ class Decoder:
         self.halfwidth_symbols = frozenset(halfwidth_symbols)
         self.reorder_tolerance = True
         self.drop_enabled = True
+        self._set_layout(layout)
+
+    def _set_layout(self, layout: Layout) -> None:
+        self.layout = layout
+        self.droppable = _LOWER | frozenset(
+            k for k in layout.symbols if not k.isalnum())
 
     def apply_config(self, cfg) -> None:
         """Settings that change decoding (from config.Config)."""
         self.halfwidth_symbols = frozenset(cfg.halfwidth_symbols)
+        if cfg.layout != self.layout.name:
+            from .layouts import get_layout
+
+            self._set_layout(get_layout(cfg.layout))
         self.reorder_tolerance = cfg.reorder_tolerance
         self.drop_enabled = cfg.drop_stray_keys != "off"
         base = Weights()
@@ -341,7 +352,7 @@ class Decoder:
             yield Segment(i, i + 1, ch, Kind.PUNCT, w.punct_other)
 
         # --- A stray key typed by accident produces nothing.
-        if self.drop_enabled and ch in _DROPPABLE and not k.numpad:
+        if self.drop_enabled and ch in self.droppable and not k.numpad:
             yield Segment(i, i + 1, "", Kind.DROP, w.drop)
 
         # --- Unfinished syllable at the end of the buffer (shown raw + hint).

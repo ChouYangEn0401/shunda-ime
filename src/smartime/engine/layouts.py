@@ -72,7 +72,28 @@ DACHEN = Layout(
     tones={" ": "", "6": "ˊ", "3": "ˇ", "4": "ˋ", "7": "˙"},
 )
 
-LAYOUTS = {DACHEN.name: DACHEN}
+# 倚天 (ETen) layout, from libchewing's src/editor/zhuyin_layout/et.rs.
+# Tones on 1-4 (1 = ˙ light tone), space = first tone.
+ETEN = Layout(
+    name="eten",
+    display_name="倚天",
+    symbols={
+        "b": "ㄅ", "p": "ㄆ", "m": "ㄇ", "f": "ㄈ",
+        "d": "ㄉ", "t": "ㄊ", "n": "ㄋ", "l": "ㄌ",
+        "v": "ㄍ", "k": "ㄎ", "h": "ㄏ",
+        "g": "ㄐ", "7": "ㄑ", "c": "ㄒ",
+        ",": "ㄓ", ".": "ㄔ", "/": "ㄕ", "j": "ㄖ",
+        ";": "ㄗ", "'": "ㄘ", "s": "ㄙ",
+        "e": "ㄧ", "x": "ㄨ", "u": "ㄩ",
+        "a": "ㄚ", "o": "ㄛ", "r": "ㄜ", "w": "ㄝ",
+        "i": "ㄞ", "q": "ㄟ", "z": "ㄠ", "y": "ㄡ",
+        "8": "ㄢ", "9": "ㄣ", "0": "ㄤ", "-": "ㄥ",
+        "=": "ㄦ",
+    },
+    tones={" ": "", "2": "ˊ", "3": "ˇ", "4": "ˋ", "1": "˙"},
+)
+
+LAYOUTS = {DACHEN.name: DACHEN, ETEN.name: ETEN}
 
 
 def get_layout(name: str) -> Layout:

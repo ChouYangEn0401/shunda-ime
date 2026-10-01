@@ -24,7 +24,7 @@ _MODE_ALIASES = {"mixed": "auto"}
 @dataclass
 class Config:
     # Keyboard and modes
-    layout: str = "dachen"
+    layout: str = "dachen"  # "dachen"（大千）| "eten"（倚天）
     toggle_shift: str = "right"  # which lone Shift tap toggles English <-> the Chinese-side mode
     shift_cycle: str = "two"  # "two": 英文 <-> 中文側模式；"three": 自動 -> 純中文 -> 純英文 循環
     start_mode: str = "auto"  # "auto"（中英自動）| "chinese"（純中文）| "english"（純英文）
@@ -100,6 +100,8 @@ class Config:
             self.start_mode = "auto"
         if self.palette_hotkey not in ("ralt", "off"):
             self.palette_hotkey = "ralt"
+        if self.layout not in ("dachen", "eten"):
+            self.layout = "dachen"
         if self.drop_stray_keys not in DROP_CHOICES:
             self.drop_stray_keys = "standard"
         self.candidates_per_page = max(1, min(9, self.candidates_per_page))
