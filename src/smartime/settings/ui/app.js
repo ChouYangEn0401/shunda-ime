@@ -469,14 +469,33 @@
       ["模式", "單按 <kbd>Shift</kbd>", "切換英文（設定：左／右／兩邊，兩段或三段）", D],
       ["模式", "系統匣圖示右鍵", "選 中英自動／純中文／純英文、開啟設定", D],
       ["模式", "<kbd>Caps Lock</kbd>", "直接打英文大寫", D],
-      ["標點", "<kbd>Ctrl</kbd>+<kbd>,</kbd> <kbd>.</kbd> <kbd>;</kbd> <kbd>'</kbd>", "， 。 ； 、", D],
-      ["標點", "<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>;</kbd> <kbd>/</kbd> <kbd>1</kbd>", "： ？ ！", D],
-      ["標點", "<kbd>Ctrl</kbd>+<kbd>[</kbd> <kbd>]</kbd>", "「 」（加 Shift：『 』）", D],
-      ["標點", "<kbd>Ctrl</kbd>+<kbd>/</kbd> <kbd>-</kbd>", "… —", D],
-      ["標點", "標點上按 <kbd>↓</kbd>", "換成半形、全形或相關符號", D],
-      ["標點", "單按右 <kbd>Alt</kbd>", "符號面板（希臘字母、數學、箭頭…）；Tab 換分類", pal],
+      ["標點", '<a href="#punct" data-goto="punct">見「標點與符號」</a>', "Ctrl+符號 全形標點、換寬度、符號面板（單按右 Alt）", D],
       ["語音", "按住右 <kbd>Ctrl</kbd>", "說話，放開後打到游標位置（右 Ctrl＋其他鍵＝一般快捷鍵，不錄音）", D],
     ];
+    const punctKeys = [
+      ["<kbd>Ctrl</kbd>+<kbd>,</kbd>　或　<kbd>Shift</kbd>+<kbd>,</kbd>", "，"],
+      ["<kbd>Ctrl</kbd>+<kbd>.</kbd>　或　<kbd>Shift</kbd>+<kbd>.</kbd>", "。"],
+      ["<kbd>Ctrl</kbd>+<kbd>;</kbd>", "；"],
+      ["<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>;</kbd>　或　<kbd>Shift</kbd>+<kbd>;</kbd>", "："],
+      ["<kbd>Ctrl</kbd>+<kbd>'</kbd>　或　<kbd>'</kbd>", "、"],
+      ["<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>/</kbd>　或　<kbd>Shift</kbd>+<kbd>/</kbd>", "？"],
+      ["<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd>　或　<kbd>Shift</kbd>+<kbd>1</kbd>", "！"],
+      ["<kbd>Ctrl</kbd>+<kbd>[</kbd> <kbd>]</kbd>　或　<kbd>[</kbd> <kbd>]</kbd>", "「 」"],
+      ["<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>[</kbd> <kbd>]</kbd>", "『 』"],
+      ["<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>,</kbd> <kbd>.</kbd>", "《 》"],
+      ["<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>9</kbd> <kbd>0</kbd>", "（ ）"],
+      ["<kbd>Ctrl</kbd>+<kbd>/</kbd>", "…"],
+      ["<kbd>Ctrl</kbd>+<kbd>-</kbd>", "—"],
+      ["單按右 <kbd>Alt</kbd>", "符號面板：希臘字母、數學、箭頭、單位…（<kbd>Tab</kbd> 換分類）"],
+    ];
+    const pbody = document.querySelector("#punct-keys tbody");
+    pbody.innerHTML = "";
+    punctKeys.forEach(([keys, out]) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${keys}</td><td></td>`;
+      tr.children[1].textContent = out;
+      pbody.appendChild(tr);
+    });
     const tbody = document.querySelector("#keys-table tbody");
     tbody.innerHTML = "";
     rows.forEach(([ctx, keys, what, [cls, label]]) => {
@@ -487,6 +506,10 @@
       tr.querySelector(".badge").textContent = label;
       tbody.appendChild(tr);
     });
+    tbody.querySelectorAll("[data-goto]").forEach(a => a.addEventListener("click", e => {
+      e.preventDefault();
+      show(a.dataset.goto);
+    }));
   }
 
   // ------------------------------------------------------------ voice

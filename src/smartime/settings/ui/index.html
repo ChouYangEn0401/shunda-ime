@@ -148,7 +148,7 @@
             <select data-cfg="candidate_font_size" data-type="int" aria-label="候選字大小"><option>14</option><option>16</option><option>18</option><option>20</option><option>24</option></select>
           </div>
           <div class="row">
-            <div><div class="label">句讀標點自動送出</div><div class="desc">打 ，。？！：； 時把整段送出。</div></div>
+            <div><div class="label">句讀標點自動送出</div><div class="desc">打 ，。？！：； 時把整段送出。關掉後要按 <kbd>Enter</kbd> 才送出，但可以在這些標點上按 <kbd>↓</kbd> 換成半形或其他符號。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="commit_on_clause_punct" aria-label="句讀送出"><span></span></label>
           </div>
           <div class="row">
@@ -227,7 +227,18 @@
       <!-- ============ 標點與符號 ============ -->
       <section class="view" id="view-punct" hidden>
         <h2>標點與符號</h2>
-        <p class="lead">每個符號鍵要全形還是半形。另一種寫法永遠在候選窗按 <kbd>↓</kbd> 就有。</p>
+        <p class="lead">標點怎麼打、要全形還是半形，都在這一頁。</p>
+
+        <div class="group">
+          <h3>標點快捷鍵</h3>
+          <div class="row"><div class="full scroll">
+            <table id="punct-keys">
+              <thead><tr><th>按鍵</th><th>打出</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <p class="note" style="margin-bottom:0">打錯寬度時，游標停在標點後面按 <kbd>↓</kbd>，全形、半形和相關符號都在選字框裡。<b>例外：</b>，。？！：； 預設會立刻把整段送出，送出後就不能再按 <kbd>↓</kbd> 換了——想換的話，到「打字」頁關掉「句讀標點自動送出」（之後要按 <kbd>Enter</kbd> 才送出）。</p>
+          </div></div>
+        </div>
 
         <div class="group">
           <h3>符號鍵輸出</h3>
