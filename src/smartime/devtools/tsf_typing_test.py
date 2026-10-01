@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import ctypes
 import sys
+from pathlib import Path
 import time
 from ctypes import wintypes
 
@@ -47,13 +48,16 @@ EM_SETEDITSTYLE = 0x0400 + 204
 SES_USECTF = 0x00010000
 INPUT_KEYBOARD = 1
 KEYEVENTF_KEYUP = 0x0002
+KEYEVENTF_EXTENDEDKEY = 0x0001
 VK_SHIFT = 0x10
 VK_CONTROL = 0x11
+VK_MENU = 0x12
 VK_RETURN = 0x0D
 PM_REMOVE = 1
 
 NAMED_VK = {"ENTER": VK_RETURN, "BS": 0x08, "TAB": 0x09, "ESC": 0x1B, "LEFT": 0x25, "UP": 0x26,
-            "RIGHT": 0x27, "DOWN": 0x28, "RSHIFT": 0xA1, "HOME": 0x24, "END": 0x23, "DEL": 0x2E}
+            "RIGHT": 0x27, "DOWN": 0x28, "RSHIFT": 0xA1, "HOME": 0x24, "END": 0x23, "DEL": 0x2E,
+            "RALT": 0xA5}
 OEM_VK = {" ": 0x20, ",": 0xBC, ".": 0xBE, "/": 0xBF, ";": 0xBA, "-": 0xBD, "'": 0xDE, "[": 0xDB, "]": 0xDD}
 SHIFTED = {"<": ",", ">": ".", "?": "/", ":": ";", '"': "'", "{": "[", "}": "]"}
 
@@ -290,23 +294,28 @@ class TestWindow:
         if user32.GetForegroundWindow() != self.hwnd:
             raise Aborted("test window lost the foreground; stopped sending keys")
         inp = INPUT(type=INPUT_KEYBOARD)
-        inp.u.ki = KEYBDINPUT(wVk=vk, wScan=user32.MapVirtualKeyW(vk, 0), dwFlags=KEYEVENTF_KEYUP if up else 0)
+        flags = (KEYEVENTF_KEYUP if up else 0) | (KEYEVENTF_EXTENDEDKEY if vk in (0xA3, 0xA5) else 0)
+        inp.u.ki = KEYBDINPUT(wVk=vk, wScan=user32.MapVirtualKeyW(vk, 0), dwFlags=flags)
         user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
 
-    def tap(self, vk: int, shift: bool = False, ctrl: bool = False) -> None:
-        tap_keys(self._send, vk, shift, ctrl)
+    def tap(self, vk: int, shift: bool = False, ctrl: bool = False, alt: bool = False) -> None:
+        tap_keys(self._send, vk, shift, ctrl, alt)
 
 
-def tap_keys(send, vk: int, shift: bool = False, ctrl: bool = False) -> None:
+def tap_keys(send, vk: int, shift: bool = False, ctrl: bool = False, alt: bool = False) -> None:
     """Press and release one key with modifiers through ``send(vk, up)``."""
     if ctrl:
         send(VK_CONTROL, False)
+    if alt:
+        send(VK_MENU, False)
     if shift:
         send(VK_SHIFT, False)
     send(vk, False)
     send(vk, True)
     if shift:
         send(VK_SHIFT, True)
+    if alt:
+        send(VK_MENU, True)
     if ctrl:
         send(VK_CONTROL, True)
     pump(0.06)
@@ -318,12 +327,14 @@ def type_script(tap, script: str) -> None:
     while i < len(script):
         if script[i] == "{":
             name = script[i + 1:script.index("}", i)]
-            if name.startswith(("C-", "CS-")):
+            if name.startswith(("C-", "CS-", "CA-")):
                 mods, base = name.split("-", 1)
-                tap(OEM_VK.get(base, ord(base.upper())), mods == "CS", True)
+                tap(OEM_VK.get(base, ord(base.upper())), mods == "CS", True, mods == "CA")
+            elif name == "S-TAB":
+                tap(0x09, True, False)
             else:
                 tap(NAMED_VK[name], False, False)
-                if name == "RSHIFT":
+                if name in ("RSHIFT", "RALT"):
                     pump(0.1)
             i += len(name) + 2
             continue
@@ -357,18 +368,88 @@ CASES = [
     ("ji3a87{ESC}j{ENTER}", "我嘛"),  # correction mode: j swaps the candidate in place
     ("mvp {ESC}e{ENTER}", "勳"),  # correction mode: e turns raw keys into Chinese
     ("ji3ee/4dj94{ESC}vv{HOME}lllxv{ENTER}", "我更快"),  # 按鍵 view: delete one stray key
+    ("ji3{RALT}{TAB}{TAB}1{ENTER}", "我α"),  # symbol panel: a lone right-Alt tap
+    ("{RALT}{TAB}{TAB}2", "β"),  # symbol panel with nothing composed: typed directly
+    ("ao6u.3{S-TAB}3{ENTER}", None),  # Shift+Tab: all continuations
     # > 30 characters: automatic partial commit mid-sentence (broke in VS Code)
     ("b06c.4283tj x96k27y4b/6b06j6z83fm4u/ jp6k27jp4wu6ru.4cjo4y94vscodexu3ua04yjo4284k27t8 u4{ENTER}", None),
 ]
 
 
 def expected_text(script: str) -> str:
-    from ..pime.server import build_engine
+    """What the engine produces for ``script`` with default settings and an
+    empty memory (computed in a throwaway user folder, so it never touches
+    the real one)."""
+    import os
+    import tempfile
+
     from ..engine.session import Session
+    from ..pime.server import build_engine
     from .simulate import run
 
-    out, view = run(Session(build_engine()), script.replace("{RSHIFT}", "{SHIFT}"))
+    old = os.environ.get("SMARTIME_USER_DIR")
+    with tempfile.TemporaryDirectory() as tmp:
+        os.environ["SMARTIME_USER_DIR"] = tmp
+        try:
+            engine = build_engine()
+            out, view = run(Session(engine), script.replace("{RSHIFT}", "{SHIFT}"))
+            engine.lexicon.user.close()
+            engine.lexicon.close()
+        finally:
+            if old is None:
+                os.environ.pop("SMARTIME_USER_DIR", None)
+            else:
+                os.environ["SMARTIME_USER_DIR"] = old
     return out + view.composition
+
+
+class MemoryGuard:
+    """The real IME learns while we type test sentences. Back up the user's
+    memory, settings and recent symbols, use default settings during the
+    test, and put everything back afterwards (also when the test aborts)."""
+
+    def __init__(self) -> None:
+        import sqlite3
+        import tempfile
+
+        from .. import paths
+        from ..config import Config
+
+        self.paths = paths
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db = paths.user_db_path()
+        self.backup = Path(self.tmp.name) / "user.db"
+        if self.db.exists():
+            src = sqlite3.connect(self.db)
+            dst = sqlite3.connect(self.backup)
+            with dst:
+                src.backup(dst)
+            src.close()
+            dst.close()
+        self.files = {}
+        for f in (paths.config_path(), paths.user_dir() / "recent-symbols.json"):
+            self.files[f] = f.read_bytes() if f.exists() else None
+        Config().save(paths.config_path())  # defaults while testing
+
+    def restore(self) -> None:
+        import sqlite3
+
+        if self.backup.exists():
+            con = sqlite3.connect(self.db)
+            con.execute("ATTACH DATABASE ? AS bak", (str(self.backup),))
+            with con:
+                con.execute("DELETE FROM main.entries")
+                con.execute("DELETE FROM main.categories")
+                con.execute("INSERT INTO main.categories SELECT * FROM bak.categories")
+                con.execute("INSERT INTO main.entries SELECT * FROM bak.entries")
+            con.execute("DETACH DATABASE bak")
+            con.close()
+        for f, data in self.files.items():
+            if data is None:
+                f.unlink(missing_ok=True)
+            else:
+                f.write_bytes(data)
+        self.tmp.cleanup()
 
 
 def main() -> int:
@@ -381,6 +462,7 @@ def main() -> int:
     if not wait_until_idle():
         print("ABORT: the computer is in use; try again later (no keys were sent)")
         return 2
+    memory = MemoryGuard()
     ole32.CoInitializeEx(None, 0x2)  # COINIT_APARTMENTTHREADED
     mgr = ProfileMgr()
     previous = mgr.active()
@@ -419,6 +501,7 @@ def main() -> int:
                      previous.hkl, TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE)
         win.destroy()
         GUARD.close()
+        memory.restore()
         pump(0.1)
 
 
