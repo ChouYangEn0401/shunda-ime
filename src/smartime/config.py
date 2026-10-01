@@ -70,6 +70,12 @@ class Config:
     learn: bool = True  # remember candidates I pick and continuations I accept
     default_category: str = "常用詞"  # where Ctrl+D puts a new word
 
+    # Voice input (hold right Ctrl, speak, release)
+    voice_enabled: bool = False  # off until a model is downloaded and the user turns it on
+    voice_engine: str = "auto"  # "auto" | "breeze" (GPU) | "sensevoice" (CPU)
+    voice_hotwords: bool = True  # my dictionary's own words help recognition
+    voice_traditional: bool = True  # convert to Taiwan Traditional Chinese
+
     # Assistance
     spelling_hint: bool = True  # show zhuyin of the unfinished syllable
     key_hint_on_move: bool = True  # cursor moved back: show 字 注音 ⌨ 按鍵
@@ -108,6 +114,8 @@ class Config:
             self.palette_hotkey = "ralt"
         if self.layout not in ("dachen", "eten"):
             self.layout = "dachen"
+        if self.voice_engine not in ("auto", "breeze", "sensevoice"):
+            self.voice_engine = "auto"
         if self.drop_stray_keys not in DROP_CHOICES:
             self.drop_stray_keys = "standard"
         self.candidates_per_page = max(1, min(9, self.candidates_per_page))

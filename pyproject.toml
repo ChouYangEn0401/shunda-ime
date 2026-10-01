@@ -15,6 +15,19 @@ dev = [
 ]
 # Only needed by tools/build_data.py to export the English word list.
 build-data = ["wordfreq>=3.1"]
+# Voice input (Phase 6). Heavy, so separate from the typing engine, which
+# stays stdlib-only. nvidia-* provide the CUDA 12 / cuDNN 9 DLLs that
+# CTranslate2 needs for the GPU (Breeze-ASR-25); CPU-only machines use
+# SenseVoice through sherpa-onnx.
+voice = [
+    "faster-whisper>=1.2",
+    "sherpa-onnx>=1.12",
+    "sounddevice>=0.5",
+    "numpy>=2",
+    "opencc-python-reimplemented>=0.1.7",
+    "nvidia-cublas-cu12>=12.4",
+    "nvidia-cudnn-cu12>=9.1,<10",
+]
 
 [build-system]
 requires = ["hatchling"]

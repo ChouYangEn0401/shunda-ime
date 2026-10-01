@@ -175,6 +175,13 @@ class SmartTextService:
         }
         reply["setSelKeys"] = SELECTION_KEYS[: cfg.candidates_per_page]
         self._update_mode_icon(reply, force=True, add=True)
+        if cfg.voice_enabled:
+            try:
+                from ..voice import launch
+
+                launch.start()  # no-op when already running
+            except Exception:
+                log.exception("cannot start the voice service")
 
     def _render(self, reply: dict) -> None:
         v = self.session.view()
