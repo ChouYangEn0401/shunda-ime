@@ -45,6 +45,7 @@ def key_from_msg(msg: dict) -> KeyInput:
         alt=down(VK_MENU) or down(VK_LMENU) or down(VK_RMENU),
         caps=(states[VK_CAPITAL] & 0x01) != 0,
         scan=msg.get("scanCode", 0),
+        extended=bool(msg.get("isExtended", False)),
     )
 
 
@@ -173,10 +174,15 @@ class SmartTextService:
 
         if v.notice:
             message = v.notice
+        elif v.candidates is not None and v.candidate_title:
+            message = v.candidate_title
         elif v.hint:
             message = v.hint
         elif v.suggestion:
-            message = f"{v.suggestion}  ⇥Tab"
+            others = v.suggestions[1:]
+            message = f"{v.suggestion}  ⇥Tab" + "".join(f" · {s}" for s in others)
+            if others:
+                message += "　Shift+Tab 全部"
         else:
             message = ""
         if not v.composition:

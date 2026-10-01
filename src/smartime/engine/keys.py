@@ -58,6 +58,7 @@ class KeyInput:
     alt: bool = False
     caps: bool = False  # Caps Lock toggled on
     scan: int = 0
+    extended: bool = False  # right-hand Alt/Ctrl, arrows, ... (PIME isExtended)
 
     @property
     def numpad(self) -> bool:

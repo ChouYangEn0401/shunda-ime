@@ -47,6 +47,10 @@ class Config:
     # double quote, which the user expects to be " (not ；, which is Ctrl+;).
     # The other form is always one ↓ away in the candidate window.
     halfwidth_symbols: str = '"'
+    # Symbol panel: "ralt" = a lone tap of the right Alt key (default), or "off".
+    # ` is left alone (users fence code with it). Ctrl+Alt+key is impossible:
+    # Windows does not pass keys pressed with Alt to input methods.
+    palette_hotkey: str = "ralt"
 
     # Smart correction
     reorder_tolerance: bool = True  # ㄛㄨˇ typed for ㄨㄛˇ still gives 我
@@ -94,6 +98,8 @@ class Config:
         self.start_mode = _MODE_ALIASES.get(self.start_mode, self.start_mode)
         if self.start_mode not in MODE_CHOICES:
             self.start_mode = "auto"
+        if self.palette_hotkey not in ("ralt", "off"):
+            self.palette_hotkey = "ralt"
         if self.drop_stray_keys not in DROP_CHOICES:
             self.drop_stray_keys = "standard"
         self.candidates_per_page = max(1, min(9, self.candidates_per_page))

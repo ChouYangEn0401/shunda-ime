@@ -247,16 +247,22 @@
               <div class="grid" id="palette-grid"></div>
             </div>
             <div style="max-width: 46ch; min-width: 0">
-              <p style="margin-top:0">按 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>,</kbd> 打開面板（和微軟新注音的符號視窗同一個鍵；<kbd>`</kbd> 保留給你框程式碼）。<kbd>Tab</kbd> 換分類、<kbd>1</kbd>–<kbd>9</kbd> 或方向鍵選。</p>
+              <p style="margin-top:0">單按一下<b>右邊的 <kbd>Alt</kbd></b> 打開面板，再按一次關閉（<kbd>`</kbd> 保留給你框程式碼）。<kbd>Tab</kbd> 換分類、<kbd>Shift</kbd>+<kbd>Tab</kbd> 上一類、<kbd>1</kbd>–<kbd>9</kbd> 或方向鍵選。沒在打字時選的符號會直接打出來。</p>
               <p class="note">希臘字母、數學符號、箭頭、單位（℃、㎡、％）都在這裡，不用記快捷鍵。常用的符號會自動排前面。</p>
             </div>
           </div></div>
+          <div class="row">
+            <div><div class="label">打開符號面板的鍵</div><div class="desc">只有「單獨按一下」右 Alt 才算；Alt+Tab、AltGr 組合鍵不受影響，也不會讓程式跳到選單列。</div></div>
+            <div class="seg" role="group" aria-label="打開符號面板的鍵" data-cfg="palette_hotkey">
+              <button data-value="ralt">單按右 Alt</button><button data-value="off">關閉</button>
+            </div>
+          </div>
         </div>
 
         <div class="group">
-          <h3>Alt 快速切換？</h3>
+          <h3>為什麼不是 Ctrl+Alt+符號？</h3>
           <div class="row"><div class="full">
-            <p class="callout warn" style="margin:0">不使用 <kbd>Alt</kbd>：<kbd>Alt</kbd>+字母是程式選單的快捷鍵，<kbd>Alt</kbd>+<kbd>Shift</kbd> 是 Windows 切換鍵盤，單按 <kbd>Alt</kbd> 會跳到選單列。符號寬度改用上面的設定、候選窗 <kbd>↓</kbd> 和符號面板處理。</p>
+            <p class="callout warn" style="margin:0">Windows 不會把「按住 Alt 時按的鍵」交給輸入法，所以 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>,</kbd> 這類組合在這個輸入法收不到。<kbd>Alt</kbd> 單獨按一下則收得到，因此只用「單按右 Alt」開符號面板。全形／半形用上面的設定或候選窗 <kbd>↓</kbd> 切換。</p>
           </div></div>
         </div>
       </section>

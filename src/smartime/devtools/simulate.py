@@ -2,7 +2,9 @@
 
 Key script syntax: plain characters are typed as-is (``ji3`` = ㄨㄛˇ); named
 keys go in braces: {BS} {DEL} {ENTER} {ESC} {TAB} {LEFT} {RIGHT} {UP} {DOWN}
-{HOME} {END} {SHIFT} (a lone Shift tap), {SPACE}.
+{HOME} {END} {SHIFT} (a lone Shift tap), {RALT} (a lone right-Alt tap),
+{SPACE}, {S-TAB} (Shift+Tab).
+Ctrl combinations: {C-,} {C-d}; Ctrl+Shift: {CS-/}; Ctrl+Alt: {CA-,}.
 
     uv run python -m smartime.devtools.simulate "ji3ap7{DOWN}"
     uv run python -m smartime.devtools.simulate --steps "su3cl3<"
@@ -18,7 +20,7 @@ from collections.abc import Iterator
 from ..engine.keys import (
     SCAN_RSHIFT, VK_BACK, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE, VK_HOME, VK_LEFT, VK_OEM_1,
     VK_OEM_2, VK_OEM_4, VK_OEM_6, VK_OEM_7, VK_OEM_COMMA, VK_OEM_MINUS, VK_OEM_PERIOD, VK_RETURN,
-    VK_RIGHT, VK_SHIFT, VK_SPACE, VK_TAB, VK_UP, KeyInput,
+    VK_MENU, VK_RIGHT, VK_SHIFT, VK_SPACE, VK_TAB, VK_UP, KeyInput,
 )
 from ..engine.session import Session, View
 
@@ -30,20 +32,24 @@ NAMED = {
 # Physical key for Ctrl combinations, written as {C-,} or {CS-/} (Ctrl+Shift).
 CTRL_KEY_VK = {",": VK_OEM_COMMA, ".": VK_OEM_PERIOD, ";": VK_OEM_1, "'": VK_OEM_7, "/": VK_OEM_2,
                "-": VK_OEM_MINUS, "[": VK_OEM_4, "]": VK_OEM_6}
-_TOKEN = re.compile(r"\{(CS?)-(.)\}|\{([A-Z]+)\}|(.)", re.S)
+_TOKEN = re.compile(r"\{(CS|CA|C)-(.)\}|\{S-TAB\}()|\{([A-Z]+)\}|(.)", re.S)
 
 
 def parse(script: str) -> Iterator[str | int | KeyInput]:
     """Yield characters, VK codes for named keys ({SHIFT} -> VK_SHIFT), or a
     ready KeyInput for Ctrl combinations ({C-,}, {CS-/})."""
     for m in _TOKEN.finditer(script):
-        mods, ctrl_key, name, ch = m.groups()
+        mods, ctrl_key, shift_tab, name, ch = m.groups()
         if mods:
             vk = CTRL_KEY_VK.get(ctrl_key, ord(ctrl_key.upper()))
-            yield KeyInput(vk=vk, ctrl=True, shift=mods == "CS")
+            yield KeyInput(vk=vk, ctrl=True, shift=mods == "CS", alt=mods == "CA")
+        elif shift_tab is not None:
+            yield KeyInput(vk=VK_TAB, shift=True)
         elif name:
             if name == "SHIFT":
                 yield VK_SHIFT
+            elif name == "RALT":
+                yield "{RALT}"
             elif name == "SPACE":
                 yield " "
             else:
@@ -56,6 +62,12 @@ def press(session: Session, item: str | int | KeyInput) -> tuple[bool, View]:
     """Send one key the way PIME would (filter, then handle). Returns (handled, view)."""
     if isinstance(item, KeyInput):
         handled = session.filter_key_down(item) and session.key_down(item)
+        return handled, session.view()
+    if item == "{RALT}":
+        down = KeyInput(vk=VK_MENU, alt=True, extended=True)
+        session.filter_key_down(down)
+        up = KeyInput(vk=VK_MENU, extended=True)
+        handled = session.filter_key_up(up) and session.key_up(up)
         return handled, session.view()
     if item == VK_SHIFT:
         down = KeyInput(vk=VK_SHIFT, shift=True, scan=SCAN_RSHIFT)
@@ -91,9 +103,13 @@ def describe(view: View) -> str:
     if view.hint:
         parts.append(f"hint={view.hint}")
     if view.suggestion:
-        parts.append(f"tab→{view.suggestion}")
+        parts.append("tab→" + " · ".join(view.suggestions or [view.suggestion]))
+    if view.notice:
+        parts.append(f"notice={view.notice}")
     if view.candidates is not None:
-        cands = " ".join(f"{i + 1}.{c}" for i, c in enumerate(view.candidates))
+        notes = view.candidate_notes or [""] * len(view.candidates)
+        cands = " ".join(f"{i + 1}.{c}" + (f"({n})" if n else "") for i, (c, n) in
+                         enumerate(zip(view.candidates, notes)))
         parts.append(f"cand[{view.candidate_index}]: {cands}")
     parts.append(view.mode.value)
     return "  ".join(parts)

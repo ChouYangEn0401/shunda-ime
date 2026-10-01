@@ -25,12 +25,13 @@ from .keys import (
     MODIFIER_VKS, SCAN_LSHIFT, SCAN_RSHIFT, VK_BACK, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE,
     VK_HOME, VK_LEFT, VK_NEXT, VK_OEM_1, VK_OEM_2, VK_OEM_4, VK_OEM_6, VK_OEM_7, VK_OEM_COMMA,
     VK_OEM_MINUS, VK_OEM_PERIOD, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SHIFT, VK_SPACE, VK_TAB,
-    VK_UP, KeyInput,
+    VK_UP, VK_MENU, KeyInput,
 )
 from .layouts import Layout
 from .lexicon import Lexicon
 from .userdict import UserDict
 from .correction import CorrectionMixin
+from .symbols import CATEGORIES, SymbolPanel
 
 VK_D = 0x44
 SHIFT_TAP_SECONDS = 0.5
@@ -68,8 +69,10 @@ class Mode(str, Enum):
 @dataclass
 class Candidate:
     text: str
-    pin: Segment
+    pin: Segment | None
     annotation: str = ""
+    symbol: str = ""  # symbol panel entry
+    suggestion: "Suggestion | None" = None  # continuation list entry
 
 
 @dataclass
@@ -77,6 +80,8 @@ class CandidateList:
     items: list[Candidate]
     page_size: int
     index: int = 0
+    title: str = ""  # shown in the message window (symbol panel category)
+    palette: int | None = None  # symbol panel: current category index
 
     @property
     def page(self) -> int:
@@ -114,6 +119,8 @@ class View:
     candidate_index: int = 0
     hint: str = ""
     suggestion: str = ""
+    suggestions: list[str] = field(default_factory=list)  # first = what Tab takes
+    candidate_title: str = ""
     notice: str = ""  # one-off feedback ("已加入詞庫：…"), shown once
     mode: Mode = Mode.AUTO
     correcting: bool = False  # correction mode (Esc)
@@ -129,6 +136,7 @@ class Engine:
     decoder: Decoder
     config: Config
     config_path: Path | None = None  # reloaded when the file changes
+    symbols: SymbolPanel = field(default_factory=lambda: SymbolPanel(None))
     _config_mtime: float = 0.0
 
     @property
@@ -164,9 +172,11 @@ class Session(CorrectionMixin):
         self.decoding = Decoding((), 0.0)
         self.cand: CandidateList | None = None
         self.suggestion: Suggestion | None = None
+        self.suggestions: list[Suggestion] = []
         self._commit = ""
         self._notice = ""
         self._shift_down_at: float | None = None
+        self._ralt_down_at: float | None = None
         self._shift_scan = 0
         self._init_correction()
 
@@ -200,20 +210,26 @@ class Session(CorrectionMixin):
             v.candidates = [c.text for c in page]
             v.candidate_notes = [c.annotation for c in page]
             v.candidate_index = self.cand.index % self.cand.page_size
+            v.candidate_title = self.cand.title
         elif self.correcting:
             v.hint = self._correction_hint()
         else:
             v.hint = self._hint()
             if not v.hint and self.suggestion is not None:
                 v.suggestion = self.suggestion.text
+                v.suggestions = [x.text for x in self.suggestions[:self.cfg.suggestion_count]]
         return v
 
     def filter_key_down(self, key: KeyInput) -> bool:
         if key.vk == VK_SHIFT:
             self._shift_down_at = time.monotonic()
+            self._ralt_down_at = None
             self._shift_scan = key.scan
         else:
             self._shift_down_at = None
+            # a lone right-Alt tap opens the symbol panel; any other key
+            # in between (Alt+Tab, AltGr+key) cancels it
+            self._ralt_down_at = time.monotonic() if (key.vk == VK_MENU and key.extended) else None
         return self._wants(key)
 
     def key_down(self, key: KeyInput) -> bool:
@@ -230,9 +246,13 @@ class Session(CorrectionMixin):
         return self._edit_key(key)
 
     def filter_key_up(self, key: KeyInput) -> bool:
-        return self._is_shift_tap(key)
+        return self._is_shift_tap(key) or self._is_palette_tap(key)
 
     def key_up(self, key: KeyInput) -> bool:
+        if self._is_palette_tap(key):
+            self._ralt_down_at = None
+            self.toggle_palette()
+            return True
         if not self._is_shift_tap(key):
             return False
         self._shift_down_at = None
@@ -319,6 +339,9 @@ class Session(CorrectionMixin):
         if key.ctrl and vk == VK_D:
             self._add_composition_to_dict()
             return True
+        if vk == VK_TAB and key.shift:
+            self._open_continuations()
+            return True
         if vk == VK_RETURN:
             self.commit_all()
         elif vk == VK_ESCAPE:
@@ -344,7 +367,7 @@ class Session(CorrectionMixin):
             self._open_candidates()
         elif vk == VK_TAB:
             if self.suggestion is not None:
-                self._accept_suggestion()
+                self._accept_suggestion(self.suggestion)
             else:
                 self.commit_all()
         elif key.printable:
@@ -614,6 +637,9 @@ class Session(CorrectionMixin):
             return True
         if key.ctrl or key.alt:
             return False
+        if vk == VK_TAB and cand.palette is not None:
+            self._open_palette(cand.palette + (-1 if key.shift else 1))
+            return True
         if key.char and key.char in SELECTION_DIGITS and not key.numpad:
             i = SELECTION_DIGITS.index(key.char)
             page = cand.page_items()
@@ -639,6 +665,13 @@ class Session(CorrectionMixin):
         return True
 
     def _choose(self, c: Candidate) -> None:
+        if c.symbol:
+            self._insert_symbol(c.symbol)
+            return
+        if c.suggestion is not None:
+            self.cand = None
+            self._accept_suggestion(c.suggestion)
+            return
         pin = c.pin
         self.pins = [p for p in self.pins if p.end <= pin.start or p.start >= pin.end]
         self.pins.append(pin)
@@ -768,6 +801,7 @@ class Session(CorrectionMixin):
 
     def _update_suggestion(self) -> None:
         self.suggestion = None
+        self.suggestions = []
         if (not self.cfg.autocomplete or self.cand is not None or self.cursor != len(self.keys)
                 or self.correcting):
             return
@@ -786,16 +820,20 @@ class Session(CorrectionMixin):
         run.reverse()
         lex = self.engine.lexicon
         layout = self.engine.layout
+        found: list[Suggestion] = []
+        seen: set[str] = set()
         for k in range(len(run), 0, -1):
             tail = run[-k:]
             prefix = "".join(u[2] for u in tail)
             prefix_reading = "-".join(u[3] for u in tail)
             # A single character is weak context; only suggest common phrases.
             min_score = self.cfg.autocomplete_min_score + (SINGLE_CHAR_SUGGEST_MARGIN if k == 1 else 0.0)
-            for phrase, reading, score in lex.completions(prefix):
+            for phrase, reading, score in lex.completions(prefix, limit=12):
                 if score < min_score:
                     break
                 if not reading.startswith(prefix_reading + "-") or len(phrase) - k > 3:
+                    continue
+                if phrase[k:] in seen:
                     continue
                 extra = reading.split("-")[k:]
                 keys = [Key(c) for syl in extra for c in layout.keys_for_syllable(syl)]
@@ -806,12 +844,64 @@ class Session(CorrectionMixin):
                     bounds.append(pos)
                 pin = Segment(tail[0][0], pos, phrase, Kind.ZH, score,
                               tuple(reading.split("-")), tuple(bounds), pinned=True)
-                self.suggestion = Suggestion(phrase[k:], pin, keys)
-                return
+                found.append(Suggestion(phrase[k:], pin, keys))
+                seen.add(phrase[k:])
+                if len(found) >= 9:
+                    break
+            if len(found) >= 9:
+                break
+        self.suggestions = found
+        self.suggestion = found[0] if found else None
 
-    def _accept_suggestion(self) -> None:
-        sug = self.suggestion
-        assert sug is not None
+    def _open_continuations(self) -> None:
+        """Shift+Tab: all continuations in the candidate window."""
+        if not self.suggestions:
+            self._notice = "現在沒有接續建議"
+            return
+        items = [Candidate(s.text, None, s.pin.text, suggestion=s) for s in self.suggestions]
+        self.cand = CandidateList(items, self.cfg.candidates_per_page, title="接續")
+
+    # ============================================================ symbol panel
+    def _is_palette_tap(self, key: KeyInput) -> bool:
+        """A lone tap of the right Alt key. (Keys pressed *with* Alt never
+        reach an input method in Windows/PIME, so Ctrl+Alt+, cannot work.)
+        Taking the key-up also stops the app from activating its menu bar."""
+        if self.cfg.palette_hotkey != "ralt" or key.vk != VK_MENU or self._ralt_down_at is None:
+            return False
+        return time.monotonic() - self._ralt_down_at <= SHIFT_TAP_SECONDS
+
+    def toggle_palette(self) -> None:
+        if self.cand is not None and self.cand.palette is not None:
+            self.cand = None
+        else:
+            self._open_palette(0)
+
+    def _open_palette(self, index: int) -> None:
+        index %= len(CATEGORIES)
+        name, symbols = self.engine.symbols.category(index)
+        tabs = " ".join(f"[{n}]" if i == index else n for i, (n, _) in enumerate(CATEGORIES))
+        items = [Candidate(sym, None, symbol=sym) for sym in symbols]
+        # the category name rides on the first row, so it is visible even
+        # when nothing is being composed (no message window then)
+        items[0].annotation = f"{name} · Tab 換分類"
+        self.cand = CandidateList(items, self.cfg.candidates_per_page,
+                                  title=f"符號 {tabs} · Tab 換分類", palette=index)
+
+    def _insert_symbol(self, symbol: str) -> None:
+        self.cand = None
+        self.engine.symbols.used(symbol)
+        if not self.keys:
+            self._commit += symbol  # nothing being composed: type it right away
+            return
+        pos = self.cursor
+        self._insert(Key(symbol))
+        # keep it exactly as chosen (the decoder never reinterprets it)
+        pin = Segment(pos, pos + 1, symbol, Kind.PUNCT, -1.0, pinned=True)
+        self.pins = [p for p in self.pins if p.end <= pos or p.start >= pos + 1] + [pin]
+        self.pins.sort(key=lambda p: p.start)
+        self._redecode()
+
+    def _accept_suggestion(self, sug: Suggestion) -> None:
         start = len(self.keys)
         self.keys.extend(sug.keys)
         pin = sug.pin
