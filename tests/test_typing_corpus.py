@@ -97,6 +97,30 @@ def test_real_typing_with_edits(session, script, expected):
     assert view.composition == expected
 
 
+# "i␣" / "o␣": English word or zhuyin (ㄛ 喔 / ㄟ)? The whole sentence decides
+# — the user's examples: "i am a good guy" vs "喔！好酷！" vs "你想我喔".
+I_O_CONTEXT = [
+    ("i am a good guy", "i am a good guy"),
+    ("i love you", "i love you"),
+    ("ok i see", "ok i see"),
+    ("so i ", "so i "),
+    ("i'm fine", "i'm fine"),
+    ("I am a good guy", "I am a good guy"),
+    ("i !cl3dj4!", "喔！好酷！"),
+    ("su3vu;3ji3i ", "你想我喔"),
+    ("cl3dj4i ", "好酷喔"),
+    ("ji3m/4python vu,3i ", "我用python 寫喔"),
+    ("o ", "ㄟ"),
+    pytest.param("o cl3dj4", "欸好酷",
+                 marks=pytest.mark.xfail(reason="欸 lacks the colloquial reading ㄟ in the lexicon", strict=True)),
+]
+
+
+@pytest.mark.parametrize("keys, expected", I_O_CONTEXT)
+def test_i_o_context(decoder, keys, expected):
+    assert decode(decoder, keys) == expected
+
+
 @pytest.mark.parametrize("keys, expected", ENGLISH)
 def test_english(decoder, keys, expected):
     assert decode(decoder, keys) == expected
