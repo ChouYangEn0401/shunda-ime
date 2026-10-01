@@ -43,6 +43,11 @@ def config_path() -> Path:
     return user_dir() / "config.json"
 
 
+def user_db_path() -> Path:
+    """My dictionary and learned memory."""
+    return user_dir() / "user.db"
+
+
 def log_dir() -> Path:
     d = user_dir() / "logs"
     d.mkdir(parents=True, exist_ok=True)

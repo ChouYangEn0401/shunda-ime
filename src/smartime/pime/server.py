@@ -22,6 +22,7 @@ from ..config import Config
 from ..engine.decoder import Decoder
 from ..engine.layouts import get_layout
 from ..engine.lexicon import Lexicon
+from ..engine.userdict import UserDict
 from ..engine.session import Engine
 from .text_service import SmartTextService
 
@@ -40,10 +41,19 @@ def setup_logging() -> None:
 
 def build_engine() -> Engine:
     config = Config.load(paths.config_path())
-    lexicon = Lexicon(paths.system_db_path())
+    try:
+        user = UserDict(paths.user_db_path())
+    except Exception:
+        # A broken user.db must never stop typing; run without memory.
+        log.exception("cannot open the user dictionary; continuing without it")
+        user = None
+    lexicon = Lexicon(paths.system_db_path(), user)
     layout = get_layout(config.layout)
     decoder = Decoder(lexicon, layout, halfwidth_symbols=config.halfwidth_symbols)
-    return Engine(lexicon=lexicon, layout=layout, decoder=decoder, config=config)
+    engine = Engine(lexicon=lexicon, layout=layout, decoder=decoder, config=config,
+                    config_path=paths.config_path())
+    engine.refresh()  # record the config file's current mtime
+    return engine
 
 
 def serve(stdin, stdout, engine: Engine, icon_dir: Path) -> None:

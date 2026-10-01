@@ -16,6 +16,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field, replace
 from enum import Enum
+from pathlib import Path
 
 from ..config import Config
 from . import bopomofo
@@ -28,7 +29,9 @@ from .keys import (
 )
 from .layouts import Layout
 from .lexicon import Lexicon
+from .userdict import UserDict
 
+VK_D = 0x44
 SHIFT_TAP_SECONDS = 0.5
 SELECTION_DIGITS = "123456789"
 SINGLE_CHAR_SUGGEST_MARGIN = 1.5  # stricter autocomplete threshold for 1-char context
@@ -106,26 +109,49 @@ class View:
     cursor: int = 0
     commit: str = ""
     candidates: list[str] | None = None
+    candidate_notes: list[str] | None = None  # e.g. 朋友, 學過, 原始按鍵
     candidate_index: int = 0
     hint: str = ""
     suggestion: str = ""
+    notice: str = ""  # one-off feedback ("已加入詞庫：…"), shown once
     mode: Mode = Mode.AUTO
 
 
 @dataclass
 class Engine:
-    """Shared, read-only resources for all sessions in the process."""
+    """Shared resources for all sessions in the process."""
 
     lexicon: Lexicon
     layout: Layout
     decoder: Decoder
     config: Config
+    config_path: Path | None = None  # reloaded when the file changes
+    _config_mtime: float = 0.0
+
+    @property
+    def user(self) -> UserDict | None:
+        return self.lexicon.user
+
+    def refresh(self) -> None:
+        """Pick up changes made by the settings app (config file, user
+        dictionary). Cheap enough to call on every key."""
+        self.lexicon.refresh()
+        if self.config_path is None:
+            return
+        try:
+            mtime = self.config_path.stat().st_mtime
+        except OSError:
+            return
+        if mtime != self._config_mtime:
+            if self._config_mtime:  # not the first check
+                self.config = Config.load(self.config_path)
+                self.decoder.halfwidth_symbols = frozenset(self.config.halfwidth_symbols)
+            self._config_mtime = mtime
 
 
 class Session:
     def __init__(self, engine: Engine):
         self.engine = engine
-        self.cfg = engine.config
         self.mode = Mode(self.cfg.start_mode)
         # The Chinese-side mode a Shift tap returns to from English.
         self.chinese_mode = self.mode if self.mode is not Mode.ENGLISH else Mode.AUTO
@@ -136,10 +162,17 @@ class Session:
         self.cand: CandidateList | None = None
         self.suggestion: Suggestion | None = None
         self._commit = ""
+        self._notice = ""
         self._shift_down_at: float | None = None
         self._shift_scan = 0
 
     # ================================================================ API
+    @property
+    def cfg(self) -> Config:
+        # Always the engine's current config (it is reloaded when the
+        # settings app saves).
+        return self.engine.config
+
     @property
     def composing(self) -> bool:
         return bool(self.keys)
@@ -154,8 +187,11 @@ class Session:
             mode=self.mode,
         )
         self._commit = ""
+        v.notice, self._notice = self._notice, ""
         if self.cand is not None:
-            v.candidates = [c.text for c in self.cand.page_items()]
+            page = self.cand.page_items()
+            v.candidates = [c.text for c in page]
+            v.candidate_notes = [c.annotation for c in page]
             v.candidate_index = self.cand.index % self.cand.page_size
         else:
             v.hint = self._hint()
@@ -229,6 +265,8 @@ class Session:
             return True
         if self._ctrl_punct(key) is not None:
             return True
+        if self.composing and key.ctrl and not key.alt and key.vk == VK_D:
+            return True  # add the composition to my dictionary
         if key.ctrl or key.alt:
             return False
         if self.mode is Mode.ENGLISH:
@@ -262,6 +300,9 @@ class Session:
             # Inserted as a key whose character *is* the punctuation, so it
             # flows through the decoder (and clause punctuation commits).
             self._insert(Key(punct))
+            return True
+        if key.ctrl and vk == VK_D:
+            self._add_composition_to_dict()
             return True
         if vk == VK_RETURN:
             self.commit_all()
@@ -467,7 +508,7 @@ class Session:
             self.cand = CandidateList(unique, self.cfg.candidates_per_page)
 
     def _zh_alternatives(self, start: int) -> list[Candidate]:
-        return [Candidate(s.text, replace(s, pinned=True))
+        return [Candidate(s.text, replace(s, pinned=True), self._note(s.text, "-".join(s.readings)))
                 for s in self.engine.decoder.zh_alternatives(self.keys, start)]
 
     def _dropped_before(self, pos: int) -> int:
@@ -518,8 +559,17 @@ class Session:
                     continue
                 seen.add(key)
                 pin = Segment(bounds[0], bounds[-1], text, Kind.ZH, score, rs, bounds, pinned=True)
-                items.append(Candidate(text, pin))
+                items.append(Candidate(text, pin, self._note(text, "-".join(rs))))
         return items
+
+    def _note(self, phrase: str, reading: str) -> str:
+        """Candidate annotation from my dictionary: its category, or 學過."""
+        e = self.engine.lexicon.entry(phrase, reading)
+        if e is None:
+            return ""
+        if e.category:
+            return e.category
+        return "學過" if e.count > 0 else ""
 
     def _punct_candidates(self, seg: Segment) -> list[Candidate]:
         raw = self.keys[seg.start].char
@@ -532,13 +582,20 @@ class Session:
         cand = self.cand
         assert cand is not None
         vk = key.vk
+        if key.ctrl and vk == VK_D:
+            self._add_candidate_to_dict(cand.items[cand.index])
+            return True
+        if key.ctrl or key.alt:
+            return False
         if key.char and key.char in SELECTION_DIGITS and not key.numpad:
             i = SELECTION_DIGITS.index(key.char)
             page = cand.page_items()
             if i < len(page):
                 self._choose(page[i])
             return True
-        if vk in (VK_RETURN, VK_SPACE):
+        if vk == VK_DELETE:
+            self._forget_candidate(cand.items[cand.index])
+        elif vk in (VK_RETURN, VK_SPACE):
             self._choose(cand.items[cand.index])
         elif vk == VK_DOWN:
             cand.move(+1)
@@ -562,7 +619,79 @@ class Session:
         self.cand = None
         if self.cursor < len(self.keys):
             self.cursor = pin.end
+        self._learn(pin)
         self._redecode()
+
+    # ============================================================ memory
+    def _learn(self, seg: Segment) -> None:
+        """Remember an explicit choice (candidate picked, Tab accepted)."""
+        user = self.engine.user
+        if user is None or not self.cfg.learn:
+            return
+        if seg.kind is Kind.ZH:
+            user.learn(seg.text, "-".join(seg.readings), "zh")
+        elif seg.kind is Kind.EN:
+            user.learn(seg.text.lower(), "", "en")
+        else:
+            return
+        self.engine.lexicon.invalidate()
+
+    def _forget_candidate(self, c: Candidate) -> None:
+        user = self.engine.user
+        seg = c.pin
+        if user is None or seg.kind not in (Kind.ZH, Kind.EN):
+            return
+        reading = "-".join(seg.readings) if seg.kind is Kind.ZH else ""
+        phrase = seg.text if seg.kind is Kind.ZH else seg.text.lower()
+        result = user.forget(phrase, reading, "zh" if seg.kind is Kind.ZH else "en")
+        self.engine.lexicon.invalidate()
+        self._notice = {
+            "manual": f"「{seg.text}」是你加入的詞，要刪除請到設定頁",
+            "forgot": f"已忘記「{seg.text}」的使用紀錄",
+            "blocked": f"不再建議「{seg.text}」（可在設定頁還原）",
+        }[result]
+        # Rebuild the window without the removed/demoted entry.
+        keep_index = self.cand.index if self.cand else 0
+        self.cand = None
+        self._redecode()
+        self._open_candidates()
+        if self.cand is not None:
+            self.cand.index = min(keep_index, len(self.cand.items) - 1)
+
+    def _add_candidate_to_dict(self, c: Candidate) -> None:
+        seg = c.pin
+        if seg.kind is Kind.ZH:
+            self._add_to_dict(seg.text, "-".join(seg.readings), "zh")
+        elif seg.kind in (Kind.EN, Kind.LITERAL) and seg.text.strip():
+            self._add_to_dict(seg.text.strip(), "", "en")
+
+    def _add_composition_to_dict(self) -> None:
+        """Ctrl+D while composing: add the Chinese text before the cursor
+        (e.g. a friend's name just typed and fixed) to my dictionary."""
+        units = [u for u in self.decoding.units() if u[1] <= self.cursor]
+        segs = self.decoding.segments
+        chars, readings = [], []
+        for a, b, ch, seg_idx in reversed(units):
+            seg = segs[seg_idx]
+            if seg.kind is not Kind.ZH:
+                break
+            chars.append(ch)
+            readings.append(seg.readings[seg.bounds.index(a)])
+        if not chars:
+            self._notice = "游標前沒有中文可以加入詞庫"
+            return
+        chars.reverse()
+        readings.reverse()
+        self._add_to_dict("".join(chars), "-".join(readings), "zh")
+
+    def _add_to_dict(self, phrase: str, reading: str, kind: str) -> None:
+        user = self.engine.user
+        if user is None:
+            return
+        category = self.cfg.default_category if kind == "zh" else "常用英文"
+        user.add(phrase, reading, kind, category)
+        self.engine.lexicon.invalidate()
+        self._notice = f"已加入詞庫：{phrase}（{category}）"
 
     # ========================================================= assistance
     def _hint(self) -> str:
@@ -648,6 +777,7 @@ class Session:
         self.pins.append(pin)
         self.cursor = len(self.keys)
         assert pin.end == start + len(sug.keys)
+        self._learn(pin)  # positive feedback: accepted continuations rank higher
         self._redecode()
         self._commit_overflow()
 

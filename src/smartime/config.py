@@ -46,6 +46,10 @@ class Config:
     # The other form is always one ↓ away in the candidate window.
     halfwidth_symbols: str = '"'
 
+    # Memory (my dictionary)
+    learn: bool = True  # remember candidates I pick and continuations I accept
+    default_category: str = "常用詞"  # where Ctrl+D puts a new word
+
     # Assistance
     spelling_hint: bool = True  # show zhuyin of the unfinished syllable
     autocomplete: bool = True  # Tab to accept a phrase continuation

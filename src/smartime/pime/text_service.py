@@ -65,6 +65,13 @@ class SmartTextService:
         success = True
         s = self.session
 
+        if method in ("filterKeyDown", "onActivate"):
+            # Pick up edits from the settings app (config, my dictionary).
+            try:
+                self.engine.refresh()
+            except Exception:
+                log.exception("refresh failed")
+
         if method == "init":
             self.is_windows8_above = bool(msg.get("isWindows8Above", True))
         elif method == "onActivate":
@@ -148,7 +155,9 @@ class SmartTextService:
             reply["compositionCursor"] = v.cursor
 
         if v.candidates is not None:
-            reply["candidateList"] = v.candidates
+            notes = v.candidate_notes or [""] * len(v.candidates)
+            # Category / 學過 / 原始按鍵 shown after the candidate text.
+            reply["candidateList"] = [f"{t}　{n}" if n else t for t, n in zip(v.candidates, notes)]
             reply["candidateCursor"] = v.candidate_index
             reply["showCandidates"] = True
             self._showing_candidates = True
@@ -157,7 +166,9 @@ class SmartTextService:
             reply["showCandidates"] = False
             self._showing_candidates = False
 
-        if v.hint:
+        if v.notice:
+            message = v.notice
+        elif v.hint:
             message = v.hint
         elif v.suggestion:
             message = f"{v.suggestion}  ⇥Tab"
