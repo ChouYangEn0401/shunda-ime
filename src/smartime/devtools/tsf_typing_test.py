@@ -39,6 +39,9 @@ WS_VISIBLE = 0x10000000
 WS_BORDER = 0x00800000
 ES_AUTOHSCROLL = 0x0080  # without it a single-line EDIT rejects text wider than the box
 WS_EX_TOPMOST = 0x00000008
+WS_EX_TOOLWINDOW = 0x00000080
+WS_EX_NOACTIVATE = 0x08000000  # the caption must never take focus from the edit box
+SM_CXSCREEN = 0
 WM_SETFONT = 0x0030
 EM_SETEDITSTYLE = 0x0400 + 204
 SES_USECTF = 0x00010000
@@ -227,20 +230,34 @@ GUARD: UserGuard | None = None
 
 
 class TestWindow:
+    """A caption line (what is being typed, what we expect) above a wide
+    edit box. Wide enough that long cases stay readable while they run."""
+
     def __init__(self, richedit: bool = False) -> None:
         cls = "EDIT"
         if richedit:
             ctypes.WinDLL("msftedit")  # registers RICHEDIT50W
             cls = "RICHEDIT50W"
+        hinst = kernel32.GetModuleHandleW(None)
+        width = min(user32.GetSystemMetrics(SM_CXSCREEN) - 80, 1400)
+        # Caption first, so creating it can't steal focus from the edit box.
+        self.caption = user32.CreateWindowExW(WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, "STATIC", "",
+                                              WS_POPUP | WS_VISIBLE | WS_BORDER, 40, 40, width, 90,
+                                              None, None, hinst, None)
         self.hwnd = user32.CreateWindowExW(WS_EX_TOPMOST, cls, "", WS_POPUP | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-                                           40, 40, 520, 48, None, None, kernel32.GetModuleHandleW(None), None)
-        if not self.hwnd:
+                                           40, 134, width, 48, None, None, hinst, None)
+        if not self.hwnd or not self.caption:
             raise OSError(f"CreateWindowEx failed ({ctypes.get_last_error()})")
         if richedit:
             # Make RichEdit talk to TSF directly instead of through IMM32.
             user32.SendMessageW(self.hwnd, EM_SETEDITSTYLE, SES_USECTF, SES_USECTF)
         font = gdi32.CreateFontW(-28, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 0, 0, "Microsoft JhengHei UI")
         user32.SendMessageW(self.hwnd, WM_SETFONT, font, 1)
+        small = gdi32.CreateFontW(-20, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 0, 0, "Microsoft JhengHei UI")
+        user32.SendMessageW(self.caption, WM_SETFONT, small, 1)
+
+    def set_caption(self, text: str) -> None:
+        user32.SetWindowTextW(self.caption, text)
 
     def focus(self) -> bool:
         fg = user32.GetForegroundWindow()
@@ -265,6 +282,7 @@ class TestWindow:
 
     def destroy(self) -> None:
         user32.DestroyWindow(self.hwnd)
+        user32.DestroyWindow(self.caption)
 
     def _send(self, vk: int, up: bool) -> None:
         if GUARD is not None and GUARD.user_input:
@@ -332,6 +350,10 @@ CASES = [
     ("2; ji3rup wu0 t;6g4283{ENTER}", "當我今天嘗試打"),  # 283 is 打, not a number
     ("su3cl3{C-,}", "你好，"),  # Ctrl+, full-width comma
     ("{C-[}ji3{C-]}{ENTER}", "「我」"),
+    ("cl3dj4i {ENTER}", "好酷喔"),  # i␣ is ㄛ (喔), not the word "i"
+    ("ji3ee/4dj94{ENTER}", "我更快"),  # stray key left by fast typing is dropped
+    ("mvp {DOWN}4{ENTER}", "勳"),  # English token -> Chinese reading (␣ is its tone key)
+    ('ji3ap7"python"{ENTER}', '我們"python"'),  # " stays half-width
     # > 30 characters: automatic partial commit mid-sentence (broke in VS Code)
     ("b06c.4283tj x96k27y4b/6b06j6z83fm4u/ jp6k27jp4wu6ru.4cjo4y94vscodexu3ua04yjo4284k27t8 u4{ENTER}", None),
 ]
@@ -373,7 +395,9 @@ def main() -> int:
             print(f"FAIL: ActivateProfile returned {hr & 0xFFFFFFFF:#x}")
             return 1
         pump(0.8)  # let TSF load PIMETextService.dll and connect to the launcher
-        for script, expected in cases:
+        for n, (script, expected) in enumerate(cases, 1):
+            win.set_caption(f"  智慧輸入法自動測試 {n}/{len(cases)}（碰鍵盤或滑鼠會立即停止）\r\n"
+                            f"  按鍵：{script}\r\n  預期：{expected}")
             win.clear()
             pump(0.1)
             type_script(win.tap, script)
