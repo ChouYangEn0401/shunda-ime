@@ -1,42 +1,56 @@
 # 智慧輸入法 (Smart IME)
 
 免切換中英混打的注音輸入法（Windows）。打字手感參考華碩智慧輸入法：字母先出現、旁邊顯示注音提示、按聲調鍵轉成中文、Tab 接續；
-底層改用「整句重新解碼」的 lattice 解碼器，目標是從根本解決順序錯、多按、誤判英文等問題，並整合本地語音輸入。
+底層改用「整句重新解碼」的 lattice 解碼器，從根本解決順序打反、多按雜鍵、誤判英文等問題，並記住你的用詞（學錯可以刪）。
 
-> 狀態：**Phase 4 進行中**。已完成：注音順序容錯、數字鍵音節、Ctrl+符號標點、長句穩定性、快打雜鍵略過、跨類別換字、三種輸入模式。進行中：個人學習與刪除錯誤記憶、分類詞庫、修正模式。
+> 狀態：**0.2.0**。已完成：混打解碼與容錯、三種輸入模式、我的詞庫與學習記憶、Vim 式修正模式、符號面板、設定頁、倚天鍵盤、單一安裝檔。
+> 進行中：本地語音輸入（按住右 Ctrl 說話）。
 > 調查報告：[docs/research/phase0-1-research.md](docs/research/phase0-1-research.md)
 
 ## 安裝（Windows 10/11）
 
-需要：網路（第一次會下載 PIME 與一個私有的 Python 執行環境）、系統管理員權限（只有註冊輸入法那一步）。
+1. 下載 `SmartIME-Setup-0.2.0.exe`，按兩下執行（會跳出系統管理員權限確認）。
+   安裝檔還沒有數位簽章，Windows 可能顯示「Windows 已保護您的電腦」：按「其他資訊」→「仍要執行」。
+2. 安裝程式會一併裝好 PIME 輸入法框架（沒有的話）、註冊輸入法，並加到你的語言清單。不需要網路。
+3. 按 `Win + Space` 切換到「智慧輸入法」。
 
-```powershell
-# 一般安裝（複製到 PIME 資料夾）
-powershell -ExecutionPolicy Bypass -File scripts\install.ps1
-
-# 開發模式（PIME 直接連到這個 repo，改完程式在系統匣 PIME 圖示選「Restart PIME」即生效）
-powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -Dev
-```
-
-安裝後按 `Win + Space` 切換到「智慧輸入法」（系統匣圖示：智＝中英自動、中＝純中文、英＝純英文）。移除：`scripts\uninstall.ps1`。
-
-個人資料（設定、日後的學習詞庫）都在 `%APPDATA%\SmartIME`，安裝/移除都不會動到；換電腦時整個資料夾帶走即可（Phase 7 會加匯出/匯入）。
+- 設定：開始功能表「智慧輸入法 設定」，或系統匣輸入法圖示按右鍵 →「設定…」。
+- 移除：Windows 設定 → 應用程式 → 智慧輸入法（PIME 與其他 PIME 輸入法會保留）。
+- 個人資料（設定、我的詞庫、學習記憶）在 `%APPDATA%\SmartIME`，安裝／移除都不會動到；
+  換電腦用設定頁「資料與隱私」匯出成一個 `.smartime` 檔，在新電腦匯入（合併，不會覆蓋）。
 
 ## 怎麼打
 
 | 動作 | 按鍵 |
 |------|------|
-| 打中文 | 直接用大千注音打，按聲調鍵（空白/ˊ/ˇ/ˋ/˙）轉成中文 |
+| 打中文 | 直接用注音打（大千或倚天），按聲調鍵轉成中文 |
 | 打英文 | 直接打，不用切換；未完成的注音會以原字母顯示，旁邊提示注音 |
 | 選字 | `↓` 或 `↑` 叫出候選；`1–9` 直接選，`↑↓` 移動、`Enter` 確認、`←→` 翻頁、`Esc` 取消 |
 | 換成別種解讀 | 候選窗跨類別：英文 `mvp` 可換成「勳」、`i␣`（喔）可換回英文 `i`、任何中文都可換回「原始按鍵」 |
-| 修改前面的字 | `←` `→` 把游標移到要改的字前面，提示框會顯示「字 注音 ⌨ 按鍵」（有被略過的雜鍵會標出），再按 `↑`/`↓` 換字 |
-| 接續詞（自動完成） | 旁邊出現「xx ⇥Tab」時按 `Tab` |
+| 修改前面的字 | `←` `→` 把游標移到字前面，提示框顯示「字 注音 ⌨ 按鍵」，再按 `↑`/`↓` 換字；或用下面的修正模式 |
+| 接續詞 | 旁邊出現「xx ⇥Tab」時按 `Tab`；`Shift+Tab` 列出全部接續詞 |
+| 符號面板 | 單按一下右 `Alt`：常用標點、括號、希臘字母、數學、箭頭、單位……；`Tab` 換分類 |
+| 加到我的詞庫 | `Ctrl+D`：把游標前的中文（例如剛打好的朋友名字）加進我的詞庫；候選窗中按則加入目前這個候選 |
+| 刪掉學錯的詞 | 候選窗停在那個詞上按 `Delete` |
 | 送出 | `Enter`，或打句讀標點（，。？！：；）時自動送出 |
-| 刪除 | `Backspace` 刪一個字（未完成的注音則刪一鍵）；`Esc` 清除整段 |
-| 切換模式 | 單按右 `Shift`：英文 ⇄ 上次用的中文模式；系統匣圖示按右鍵選「中英自動／純中文／純英文」 |
+| 刪除 | `Backspace` 刪一個字（未完成的注音則刪一鍵） |
+| 切換模式 | 單按右 `Shift`：英文 ⇄ 上次用的中文模式；系統匣圖示按右鍵選模式 |
 
-全形標點（兩種都可以；`"` 預設是半形，想要 ； 請用 `Ctrl+;`）：
+### 修正模式（Vim 式）
+
+組字中按 `Esc` 進入，字不會送出，按鍵變成指令（再按一次 `Esc` 才是清除整段）：
+
+| 鍵 | 作用 | 鍵 | 作用 |
+|----|------|----|------|
+| `h` `l` | 左右移動 | `j` `k` | 換成下一個／上一個候選 |
+| `v` | 切換檢視：國字 → 注音 → 按鍵 | `x` | 刪除（按鍵檢視中刪一鍵，可清掉雜鍵） |
+| `e` | 這個字在中文／英文／原始按鍵之間切換 | `r` | 重打這個字 |
+| `a` | 加到我的詞庫 | `u` | 復原 |
+| `i` | 回到打字 | `Enter` | 送出 |
+
+### 標點
+
+全形標點（`"` 預設是半形，想要 ； 請用 `Ctrl+;`）：
 
 | 按鍵 | 結果 | 按鍵 | 結果 |
 |------|------|------|------|
@@ -49,22 +63,30 @@ powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -Dev
 | `Ctrl+Shift+,` | 《 | `Ctrl+Shift+.` | 》 |
 | `Ctrl+Shift+9` / `0` | （ ） | `Ctrl+-` | — |
 
-`Ctrl+符號` 沿用微軟新注音／華碩的習慣，在中英自動與純中文模式有效；切到純英文模式時 `Ctrl+,`、`Ctrl+.` 會照常交給應用程式（例如 VS Code 的設定、Quick Fix）。
-打錯寬度時，游標停在標點後按 `↓`：全形、半形與相關符號（`"` → ； “ ” 「 」）都在候選裡。
+`Ctrl+符號` 沿用微軟新注音／華碩的習慣，在中英自動與純中文模式有效；純英文模式時 `Ctrl+,`、`Ctrl+.` 照常交給應用程式（例如 VS Code）。
+打錯寬度時，游標停在標點後按 `↓`：全形、半形與相關符號都在候選裡。哪些符號預設半形可以在設定頁改。
 
-三種模式：
+### 三種模式
 
 | 模式 | 圖示 | 說明 |
 |------|------|------|
-| 中英自動（預設） | 智 | 不用切換，依整句判斷每段是中文還是英文 |
+| 中英自動（預設） | 自 | 不用切換，依整句判斷每段是中文還是英文 |
 | 純中文 | 中 | 每個鍵都是注音（傳統注音輸入法的行為）；數字請用數字鍵盤 |
 | 純英文 | 英 | 按鍵直接交給應用程式 |
 
-打字容錯：
+右 `Shift` 預設在「英文 ⇄ 中文側模式」之間切換；設定頁可改成三種模式輪流。
+
+### 打字容錯
 
 - 同一個字的注音按鍵順序打反也能辨識（`k27` → 的、`8a3` → 碼），提示會顯示「將變成的」標準順序
 - 快打時多按、或修正時殘留的單一字母會被略過（`我e更快` → 我更快）；被略過的鍵可從候選窗的「原始按鍵」找回
 - `i␣`、`o␣` 依前後文判斷：`i am a good guy` 維持英文，`你想我喔`、`喔！好酷！` 變成中文
+
+### 我的詞庫與學習
+
+- 只從你**明確的選擇**學習（候選窗選字、Tab 接受、修正模式最後停下的字），不會從自動送出的文字亂學
+- 設定頁「我的詞庫」可以新增、修改、分類（例如「朋友」放朋友的名字）、刪除；學錯的詞可以刪掉或封鎖
+- 資料只存在這台電腦（`%APPDATA%\SmartIME\user.db`）
 
 ## 開發
 
@@ -73,7 +95,10 @@ uv sync --group dev --group build-data          # 建立 .venv（Python 3.13）
 uv run --group build-data python tools/build_data.py   # 建詞庫 -> data/generated/smartime.db
 uv run pytest                                    # 測試
 uv run python -m smartime.devtools.simulate --steps "ji3ap7{DOWN}"   # 不安裝也能模擬打字
-powershell -ExecutionPolicy Bypass -File scripts\dev-reload.ps1 [-Rebuild]   # 讓已安裝(-Dev)的輸入法載入新程式／新詞庫
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -Dev      # 開發模式安裝（PIME 直接連到這個 repo）
+powershell -ExecutionPolicy Bypass -File scripts\dev-reload.ps1 [-Rebuild]   # 讓開發模式的輸入法載入新程式／新詞庫
+uv run python tools/build_installer.py           # 產生 dist\SmartIME-Setup-<版本>.exe（需要 Inno Setup 6）
+uv run python -m smartime.settings               # 開設定頁（本機網頁）
 ```
 
 - 架構與交接說明：[docs/architecture.md](docs/architecture.md)
@@ -83,13 +108,15 @@ powershell -ExecutionPolicy Bypass -File scripts\dev-reload.ps1 [-Rebuild]   # �
 ## 專案結構
 
 ```
-src/smartime/engine/    輸入引擎（純標準函式庫）：注音、鍵盤配置、詞庫、解碼器、session
+src/smartime/engine/    輸入引擎（純標準函式庫）：注音、鍵盤配置、詞庫、使用者詞庫、解碼器、session、修正模式、符號
 src/smartime/pime/      PIME 後端協定（stdin/stdout JSON）與 text service 轉接
-src/smartime/devtools/  模擬器等開發工具
-backend/                PIME 看到的後端資料夾（server.py、ime.json、圖示；runtime/ 為安裝時下載）
-tools/                  建置工具（詞庫、圖示）
-scripts/                安裝 / 移除腳本
+src/smartime/settings/  設定頁：本機 HTTP 伺服器 + 網頁介面（Edge／Chrome App 視窗）
+src/smartime/devtools/  模擬器與實機打字測試（EDIT、RichEdit、Edge）
+backend/                PIME 看到的後端資料夾（server.py、settings.py、ime.json、圖示）
+installer/              Inno Setup 安裝檔腳本與安裝時用的輔助程式
+tools/                  建置工具（詞庫、圖示、安裝檔）
+scripts/                開發用安裝 / 移除 / 重新載入腳本
 data/lexicon/           我們自己維護的詞表（例：中英夾雜常用英文詞）
 tests/                  pytest
-docs/                   調查、架構、授權文件
+docs/                   調查、架構、授權、設計稿
 ```

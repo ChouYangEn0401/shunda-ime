@@ -1,5 +1,5 @@
-"""Symbol panel (Ctrl+Alt+, by default): categories of symbols that have no
-key of their own. The first category, 常用, puts recently used symbols first.
+"""Symbol panel (a lone tap of the right Alt key): categories of symbols that
+have no key of their own. The first category, 常用, puts recently used symbols first.
 """
 
 from __future__ import annotations

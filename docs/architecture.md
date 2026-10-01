@@ -1,6 +1,6 @@
 # 架構與交接說明
 
-> 讀者：接手或參與開發的工程師。最後更新：Phase 4-1。
+> 讀者：接手或參與開發的工程師。最後更新：0.2.0（Phase 5–8 進行中）。
 
 ## 1. 全貌
 
@@ -22,17 +22,27 @@
   `<PIME>\smartime\input_methods\smartime\ime.json` 宣告輸入法（固定 GUID `{61AA71DB-BB8C-4C7D-9BD7-C324464DF341}`）。
 - 後端使用**自己下載的 embeddable Python 3.13**（`backend/runtime`），不依賴 PIME 內建的 Python 3.8，也不依賴使用者電腦上的 Python。
 - 引擎只用標準函式庫，所以 embeddable Python 不需要安裝任何套件。
+- 另外兩個行程，都不在打字的路徑上：
+  - **設定頁**（`backend/settings.py` → `smartime.settings`）：本機 HTTP 伺服器 + Edge/Chrome App 視窗（見 §5）。
+  - **語音輸入**（`smartime.voice.service`）：開啟語音輸入時才啟動，用另外安裝的 Python 套件。
+- 三個行程只透過使用者資料夾溝通：`config.json`（後端比對修改時間後重新載入）與 `user.db`（SQLite WAL）。
 
 ## 2. 引擎分層（`src/smartime/engine`）
 
 | 模組 | 職責 |
 |------|------|
 | `bopomofo.py` | 注音結構：聲母/介音/韻母/聲調分類、組音節、聲調工具 |
-| `layouts.py` | 實體按鍵 ↔ 注音符號（目前：大千）；反查讀音 → 按鍵（Tab 接續用） |
-| `lexicon.py` | 唯讀 SQLite 詞庫存取與快取：讀音→詞、讀音前綴、英文詞頻、詞語補全 |
+| `layouts.py` | 實體按鍵 ↔ 注音符號（大千、倚天）；反查讀音 → 按鍵（Tab 接續用） |
+| `lexicon.py` | 系統詞庫（唯讀 SQLite）＋ 使用者詞庫疊加：讀音→詞、讀音前綴、英文詞頻、詞語補全 |
+| `userdict.py` | 我的詞庫與學習記憶（`user.db`）：新增、學習、刪除、封鎖、分類、備份與合併 |
 | `decoder.py` | **核心**：把原始按鍵緩衝區解成中英混合的最佳分段（lattice + Viterbi） |
-| `session.py` | 每個輸入情境的狀態機：插入/刪除/游標/候選/Tab/送出/中英模式 |
-| `keys.py` | 與平台無關的按鍵事件（數值沿用 Windows VK code） |
+| `session.py` | 每個輸入情境的狀態機：插入/刪除/游標/候選/Tab/送出/中英模式/符號面板/學習時機 |
+| `correction.py` | Vim 式修正模式（`CorrectionMixin`，混入 Session） |
+| `symbols.py` | 符號面板的分類與最近使用（`recent-symbols.json`） |
+| `keys.py` | 與平台無關的按鍵事件（數值沿用 Windows VK code；`extended` 區分左右 Alt） |
+
+設定（`smartime/config.py`）是一個 dataclass：`from_dict()` 只接受認得的欄位並修正不合法的值，
+所以舊版或手改壞的 `config.json` 不會讓輸入法起不來。
 
 ### 2.1 解碼器（decoder）
 
@@ -48,7 +58,7 @@
   | `SPACE` | 字面空白 | 常數 |
   | `PENDING` | 緩衝區尾端尚未打聲調的注音（原樣顯示 + 注音提示） | 0 |
   | `LITERAL` | 任何單鍵原樣輸出（保底，確保一定有解） | 很低 |
-  | `DROP` | 小寫字母或大千標點鍵被當成誤觸而略過（不顯示、不改變語言狀態） | `Weights.drop`（低於最罕用真實音節） |
+  | `DROP` | 小寫字母或鍵盤配置自己的標點鍵（大千 `, . / ; -`、倚天另含 `' =`）被當成誤觸而略過（不顯示、不改變語言狀態） | `Weights.drop`（低於最罕用真實音節；設定「保守」時更低） |
 
 - Viterbi 狀態 = (上一個語言, 上一個 segment 種類)，用來計算「中英切換成本」等轉移分數。所有常數集中在 `Weights`。
 - 使用者選過的候選會成為 **pin**（固定的邊），解碼時強制經過，其他邊不得跨越它。
@@ -71,6 +81,21 @@
   時送出最舊的部分（尚在打的音節期間不觸發；觸發時送到上限以下 10 字，減少部分送出次數）、切換模式。
 - `Ctrl(+Shift)+符號` → 全形標點（`session.CTRL_PUNCT`，微軟新注音慣例），只在中文側模式（自動／純中文）攔截。
 - `view()` 回傳前端需要的一切（組字字串、游標、送出字串、候選、提示、Tab 建議、模式）；**呼叫後會清空待送出字串**，每個事件只呼叫一次。
+- 修正模式（`correction.py`）：`Esc` 進入，按鍵變指令；國字／注音／按鍵三種檢視畫在提示框（組字區永遠是國字，
+  避免 App 看到注音字串）。`j/k` 循環換字只在游標離開時學最後停下的那個。
+- 符號面板：單按右 Alt（`KeyInput.extended`）開關，`Tab` 換分類；用 PIME 的候選窗顯示。
+  **PIME 不會把「按住 Alt 時的其他按鍵」交給輸入法**（只收到 Alt 本身），所以不能用 `Ctrl+Alt+,` 之類的組合鍵。
+- `VK_PACKET`（其他程式用 SendInput 的 Unicode 模式送出的字，例如語音輸入、密碼管理器）一律放行，不進解碼器。
+
+### 2.3 我的詞庫與學習（`userdict.py`）
+
+- 一個 SQLite 檔 `%APPDATA%\SmartIME\user.db`（WAL）：`entries(phrase, reading, kind, category, source, count, blocked …)`，`UNIQUE(phrase, reading)`。
+- **只從明確的選擇學習**：候選窗選字、Tab 接受、單字選出新詞、修正模式最後停下的字。解碼器猜的、使用者沒動的字不學，
+  所以猜錯不會自我強化（使用者對 Windows 輸入法的主要抱怨）。
+- 分數與系統詞庫同為 log10：手動新增的詞至少 -3.0（相當常用詞）；使用次數加分 `0.9 + 0.6·log2(count)`，上限 +3。
+- `Delete`（候選窗）：學來的 → 忘記；手動加的 → 刪除；系統詞庫的 → 封鎖（不再建議）。
+- 設定頁與輸入法是不同行程：輸入法每個按鍵前比對 `PRAGMA data_version`，有變動才重新載入。
+- 備份：設定頁匯出 `.smartime`（zip：`config.json` + 詞庫），匯入時**合併**（手動詞與分類加入、次數相加、封鎖保留），不覆蓋。
 
 ## 3. PIME 協定重點（`src/smartime/pime`）
 
@@ -82,26 +107,51 @@
 - **陷阱：開始組字的那個回覆不能帶 `showMessage`。** PIME 先處理 message、後處理 composition；
   若當下沒有組字，它會開一個臨時組字並在回覆結尾結束它，結果第一個按鍵被當成原始字母送出。
   因此提示從第二個鍵開始顯示（`SmartTextService._composing`，有回歸測試）。
-- `onCompositionTerminated`：`forced=true` = App 結束組字（點別處、換焦點）→ 重設緩衝區；
-  `forced=false` = PIME 自己結束（處理我們的 commit 時）→ **保留緩衝區**。誤把後者當前者會讓
-  「自動送出前段」後剩下的文字消失（VS Code 實測問題）。
+- `onCompositionTerminated`：`forced=false` = PIME 自己結束（處理我們的 commit 時）→ **保留緩衝區**。誤把它當成 App
+  結束會讓「自動送出前段」後剩下的文字消失（VS Code 實測問題）。
+  `forced=true` = App 結束組字：一般是使用者造成的（點別處、Ctrl+Enter 送出、換視窗），文字已留在文件裡 → 重設緩衝區。
+  **例外：Chromium/Electron 的編輯器重繪時會自己結束組字，但頁面上還留著舊的組字**，下一個組字會把它整段蓋掉
+  （「長句後面內容遺失」，`browser_typing_test` 可重現）。所以前景是 `winapp.KEEP_APPS` 裡的 App、和開始組字時同一個、
+  1.5 秒內沒有按鍵交給 App、滑鼠沒有按下（含「按過」位元）時，保留緩衝區，下一鍵把整段重新送出。
+  設定 `keep_on_app_interrupt` 可關掉；紀錄檔的 `kept=` 欄位記下每次判斷（只記 App 名稱與長度）。
 - Launcher 以**小寫** GUID 對應後端（`init` 的 `id` 必須是小寫）；找不到後端時**不會回覆**，客戶端會卡住。
 - PIME 讀 `ime.json` / `backends.json` 用 jsoncpp：必須是合法 JSON、不可有 BOM（`tests/test_backend_files.py` 檢查）。
 
-## 4. 資料（`tools/build_data.py`）
+## 4. 系統詞庫（`tools/build_data.py`）
 
 1. 下載固定 commit 的 McBopomofo `Source/Data`（MIT），用它自己的 curation pipeline 產生 `data.txt`（含多音字規則與後製斷言）。
 2. 過濾：去掉標點/符號項、只有聲調的項、字數與音節數不符的項（引擎假設一字一音節）。
 3. 英文：wordfreq 前 80,000 詞 + `data/lexicon/en_terms.txt`（我們維護的中英夾雜常用詞，最低給 -3.5 分）。
 4. 輸出單一 SQLite：`data/generated/smartime.db`（不進 git，可重現）。
 
-## 5. 路徑與可攜性
+## 5. 設定頁（`src/smartime/settings`）
+
+- `python -m smartime.settings`（安裝後：開始功能表「智慧輸入法 設定」、系統匣選單「設定…」、PIME 的 configTool）。
+- 標準函式庫 `ThreadingHTTPServer`，只聽 127.0.0.1、隨機埠；用 Edge 或 Chrome 的 `--app` 視窗開啟，找不到就用預設瀏覽器。
+- 安全：每次啟動產生 token（`X-SmartIME-Token`），並檢查 `Host` 必須是 127.0.0.1（防 DNS rebinding）；
+  CSP 只允許自己的資源。其他網頁碰不到 API。
+- 同時只有一個：`settings-server.json` 記下埠與 token，第二次開啟沿用同一個伺服器，只是多開一個視窗。網頁每隔幾秒 ping，
+  視窗關掉 75 秒後自行結束（下載模型、安裝元件期間不結束）。
+- 介面（`ui/`）與設計稿 `docs/design/settings-mockup.html` 一致；設定存檔後輸入法下一個按鍵就生效（`Engine.refresh()`）。
+
+## 6. 安裝檔（`installer/`、`tools/build_installer.py`）
+
+- `uv run python tools/build_installer.py` → `dist\SmartIME-Setup-<版本>.exe`（Inno Setup 6；預設找 `build/tools/InnoSetup6/ISCC.exe`）。
+  建置時下載並以 SHA-256 驗證：PIME 1.3.0 官方安裝檔、Python embeddable、Inno Setup 繁中訊息檔。
+- 安裝流程：沒有 PIME 時以 `/S` 安靜安裝官方版 → 停止 launcher 與後端 → 複製到 `<PIME>\smartime` →
+  寫 `backends.json`、以 TSF API 註冊 64 位元與 32 位元設定檔 → 以原本的使用者身分加到語言清單 →
+  經由 `explorer.exe` 重新啟動 launcher（不屬於安裝程式的行程）→ `verify.py` 端對端檢查。
+- 64 位元系統工具用 `{sys}`（Inno Setup 是 32 位元程式，`Sysnative` 在 64 位元 cmd 裡看不到）。
+- 移除時保留 PIME 與其他 PIME 輸入法，也不刪 `%APPDATA%\SmartIME`。
+- 發行前驗證：`tools\test_installer.ps1`（一次 UAC：安裝 → 驗證 → 移除 → 還原開發模式）。安裝檔還沒有程式碼簽章。
+
+## 7. 路徑與可攜性
 
 - 系統資料：相對於套件位置解析（`paths.app_root()`），開發與部署兩種版面都適用。
 - 使用者資料：`%APPDATA%\SmartIME`（可用環境變數 `SMARTIME_USER_DIR` 覆寫，測試即如此）。換電腦時帶走此資料夾即可。
 - 程式碼中不得出現機器相關的絕對路徑。
 
-## 6. 開發流程
+## 8. 開發流程
 
 - `install.ps1 -Dev`：`<PIME>\smartime` 變成指向 `repo\backend` 的 junction；改完 Python 程式後，在系統匣 PIME 圖示選「Restart PIME」重啟後端即可。
 - 改 `ime.json`（名稱、GUID、圖示）後需重新執行安裝（會重新登錄 TSF 語言設定檔）。
@@ -112,18 +162,21 @@
   2. `python -m smartime.devtools.pime_probe --require-conversion` — 以 named pipe 直接連 PIMELauncher（如同 App 內的 DLL），驗證 launcher → 後端 → 引擎；`install.ps1` 最後一步也會自動跑
   3. `python -m smartime.devtools.tsf_typing_test`（與 `--richedit`）— 建立真的文字框、以 TSF 啟用本輸入法、用 SendInput 實際打字並讀回結果，要求「實機 == 模擬器」。
      **會等使用者閒置 5 秒才開始，偵測到真人按鍵/點擊立即中止**；使用者在用電腦時不要跑。
+     每個案例前把學習記憶倒回測試開始時的狀態（`MemoryGuard`），結束後還原，不會污染使用者的詞庫。
+  4. `python -m smartime.devtools.browser_typing_test` — 同樣的保護，在 Edge（獨立的暫時設定檔）的
+     textarea、contenteditable、React 受控元件與「會打斷組字的編輯器」裡打字，另測組字中點滑鼠、Ctrl+Enter 送出不會重複。
 - 開發模式改完程式／詞庫後：`scripts\dev-reload.ps1 [-Rebuild]`（停 launcher → 重建 → 以 explorer 重啟 → probe）。
   只殺後端行程不夠：launcher 會立刻重啟它，而且詞庫檔會一直被占用。
 - PIME launcher 的除錯紀錄（`%LOCALAPPDATA%\PIME\PIMELauncher.json` 的 `logLevel: debug`）會記下每個按鍵與回覆，
   是分析實機問題的最佳資料（配對 SEND/RECV 的 seqNum 即可重建每個 session）；也因此含有使用者打過的字，除錯完應建議關閉。
 - 用 bash heredoc 產生含反斜線的檔案時，`\\` 可能被吃成 `\`（ime.json 事故）；這類檔案請用編輯器／Write 工具寫，並驗證。
 
-## 7. 已知限制（Phase 4-2）
+## 9. 已知限制（0.2.0）
 
-- 只支援大千鍵盤；容錯有「順序錯」與「多按雜鍵」，少按/相鄰鍵與個人學習在 Phase 4 後續。
+- 鍵盤：大千、倚天；許氏（一鍵多義）尚未支援。容錯有「順序錯」與「多按雜鍵」，少按/相鄰鍵尚未做。
 - 詞庫缺台灣口語讀音（例：欸 只有 ㄞˇ/ㄟˋ，沒有 ㄟ），需要口語讀音補充表。
 - 語言模型只有詞頻（unigram）：同音字靠詞頻選（例：「打逗號」可能成「打鬥號」），需要學習或 bigram。
-- Chromium 系（VS Code、Chrome、LINE 桌面版）尚無自動化實機測試，只有 EDIT 與 RichEdit。
+- Chromium 系的自動化實機測試只有 Edge；VS Code、LINE 等 Electron App 靠同一套 `KEEP_APPS` 規則，尚未逐一實測。
 - 提示與 Tab 建議共用一個 message window，樣式為 PIME 預設（非藍色）。
 - `-Dev` 模式下圖示放在使用者資料夾內，部分 UWP（AppContainer）App 可能讀不到圖示；一般安裝無此問題。
 - PIME 1.3.0 為 2023 版；主線（2026）有修正但無正式發行，之後評估自行建置。
