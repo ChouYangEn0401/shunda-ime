@@ -57,6 +57,12 @@ class Config:
     drop_stray_keys: str = "standard"  # "off" | "conservative" | "standard"
     single_letter_context: bool = True  # lone i / o are zhuyin unless English context
 
+    # Chromium-based apps (Edge, Chrome, VS Code, Teams, ...) sometimes end the
+    # composition by themselves while still showing it; keep the text so the
+    # next key puts it back instead of losing it. User-caused endings (click,
+    # Ctrl+Enter, window switch) always clear.
+    keep_on_app_interrupt: bool = True
+
     # Correction mode: Esc while composing enters it (Vim-like); off = Esc clears
     correction_mode: bool = True
 

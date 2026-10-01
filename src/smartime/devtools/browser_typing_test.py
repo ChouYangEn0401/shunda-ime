@@ -55,13 +55,17 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>""" + TITLE + 
 <label>react</label><textarea id="react" class="f"></textarea>
 <label>cancel</label><div id="cancel" class="f" contenteditable="true"></div>
 <label>cancel_ta</label><textarea id="cancel_ta" class="f"></textarea>
+<label>chat (Ctrl+Enter sends)</label><textarea id="chat" class="f"></textarea>
 <script>
-const ids = ["ta","ce","react","cancel","cancel_ta"];
+const ids = ["ta","ce","react","cancel","cancel_ta","chat"];
+let sent = [];
 const ev = [];
 let target = "ta", interrupted = false;
 function val(id){ const el=document.getElementById(id); return el.value!==undefined && el.tagName==="TEXTAREA" ? el.value : el.innerText.replace(/\\n$/,""); }
-function report(){ const values={}; ids.forEach(i=>values[i]=val(i));
-  fetch("/report",{method:"POST",body:JSON.stringify({values,events:ev.slice(-40),target})}).catch(()=>{}); }
+function report(){ const values={}, rects={}; ids.forEach(i=>{values[i]=val(i); const r=document.getElementById(i).getBoundingClientRect(); rects[i]=[r.left,r.top,r.width,r.height];});
+  fetch("/report",{method:"POST",body:JSON.stringify({values,rects,dpr:devicePixelRatio,sent,events:ev.slice(-40),target})}).catch(()=>{}); }
+document.getElementById("chat").addEventListener("keydown",e=>{
+  if(e.key==="Enter" && e.ctrlKey){ e.preventDefault(); sent.push(e.target.value); e.target.value=""; ev.push("chat:sent"); report(); }});
 ids.forEach(id=>{ const el=document.getElementById(id);
   ["compositionstart","compositionend"].forEach(t=>el.addEventListener(t,e=>{ev.push(id+":"+t+":"+(e.data||""));report();}));
   el.addEventListener("input",e=>{ if(id==="react"){ const v=el.value; el.value=v; }
@@ -73,7 +77,7 @@ ids.forEach(id=>{ const el=document.getElementById(id);
 });
 async function poll(){
   try{ const r=await fetch("/cmd"); const c=await r.json();
-    if(c.cmd==="prepare"){ target=c.target; interrupted=false; ev.length=0;
+    if(c.cmd==="prepare"){ target=c.target; interrupted=false; ev.length=0; sent=[];
       ids.forEach(i=>{const el=document.getElementById(i); if(el.tagName==="TEXTAREA") el.value=""; else el.innerHTML=""; el.classList.toggle("on", i===target);});
       document.getElementById("cap").textContent=c.caption; const el=document.getElementById(target); el.focus();
       fetch("/ack",{method:"POST",body:String(c.n)}); report(); }
@@ -179,6 +183,33 @@ def _focus_once(hwnd: int) -> bool:
     return user32.GetForegroundWindow() == hwnd
 
 
+def _render_widget(hwnd: int) -> int:
+    """The child window that shows the page (its client origin = CSS 0,0)."""
+    found = []
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def cb(child, _):
+        buf = ctypes.create_unicode_buffer(128)
+        user32.GetClassNameW(child, buf, 128)
+        if buf.value == "Chrome_RenderWidgetHostHWND":
+            found.append(child)
+        return True
+
+    user32.EnumChildWindows(hwnd, cb, 0)
+    return found[0] if found else hwnd
+
+
+def _click(hwnd: int, css_x: float, css_y: float, dpr: float) -> None:
+    pt = wintypes.POINT(int(css_x * dpr), int(css_y * dpr))
+    user32.ClientToScreen(_render_widget(hwnd), ctypes.byref(pt))
+    user32.SetCursorPos(pt.x, pt.y)
+    for flag in (0x0002, 0x0004):  # MOUSEEVENTF_LEFTDOWN, LEFTUP
+        inp = tt.INPUT(type=0)  # INPUT_MOUSE
+        inp.u.mi = tt.MOUSEINPUT(dx=0, dy=0, mouseData=0, dwFlags=flag, time=0, dwExtraInfo=0)
+        user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(tt.INPUT))
+    tt.pump(0.3)
+
+
 # (field, script, expected or None = what the engine simulator produces)
 SCENARIOS_PER_FIELD = [
     "ji3ap7{ENTER}",
@@ -281,6 +312,31 @@ def main() -> int:
             label = script if len(script) <= 34 else script[:31] + "..."
             print(f"{'PASS' if ok else 'FAIL'}  {field:6} {label!r:36} -> {got!r}"
                   + ("" if ok else f"  (expected {expected!r})"))
+
+        # The user ends the composition: the text must appear exactly once.
+        n0 = len(cases) + 10
+        if not only_interrupt:
+            prepare(n0, "ta", "mouse click while composing: 我們 | click at the start | 你")
+            tt.type_script(tap, "ji3ap7")
+            tt.pump(0.3)
+            rep = state.report
+            x, y, w, h = rep["rects"]["ta"]
+            _click(hwnd, x + 6, y + h / 2, rep.get("dpr", 1.0))
+            tt.type_script(tap, "su3{ENTER}")
+            tt.pump(0.5)
+            got = state.report["values"]["ta"]
+            ok = got.count("我們") == 1 and got.count("你") == 1
+            failures += not ok
+            print(f"{'PASS' if ok else 'FAIL'}  click  {'ji3ap7 <click> su3':36} -> {got!r}")
+
+            prepare(n0 + 1, "chat", "Ctrl+Enter sends while composing: 我們 | Ctrl+Enter | 你")
+            tt.type_script(tap, "ji3ap7{C-ENTER}su3{ENTER}")
+            tt.pump(0.5)
+            rep = state.report
+            got, sent = rep["values"]["chat"], rep.get("sent", [])
+            ok = got == "你" and sent == ["我們"]
+            failures += not ok
+            print(f"{'PASS' if ok else 'FAIL'}  chat   {'ji3ap7 Ctrl+Enter su3':36} -> field {got!r}, sent {sent!r}")
 
         # An editor that interrupts the composition: what stays in the field?
         script = "ji3ap7rup wu0dk3u3283b/6dj94k27vu jp6"

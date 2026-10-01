@@ -120,7 +120,16 @@ def test_own_commit_termination_keeps_buffer(engine):
     assert replies[65]["compositionString"] == "我們"
 
 
-def test_forced_termination_resets_buffer(engine):
+def _fake_desktop(monkeypatch, app, mouse=False):
+    import smartime.pime.text_service as ts
+
+    monkeypatch.setattr(ts, "foreground_app", lambda: app)
+    monkeypatch.setattr(ts, "mouse_clicked", lambda: mouse)
+
+
+def test_forced_termination_resets_buffer(engine, monkeypatch):
+    # a normal app: the text stays in the document, the IME starts over
+    _fake_desktop(monkeypatch, "notepad.exe")
     msgs = [
         {"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True},
         *typing(10, "ji3"),
@@ -129,6 +138,45 @@ def test_forced_termination_resets_buffer(engine):
     ]
     replies = {r["seqNum"]: r for r in exchange(engine, msgs)}
     assert replies[61]["compositionString"] == "u"
+
+
+def test_spontaneous_end_in_a_browser_keeps_the_text(engine, monkeypatch):
+    # Chromium editor re-rendered and ended the composition but kept showing
+    # it: re-send the whole text so the next update does not erase it
+    _fake_desktop(monkeypatch, "msedge.exe")
+    msgs = [
+        {"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True},
+        *typing(10, "ji3ap7"),
+        {"method": "onCompositionTerminated", "seqNum": 50, "forced": True},
+        *typing(60, "u"),
+    ]
+    replies = {r["seqNum"]: r for r in exchange(engine, msgs)}
+    assert replies[61]["compositionString"] == "我們u"
+    assert "showMessage" not in replies[61]  # the reply that restarts the composition
+
+
+def test_user_caused_end_in_a_browser_still_resets(engine, monkeypatch):
+    # mouse click
+    _fake_desktop(monkeypatch, "msedge.exe", mouse=True)
+    msgs = [
+        {"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True},
+        *typing(10, "ji3"),
+        {"method": "onCompositionTerminated", "seqNum": 50, "forced": True},
+        *typing(60, "u"),
+    ]
+    assert {r["seqNum"]: r for r in exchange(engine, msgs)}[61]["compositionString"] == "u"
+    # a key sent to the app just before (Ctrl+Enter to send a message)
+    _fake_desktop(monkeypatch, "msedge.exe")
+    ctrl_enter = key_msg(40, "filterKeyDown", vk=VK_RETURN)
+    ctrl_enter["keyStates"][0x11] = 0x80
+    msgs = [
+        {"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True},
+        *typing(10, "ji3"),
+        ctrl_enter,
+        {"method": "onCompositionTerminated", "seqNum": 50, "forced": True},
+        *typing(60, "u"),
+    ]
+    assert {r["seqNum"]: r for r in exchange(engine, msgs)}[61]["compositionString"] == "u"
 
 
 def test_unknown_method_and_bad_json_do_not_crash(engine):

@@ -10,13 +10,14 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from ..engine.keys import (
-    VK_CAPITAL, VK_CONTROL, VK_LMENU, VK_MENU, VK_RMENU, VK_SHIFT, KeyInput,
+    MODIFIER_VKS, VK_CAPITAL, VK_CONTROL, VK_LMENU, VK_MENU, VK_RMENU, VK_SHIFT, KeyInput,
 )
 from ..engine.session import Engine, Mode, Session
-from .winapp import foreground_app
+from .winapp import KEEP_APPS, foreground_app, mouse_clicked
 
 log = logging.getLogger(__name__)
 
@@ -61,6 +62,8 @@ class SmartTextService:
         self._showing_candidates = False
         self._mode_shown: Mode | None = None
         self._composing = False  # a composition existed after our previous reply
+        self._passthrough_at = 0.0
+        self._composing_app = ""
 
     # ------------------------------------------------------------------
     def handle(self, msg: dict) -> dict:
@@ -88,7 +91,13 @@ class SmartTextService:
             reply.setdefault("removeButton", []).append("windows-mode-icon")
             self._mode_shown = None
         elif method == "filterKeyDown":
-            ret = self.keyboard_open and s.filter_key_down(key_from_msg(msg))
+            key = key_from_msg(msg)
+            ret = self.keyboard_open and s.filter_key_down(key)
+            mouse_clicked()  # forget clicks before this key (e.g. the one that focused the field)
+            if not ret and key.vk not in MODIFIER_VKS:
+                # a key that goes to the app (Ctrl+Enter, Ctrl+A, ...): if the
+                # composition ends right after, the user caused it
+                self._passthrough_at = time.monotonic()
         elif method == "onKeyDown":
             ret = self.keyboard_open and s.key_down(key_from_msg(msg))
             self._render(reply)
@@ -122,15 +131,24 @@ class SmartTextService:
             self._update_mode_icon(reply, force=True)
         elif method == "onCompositionTerminated":
             if msg.get("forced", False):
-                # The app ended our composition (click elsewhere, focus
-                # change, or the app's own editor logic); TSF leaves the
-                # composition text in the document. Logged without the text,
-                # to find apps that drop it (reported: "later text lost").
+                # The app ended our composition. Usually the user did it
+                # (click, window switch, Ctrl+Enter) and the text stays in
+                # the document. But Chromium-based editors that re-render
+                # (blur/focus) end it *spontaneously* while the page keeps
+                # the old composition, and our next composition replaces it:
+                # the text vanished ("後面的內容遺失"). In that case keep the
+                # buffer, so the next update re-sends the whole text.
+                app = foreground_app()
+                keep = s.composing and self._spontaneous_end(app)
                 if s.composing:
-                    log.info("composition ended by the app: app=%s chars=%d keys=%d correcting=%s",
-                             foreground_app() or "?", len(s.decoding.text), len(s.keys), s.correcting)
-                s.reset()
-                self._clear_ui(reply, composition=False)
+                    log.info("composition ended by the app: app=%s chars=%d keys=%d correcting=%s kept=%s",
+                             app or "?", len(s.decoding.text), len(s.keys), s.correcting, keep)
+                if keep:
+                    self._composing = False  # PIME starts a new composition
+                    self._clear_ui(reply, composition=False)
+                else:
+                    s.reset()
+                    self._clear_ui(reply, composition=False)
             else:
                 # PIME ended it itself: that is the echo of our own commit
                 # (commitString ends the old composition, then PIME starts a
@@ -200,6 +218,8 @@ class SmartTextService:
         # it appears from the next key on.
         if not self._composing:
             message = ""
+            if v.composition:
+                self._composing_app = foreground_app()  # where this composition lives
         self._composing = bool(v.composition)
         if message != self._message:
             if message:
@@ -221,6 +241,19 @@ class SmartTextService:
         if self._message:
             reply["hideMessage"] = True
             self._message = ""
+
+    def _spontaneous_end(self, app: str) -> bool:
+        """The composition ended without the user doing anything: no mouse
+        button held, no key just sent to the app, same app as when typing
+        started, and an app known to keep a stale composition."""
+        cfg = self.engine.config
+        if not cfg.keep_on_app_interrupt or app.lower() not in KEEP_APPS:
+            return False
+        if time.monotonic() - self._passthrough_at < 1.5:
+            return False
+        if mouse_clicked():
+            return False
+        return app == self._composing_app
 
     def _open_settings(self, section: str = "") -> None:
         """Start the settings window (backend\\settings.py) without

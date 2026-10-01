@@ -329,7 +329,8 @@ def type_script(tap, script: str) -> None:
             name = script[i + 1:script.index("}", i)]
             if name.startswith(("C-", "CS-", "CA-")):
                 mods, base = name.split("-", 1)
-                tap(OEM_VK.get(base, ord(base.upper())), mods == "CS", True, mods == "CA")
+                vk = NAMED_VK.get(base) or OEM_VK.get(base, ord(base.upper()))
+                tap(vk, mods == "CS", True, mods == "CA")
             elif name == "S-TAB":
                 tap(0x09, True, False)
             else:
