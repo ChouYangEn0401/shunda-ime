@@ -11,7 +11,7 @@
 <body>
 <div class="page">
   <div class="titlebar">
-    <div class="appicon" aria-hidden="true">智</div>
+    <div class="appicon" aria-hidden="true">順</div>
     <div>
       <h1><span data-text="product">順打輸入法</span> 設定</h1>
       <div class="sub">版本 <span data-text="version">—</span> · 修改後立即套用，下一個按鍵就生效</div>
@@ -51,15 +51,37 @@
                 </button>
                 <button class="mode-card" data-value="chinese">
                   <span class="ico chinese">中</span>
-                  <b>純中文</b><small>每個鍵都是注音，和傳統注音輸入法一樣；數字用數字鍵盤。</small>
+                  <b>純注音</b><small>每個鍵都是注音，和傳統注音輸入法一樣；數字用數字鍵盤。</small>
                 </button>
                 <button class="mode-card" data-value="english">
                   <span class="ico english">英</span>
                   <b>純英文</b><small>按鍵直接交給程式，例如在 VS Code 用 <kbd>Ctrl</kbd>+<kbd>,</kbd> 開設定。</small>
                 </button>
+                <button class="mode-card" data-value="pinyin">
+                  <span class="ico pinyin">拼</span>
+                  <b>純拼音</b><small>漢語拼音，不用打聲調（women → 我們）。</small>
+                </button>
+                <button class="mode-card" data-value="cangjie">
+                  <span class="ico cangjie">倉</span>
+                  <b>純倉頡</b><small>倉頡五代，打碼後按空白出字。</small>
+                </button>
               </div>
               <p class="note" style="margin-bottom:0">打字時隨時可以切換：單按 Shift，或在系統匣圖示按右鍵選模式。</p>
             </div>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3>中文輸入法</h3>
+          <div class="row">
+            <div><div class="label">中英自動混用的中文</div><div class="desc">中英自動一次混用一種中文：同一個字母在注音、拼音、倉頡的意思都不同，一起猜會互相干擾。三種打法學到的詞是共用的。</div></div>
+            <div class="seg" role="group" aria-label="中英自動混用的中文" data-cfg="chinese_scheme">
+              <button data-value="zhuyin">注音</button><button data-value="pinyin">拼音</button><button data-value="cangjie">倉頡五代</button>
+            </div>
+          </div>
+          <div class="row">
+            <div><div class="label">Shift 輪流的模式</div><div class="desc">勾選的模式會依序輪流（「Shift 的切換方式」選三段時）。系統匣右鍵選單永遠列出全部模式。</div></div>
+            <div class="chips" id="mode-cycle" role="group" aria-label="Shift 輪流的模式"></div>
           </div>
         </div>
 
@@ -72,7 +94,7 @@
             </div>
           </div>
           <div class="row">
-            <div><div class="label">Shift 的切換方式</div><div class="desc">三段（預設）：自動 → 純中文 → 純英文 依序循環。兩段：英文 ⇄ 上次用的中文模式（自動或純中文），切英文只要按一下。</div></div>
+            <div><div class="label">Shift 的切換方式</div><div class="desc">三段（預設）：上面勾選的模式依序輪流（預設 自動 → 純注音 → 純英文）。兩段：英文 ⇄ 上次用的中文模式，切英文只要按一下。</div></div>
             <div class="seg" role="group" aria-label="Shift 的切換方式" data-cfg="shift_cycle">
               <button data-value="three">三段循環</button><button data-value="two">兩段</button>
             </div>
@@ -90,6 +112,12 @@
           <div class="row"><div class="full">
             <div class="kb" aria-label="大千注音鍵盤" id="keyboard"></div>
             <p class="note">藍色是聲調鍵。同一個字的注音順序打反（<kbd>k</kbd><kbd>2</kbd><kbd>7</kbd> 打成 ㄜㄉ˙）也會辨識成「的」。</p>
+          </div></div>
+          <div class="row"><div class="full">
+            <p style="margin-top:0"><b>拼音</b>：漢語拼音連著打，不用打聲調（<kbd>women</kbd> → 我們）；要指定聲調時在音節後打 <kbd>1</kbd>–<kbd>5</kbd>（<kbd>ma3</kbd> → 馬，5 是輕聲）。ü 打 <kbd>v</kbd>（<kbd>lv</kbd> → 綠），<kbd>'</kbd> 分開音節（<kbd>xi'an</kbd>），空白結束一個詞。</p>
+            <p><b>倉頡五代</b>：打碼後按空白出字；連打幾個字時會用詞頻挑重碼字（<kbd>hqi</kbd>␣<kbd>oan</kbd>␣ → 我們）。還沒按空白時，提示框顯示字根和會出的字。字根對照：</p>
+            <div class="cj-roots" id="cj-roots" aria-label="倉頡字根"></div>
+            <p class="note" style="margin-bottom:0">碼表來自「倉頡五代補完計劃」（MIT 授權），重碼依台灣常用字排序。</p>
           </div></div>
         </div>
       </section>

@@ -102,6 +102,11 @@ section.view > .lead { color: var(--muted); margin: 0 0 18px; max-width: 65ch; }
 .mode-card .ico.auto { background: var(--accent); }
 .mode-card .ico.chinese { background: var(--teal); }
 .mode-card .ico.english { background: var(--grey-mode); }
+.mode-card .ico.pinyin { background: #7C3AED; }
+.mode-card .ico.cangjie { background: #B45309; }
+.cj-roots { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; }
+.cj-roots span { border: 1px solid var(--line); border-radius: 6px; padding: 4px 0; text-align: center; font-size: 15px; }
+.cj-roots kbd { display: block; margin: 0 auto 2px; width: fit-content; }
 .mode-card b { font-size: 15px; }
 .mode-card small { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 

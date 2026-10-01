@@ -76,6 +76,40 @@
     renderSuggestions();
     renderPunct();
     renderKeyboard();
+    renderModeCycle();
+  }
+
+  // Shift cycle: config.mode_cycle is "auto,chinese,english" (kept in this order)
+  const MODES = [["auto", "中英自動"], ["chinese", "純注音"], ["english", "純英文"], ["pinyin", "純拼音"], ["cangjie", "純倉頡"]];
+  function renderModeCycle() {
+    const box = document.getElementById("mode-cycle");
+    if (!box || config.mode_cycle === undefined) return;
+    const on = new Set(config.mode_cycle.split(","));
+    box.innerHTML = "";
+    MODES.forEach(([value, label]) => {
+      const lab = document.createElement("label");
+      lab.className = "chip";
+      lab.innerHTML = `<input type="checkbox"> <span></span>`;
+      lab.querySelector("span").textContent = label;
+      const cb = lab.querySelector("input");
+      cb.checked = on.has(value);
+      cb.addEventListener("change", () => {
+        const next = MODES.map(m => m[0]).filter(m => m === value ? cb.checked : on.has(m));
+        if (!next.length) { cb.checked = true; toast("至少要留一個模式", true); return; }
+        save({ mode_cycle: next.join(",") });
+      });
+      box.appendChild(lab);
+    });
+  }
+  const cjRoots = document.getElementById("cj-roots");
+  if (cjRoots) {
+    "日月金木水火土竹戈十大中一弓人心手口尸廿山女田難卜重".split("").forEach((r, i) => {
+      const cell = document.createElement("span");
+      cell.innerHTML = `<kbd></kbd>`;
+      cell.querySelector("kbd").textContent = String.fromCharCode(97 + i);
+      cell.appendChild(document.createTextNode(r));
+      cjRoots.appendChild(cell);
+    });
   }
 
   let pending = {};
