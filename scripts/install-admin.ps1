@@ -27,7 +27,7 @@ try {
     $Target = Join-Path $Pime 'smartime'
     $Source = Join-Path $Repo 'backend'
 
-    # A version installed with SmartIME-Setup.exe: remove it with its own
+    # A version installed with the Setup.exe installer: remove it with its own
     # uninstaller, so "Apps & features" does not keep a stale entry.
     $uninstKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D0A6055C-3F02-41F7-992F-4BADAC52DDB5}_is1'
     if (Test-Path $uninstKey) {

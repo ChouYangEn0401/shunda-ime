@@ -1,0 +1,22 @@
+順打輸入法 (Shunda IME)
+Copyright 2026 ChouYangEn0401
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product includes or is built from the following third-party work.
+Each remains under its own license; details in docs/licenses.md.
+
+- McBopomofo dictionary data (MIT License)
+  https://github.com/openvanilla/McBopomofo
+  Chinese phrases, readings and frequencies in the generated smartime.db.
+
+- wordfreq English word frequencies (data: Creative Commons
+  Attribution-ShareAlike 4.0)
+  https://github.com/rspeer/wordfreq
+  The English word list in the generated smartime.db is derived from
+  wordfreq and is shared under CC BY-SA 4.0.
+
+- The Windows installer bundles the unmodified official PIME 1.3.0
+  installer (GNU LGPL 2.1, https://github.com/EasyIME/PIME) and the
+  Python embeddable distribution (PSF License); see
+  installer/THIRD-PARTY-NOTICES.txt.

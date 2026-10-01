@@ -305,7 +305,7 @@ def main() -> int:
         for n, (field, script, expected) in enumerate(cases, 1):
             memory.rewind()
             prepare(n, field, f"{n}/{len(cases)}  [{field}]  keys: {script}\nexpected: {expected}\n"
-                              "（智慧輸入法自動測試：碰鍵盤或滑鼠會立即停止）")
+                              "（順打輸入法自動測試：碰鍵盤或滑鼠會立即停止）")
             tt.type_script(tap, script)
             tt.pump(0.5)
             got = state.report.get("values", {}).get(field, "")

@@ -49,7 +49,7 @@ def install(log: Callable[[str], None], target: Path | None = None, gpu: bool | 
     target = target or runtime_dir()
     source = Path(sys.executable).resolve().parent
     if not (source / "python313._pth").exists() and not list(source.glob("python*._pth")):
-        raise RuntimeError("這個功能需要從已安裝的智慧輸入法執行（找不到內建的 Python）")
+        raise RuntimeError("這個功能需要從已安裝的順打輸入法執行（找不到內建的 Python）")
 
     log("複製 Python 執行環境…")
     if target.exists():

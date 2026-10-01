@@ -1,4 +1,4 @@
-r"""Open the 智慧輸入法 settings window.
+r"""Open the 順打輸入法 settings window.
 
 Started by the tray menu (設定…), by Windows' language settings (選項, via
 ime.json "configTool"), and by the Start-menu shortcut, normally as

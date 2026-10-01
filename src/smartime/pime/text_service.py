@@ -16,6 +16,7 @@ from pathlib import Path
 from ..engine.keys import (
     MODIFIER_VKS, VK_CAPITAL, VK_CONTROL, VK_LMENU, VK_MENU, VK_RMENU, VK_SHIFT, KeyInput,
 )
+from .. import PRODUCT_NAME
 from ..engine.session import Engine, Mode, Session
 from .winapp import KEEP_APPS, foreground_app, mouse_clicked
 
@@ -120,7 +121,7 @@ class SmartTextService:
         elif method == "onMenu":
             ret = [{"text": mode.label, "id": cid, "checked": s.mode is mode}
                    for cid, mode in MODE_MENU_IDS.items()]
-            ret += [{}, {"text": "設定…", "id": ID_SETTINGS}, {"text": "關於智慧輸入法", "id": ID_ABOUT}]
+            ret += [{}, {"text": "設定…", "id": ID_SETTINGS}, {"text": f"關於{PRODUCT_NAME}", "id": ID_ABOUT}]
         elif method == "onCompartmentChanged":
             pass
         elif method == "onKeyboardStatusChanged":
@@ -287,7 +288,7 @@ class SmartTextService:
         button = {
             "id": "windows-mode-icon",
             "icon": str(self.icon_dir / MODE_ICONS[mode]),
-            "tooltip": f"智慧輸入法：{mode.label}（Shift 切換模式，右鍵選模式）",
+            "tooltip": f"{PRODUCT_NAME}：{mode.label}（Shift 切換模式，右鍵選模式）",
             "commandId": ID_MODE_ICON,
             "enable": self.keyboard_open,
         }

@@ -293,7 +293,7 @@ class SettingsApp:
                     with zipfile.ZipFile(io.BytesIO(data)) as z:
                         names = z.namelist()
                         if "user.db" not in names:
-                            raise ApiError(400, "這不是智慧輸入法的匯出檔（缺少 user.db）")
+                            raise ApiError(400, f"這不是{PRODUCT_NAME}的匯出檔（缺少 user.db）")
                         db.write_bytes(z.read("user.db"))
                         if "config.json" in names:
                             config_data = z.read("config.json")
@@ -302,7 +302,7 @@ class SettingsApp:
             elif data[:16] == b"SQLite format 3\x00":
                 db.write_bytes(data)
             else:
-                raise ApiError(400, "這不是智慧輸入法的匯出檔")
+                raise ApiError(400, f"這不是{PRODUCT_NAME}的匯出檔")
             try:
                 merged = self.user.merge_from(db)
             except sqlite3.DatabaseError as e:

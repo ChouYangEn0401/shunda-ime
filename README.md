@@ -1,21 +1,26 @@
-# 智慧輸入法 (Smart IME)
+# 順打輸入法 Shunda IME
 
-免切換中英混打的注音輸入法（Windows）。打字手感參考華碩智慧輸入法：字母先出現、旁邊顯示注音提示、按聲調鍵轉成中文、Tab 接續；
-底層改用「整句重新解碼」的 lattice 解碼器，從根本解決順序打反、多按雜鍵、誤判英文等問題，並記住你的用詞（學錯可以刪）。
+**免切換、一路順著打的中英混打注音輸入法（Windows 10/11）。**
+*A Zhuyin (Bopomofo) + English input method for Windows: type Chinese and English in one go, no mode switching.*
 
-> 狀態：**0.2.0**。已完成：混打解碼與容錯、三種輸入模式、我的詞庫與學習記憶、Vim 式修正模式、符號面板、設定頁、倚天鍵盤、單一安裝檔、
-> 本地語音輸入（按住右 Ctrl 說話）。
-> 調查報告：[docs/research/phase0-1-research.md](docs/research/phase0-1-research.md)
+注音和英文直接混著打，不用切換：字母先出現、旁邊顯示注音提示、按聲調鍵轉成中文、Tab 接續。
+底層是「整句重新解碼」的 lattice 解碼器，從根本解決注音順序打反、快打多按雜鍵、中英誤判等問題；
+會記住你的用詞，學錯了也能刪。另有本機語音輸入（按住右 Ctrl 說話），聲音不會上傳。
+
+> 狀態：**0.3.0**（第一個公開版本）。已完成：混打解碼與容錯、三種輸入模式、我的詞庫與學習記憶、Vim 式修正模式、
+> 符號面板、設定頁、大千／倚天鍵盤、單一安裝檔、本機語音輸入。規劃中：拼音、倉頡。
+>
+> 打字手感參考華碩智慧輸入法；本專案是獨立開發的開源專案，與華碩無關。
 
 ## 安裝（Windows 10/11）
 
-1. 下載 `SmartIME-Setup-0.2.0.exe`，按兩下執行（會跳出系統管理員權限確認）。
+1. 到 [Releases](https://github.com/ChouYangEn0401/shunda-ime/releases) 下載 `ShundaIME-Setup-<版本>.exe`，按兩下執行（會跳出系統管理員權限確認）。
    安裝檔還沒有數位簽章，Windows 可能顯示「Windows 已保護您的電腦」：按「其他資訊」→「仍要執行」。
 2. 安裝程式會一併裝好 PIME 輸入法框架（沒有的話）、註冊輸入法，並加到你的語言清單。不需要網路。
-3. 按 `Win + Space` 切換到「智慧輸入法」。
+3. 按 `Win + Space` 切換到「順打輸入法」。
 
-- 設定：開始功能表「智慧輸入法 設定」，或系統匣輸入法圖示按右鍵 →「設定…」。
-- 移除：Windows 設定 → 應用程式 → 智慧輸入法（PIME 與其他 PIME 輸入法會保留）。
+- 設定：開始功能表「順打輸入法 設定」，或系統匣輸入法圖示按右鍵 →「設定…」。
+- 移除：Windows 設定 → 應用程式 → 順打輸入法（PIME 與其他 PIME 輸入法會保留）。
 - 個人資料（設定、我的詞庫、學習記憶）在 `%APPDATA%\SmartIME`，安裝／移除都不會動到；
   換電腦用設定頁「資料與隱私」匯出成一個 `.smartime` 檔，在新電腦匯入（合併，不會覆蓋）。
 
@@ -109,12 +114,12 @@ uv run pytest                                    # 測試
 uv run python -m smartime.devtools.simulate --steps "ji3ap7{DOWN}"   # 不安裝也能模擬打字
 powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -Dev      # 開發模式安裝（PIME 直接連到這個 repo）
 powershell -ExecutionPolicy Bypass -File scripts\dev-reload.ps1 [-Rebuild]   # 讓開發模式的輸入法載入新程式／新詞庫
-uv run python tools/build_installer.py           # 產生 dist\SmartIME-Setup-<版本>.exe（需要 Inno Setup 6）
+uv run python tools/build_installer.py           # 產生 dist\ShundaIME-Setup-<版本>.exe（需要 Inno Setup 6）
 uv run python -m smartime.settings               # 開設定頁（本機網頁）
 ```
 
 - 架構與交接說明：[docs/architecture.md](docs/architecture.md)
-- 資料與授權：[docs/licenses.md](docs/licenses.md)
+- 第三方資料與元件授權：[docs/licenses.md](docs/licenses.md)
 - 版本紀錄：[CHANGELOG.md](CHANGELOG.md)
 
 ## 專案結構
@@ -133,3 +138,10 @@ data/lexicon/           我們自己維護的詞表（例：中英夾雜常用�
 tests/                  pytest
 docs/                   調查、架構、授權、設計稿
 ```
+
+內部代號是 `smartime`（Python 套件、PIME 後端資料夾、`%APPDATA%\SmartIME`），改名時刻意不動，舊版的設定與記憶都能沿用。
+
+## 授權
+
+程式碼採 [Apache License 2.0](LICENSE)，Copyright 2026 ChouYangEn0401。
+詞庫來自 McBopomofo（MIT）；英文詞頻表衍生自 wordfreq，以 CC BY-SA 4.0 授權。完整清單見 [NOTICE](NOTICE) 與 [docs/licenses.md](docs/licenses.md)。

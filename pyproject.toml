@@ -1,7 +1,8 @@
 [project]
 name = "smartime"
-version = "0.2.0"
-description = "智慧輸入法：免切換中英混打的注音輸入法（Windows / PIME backend）"
+version = "0.3.0"
+description = "順打輸入法 Shunda IME：免切換中英混打的注音輸入法（Windows / PIME backend）"
+license = "Apache-2.0"
 readme = "README.md"
 requires-python = ">=3.13"
 # The runtime engine is deliberately stdlib-only so it can run on the

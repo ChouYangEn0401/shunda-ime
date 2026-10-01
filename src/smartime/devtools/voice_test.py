@@ -100,7 +100,7 @@ def main() -> int:
     failures = 0
     try:
         service = VoiceService(recorder=ClipRecorder(audio), accept_injected=True)
-        box.set_caption(f"  智慧輸入法語音自動測試（碰鍵盤或滑鼠會立即停止）\r\n  載入模型中…（{engine}）")
+        box.set_caption(f"  順打輸入法語音自動測試（碰鍵盤或滑鼠會立即停止）\r\n  載入模型中…（{engine}）")
         deadline = time.monotonic() + 120
         while service.engine is None and not service.engine_error and time.monotonic() < deadline:
             tt.pump(0.1)

@@ -1,4 +1,4 @@
-// 智慧輸入法 settings page. Talks to the local settings server (api.py).
+// 順打輸入法 settings page. Talks to the local settings server (api.py).
 (() => {
   "use strict";
 

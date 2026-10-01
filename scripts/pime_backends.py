@@ -1,4 +1,4 @@
-"""Add or remove the 智慧輸入法 entry in PIME's backends.json.
+"""Add or remove the 順打輸入法 entry in PIME's backends.json.
 
 Run with any Python (the installer uses the bundled runtime):
     python pime_backends.py add    "C:\\Program Files (x86)\\PIME"

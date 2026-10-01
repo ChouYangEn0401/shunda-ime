@@ -7,6 +7,7 @@ import urllib.request
 
 import pytest
 
+import smartime
 from smartime import paths
 from smartime.config import Config
 from smartime.settings.api import SettingsApp, SettingsServer
@@ -56,7 +57,7 @@ def test_api_requires_token_and_local_host(server):
 
 def test_static_files_and_no_path_traversal(server):
     status, page = call(server, "GET", "/", token=None)
-    assert status == 200 and "智慧輸入法".encode() in page
+    assert status == 200 and smartime.PRODUCT_NAME.encode() in page
     assert call(server, "GET", "/../api.py", token=None)[0] == 404
     assert call(server, "GET", "/%2e%2e/api.py", token=None)[0] == 404
 

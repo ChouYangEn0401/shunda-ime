@@ -1,4 +1,4 @@
-智慧輸入法 (SmartIME) — third-party components
+順打輸入法 (Shunda IME) — third-party components
 =============================================
 
 This installer contains or installs the following third-party software.

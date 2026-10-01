@@ -1,4 +1,4 @@
-"""Build the Windows installer: dist/SmartIME-Setup-<version>.exe
+"""Build the Windows installer: dist/ShundaIME-Setup-<version>.exe
 
 Steps
   1. Stage the files that go to <PIME>\\smartime: backend entry point, IME
@@ -132,6 +132,8 @@ def stage(version: str) -> Path:
     # License notices.
     lic = app / "licenses"
     lic.mkdir()
+    shutil.copy2(ROOT / "LICENSE", lic / "LICENSE.txt")  # this project: Apache-2.0
+    shutil.copy2(ROOT / "NOTICE", lic / "NOTICE.txt")
     shutil.copy2(ROOT / "installer" / "THIRD-PARTY-NOTICES.txt", lic / "THIRD-PARTY-NOTICES.txt")
     mcb = next((ROOT / "data" / "vendor").glob("McBopomofo-*/LICENSE.txt"), None)
     if mcb is None:
@@ -185,7 +187,7 @@ def main() -> None:
     iss = write_iss(version, name)
     DIST.mkdir(exist_ok=True)
     subprocess.run([str(iscc_path()), "/Q", str(iss)], check=True)
-    out = DIST / f"SmartIME-Setup-{version}.exe"
+    out = DIST / f"ShundaIME-Setup-{version}.exe"
     print(f"[build] {out}  {out.stat().st_size / 1e6:.1f} MB  sha256={sha256(out)}")
 
 

@@ -1,4 +1,4 @@
-r"""PIME backend entry point for 智慧輸入法.
+r"""PIME backend entry point for 順打輸入法 (Shunda IME).
 
 PIMELauncher runs ``<PIME>\smartime\runtime\python.exe server.py`` with this
 folder as the working directory. In development this folder is reached through

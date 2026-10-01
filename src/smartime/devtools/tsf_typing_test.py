@@ -521,7 +521,7 @@ def main() -> int:
         pump(0.8)  # let TSF load PIMETextService.dll and connect to the launcher
         for n, (script, expected) in enumerate(cases, 1):
             memory.rewind()
-            win.set_caption(f"  智慧輸入法自動測試 {n}/{len(cases)}（碰鍵盤或滑鼠會立即停止）\r\n"
+            win.set_caption(f"  順打輸入法自動測試 {n}/{len(cases)}（碰鍵盤或滑鼠會立即停止）\r\n"
                             f"  按鍵：{script}\r\n  預期：{expected}")
             win.clear()
             pump(0.1)

@@ -1,6 +1,6 @@
 # 架構與交接說明
 
-> 讀者：接手或參與開發的工程師。最後更新：0.2.0（Phase 5–8 進行中）。
+> 讀者：接手或參與開發的工程師。最後更新：0.3.0。產品名稱「順打輸入法 Shunda IME」，內部代號 `smartime`。
 
 ## 1. 全貌
 
@@ -126,7 +126,7 @@
 
 ## 5. 設定頁（`src/smartime/settings`）
 
-- `python -m smartime.settings`（安裝後：開始功能表「智慧輸入法 設定」、系統匣選單「設定…」、PIME 的 configTool）。
+- `python -m smartime.settings`（安裝後：開始功能表「順打輸入法 設定」、系統匣選單「設定…」、PIME 的 configTool）。
 - 標準函式庫 `ThreadingHTTPServer`，只聽 127.0.0.1、隨機埠；用 Edge 或 Chrome 的 `--app` 視窗開啟，找不到就用預設瀏覽器。
 - 安全：每次啟動產生 token（`X-SmartIME-Token`），並檢查 `Host` 必須是 127.0.0.1（防 DNS rebinding）；
   CSP 只允許自己的資源。其他網頁碰不到 API。
@@ -136,7 +136,7 @@
 
 ## 6. 安裝檔（`installer/`、`tools/build_installer.py`）
 
-- `uv run python tools/build_installer.py` → `dist\SmartIME-Setup-<版本>.exe`（Inno Setup 6；預設找 `build/tools/InnoSetup6/ISCC.exe`）。
+- `uv run python tools/build_installer.py` → `dist\ShundaIME-Setup-<版本>.exe`（Inno Setup 6；預設找 `build/tools/InnoSetup6/ISCC.exe`）。
   建置時下載並以 SHA-256 驗證：PIME 1.3.0 官方安裝檔、Python embeddable、Inno Setup 繁中訊息檔。
 - 安裝流程：沒有 PIME 時以 `/S` 安靜安裝官方版 → 停止 launcher 與後端 → 複製到 `<PIME>\smartime` →
   寫 `backends.json`、以 TSF API 註冊 64 位元與 32 位元設定檔 → 以原本的使用者身分加到語言清單 →
@@ -192,7 +192,7 @@
   是分析實機問題的最佳資料（配對 SEND/RECV 的 seqNum 即可重建每個 session）；也因此含有使用者打過的字，除錯完應建議關閉。
 - 用 bash heredoc 產生含反斜線的檔案時，`\\` 可能被吃成 `\`（ime.json 事故）；這類檔案請用編輯器／Write 工具寫，並驗證。
 
-## 10. 已知限制（0.2.0）
+## 10. 已知限制（0.3.0）
 
 - 鍵盤：大千、倚天；許氏（一鍵多義）尚未支援。容錯有「順序錯」與「多按雜鍵」，少按/相鄰鍵尚未做。
 - 詞庫缺台灣口語讀音（例：欸 只有 ㄞˇ/ㄟˋ，沒有 ㄟ），需要口語讀音補充表。

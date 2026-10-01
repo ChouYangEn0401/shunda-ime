@@ -1,4 +1,4 @@
-; Inno Setup script for 智慧輸入法 (SmartIME).
+; Inno Setup script for 順打輸入法 (Shunda IME; code name smartime).
 ; Do not compile directly: tools/build_installer.py stages the files and
 ; prepends AppVersion, AppName, StageDir and OutputDir.
 ;
@@ -27,7 +27,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 OutputDir={#OutputDir}
-OutputBaseFilename=SmartIME-Setup-{#AppVersion}
+OutputBaseFilename=ShundaIME-Setup-{#AppVersion}
 SetupIconFile={#StageDir}\smartime\input_methods\smartime\icons\ime.ico
 UninstallDisplayIcon={app}\input_methods\smartime\icons\ime.ico
 UninstallDisplayName={#AppName}
