@@ -12,7 +12,18 @@ $ErrorActionPreference = 'Stop'
 $ProfileGuid = '{61AA71DB-BB8C-4C7D-9BD7-C324464DF341}'
 Start-Transcript -Path (Join-Path $env:TEMP 'smartime-install-admin.log') -Force | Out-Null
 
+# 64-bit and 32-bit Windows PowerShell, regardless of our own bitness.
+function Get-PowerShellPaths {
+    $sys = 'System32'
+    if (-not [Environment]::Is64BitProcess) { $sys = 'Sysnative' }
+    @(
+        (Join-Path $env:windir "$sys\WindowsPowerShell\v1.0\powershell.exe"),
+        (Join-Path $env:windir 'SysWOW64\WindowsPowerShell\v1.0\powershell.exe')
+    )
+}
+
 try {
+    Write-Host ("64-bit process: {0}" -f [Environment]::Is64BitProcess)
     $Target = Join-Path $Pime 'smartime'
     $Source = Join-Path $Repo 'backend'
 
@@ -47,14 +58,17 @@ try {
     & $python (Join-Path $Repo 'scripts\pime_backends.py') add $Pime
     if ($LASTEXITCODE -ne 0) { throw 'failed to update backends.json' }
 
-    # Re-registering makes PIME scan every backend's input_methods folder and
-    # register a TSF language profile for each ime.json it finds.
-    foreach ($arch in 'x64', 'x86') {
-        $dll = Join-Path $Pime "$arch\PIMETextService.dll"
-        if (Test-Path $dll) {
-            $r = Start-Process -FilePath 'regsvr32.exe' -ArgumentList '/s', "`"$dll`"" -Wait -PassThru
-            if ($r.ExitCode -ne 0) { throw "regsvr32 failed for $dll ($($r.ExitCode))" }
-        }
+    # Register only our TSF language profile under PIME's text service, in
+    # both the 64-bit and the 32-bit registry views. (We used to re-run
+    # regsvr32 on PIMETextService.dll, which re-registers every PIME input
+    # method and failed with exit code 3 on the author's machine.)
+    $manifest = Join-Path $Target 'input_methods\smartime\ime.json'
+    $name = (Get-Content $manifest -Raw -Encoding UTF8 | ConvertFrom-Json).name
+    $icon = Join-Path $Target 'input_methods\smartime\icons\ime.ico'
+    foreach ($ps in (Get-PowerShellPaths)) {
+        & $ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'tsf-profile.ps1') `
+            -Action Add -Profile $ProfileGuid -Description $name -IconFile $icon
+        if ($LASTEXITCODE -ne 0) { throw "TSF profile registration failed ($ps)" }
     }
     Write-Host 'admin step OK'
     Stop-Transcript | Out-Null

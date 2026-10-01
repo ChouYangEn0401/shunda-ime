@@ -84,7 +84,7 @@
 ## 6. 開發流程
 
 - `install.ps1 -Dev`：`<PIME>\smartime` 變成指向 `repo\backend` 的 junction；改完 Python 程式後，在系統匣 PIME 圖示選「Restart PIME」重啟後端即可。
-- 改 `ime.json`（名稱、GUID、圖示）後需重新執行安裝（要重新註冊 DLL）。
+- 改 `ime.json`（名稱、GUID、圖示）後需重新執行安裝（會重新登錄 TSF 語言設定檔）。
 - 不安裝也能測：`python -m smartime.devtools.simulate --steps "<按鍵>"`；測試使用同一套模擬器。
 - `tests/test_reported_issues.py` 記錄使用者回報、尚未修好的問題（xfail strict）；修好時移除標記。
 
