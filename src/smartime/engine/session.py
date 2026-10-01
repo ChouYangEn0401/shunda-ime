@@ -643,7 +643,7 @@ class Session(CorrectionMixin):
         if vk == VK_TAB and cand.palette is not None:
             self._open_palette(cand.palette + (-1 if key.shift else 1))
             return True
-        if key.char and key.char in SELECTION_DIGITS and not key.numpad:
+        if key.char and key.char in SELECTION_DIGITS:  # top row or numpad
             i = SELECTION_DIGITS.index(key.char)
             page = cand.page_items()
             if i < len(page):

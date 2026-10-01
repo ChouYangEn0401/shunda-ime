@@ -99,6 +99,20 @@ def test_candidates_at_end_and_select(session):
     assert v.composition == "我們"
 
 
+def test_numpad_digits_select_candidates(session):
+    # reported: the number keys beside the keyboard did nothing in the
+    # candidate window (only the 1-9 above the letters worked)
+    from smartime.devtools.simulate import press
+    from smartime.engine.keys import KeyInput
+
+    _, v = run(session, "ji3ap7{DOWN}")
+    index = v.candidates.index("們")
+    numpad = KeyInput(vk=0x60 + index + 1, char=str(index + 1))  # VK_NUMPAD1..9
+    handled, v = press(session, numpad)
+    assert handled and v.candidates is None
+    assert v.composition == "我們"
+
+
 def test_candidate_for_char_after_cursor(session):
     _, v = run(session, "ji3a87{LEFT}{UP}")
     assert v.cursor == 1
