@@ -85,6 +85,11 @@ class Weights:
     punct_layout_key: float = -6.0  # , . / ; - typed as literal punctuation
     punct_other: float = -2.0  # = \ ` etc.
     space: float = -0.5
+    # A space typed right after a finished Chinese syllable is a separator:
+    # in Chinese typing it only appears before English (第 i 項, 用 x 表示).
+    zh_space_zh: float = -3.0  # Chinese again right after such a space
+    en_after_zh_space: float = 1.5  # English there: no language-switch cost
+    drop_after_space: float = -3.0  # a key typed right after a space is deliberate
     literal: float = -15.0
     pending: float = 0.0
 
@@ -212,6 +217,8 @@ class Decoder:
                         # not there (so dropping can't split an English word
                         # for free — en_adjacent still applies across it).
                         total = score + seg.score
+                        if prev_kind is Kind.SPACE:
+                            total += self.w.drop_after_space
                         new_state = state
                     else:
                         total = score + seg.score + self._transition(lang, prev_kind, seg.kind)
@@ -265,6 +272,11 @@ class Decoder:
                 cost += w.en_adjacent
         elif kind is Kind.NUM and prev_kind is Kind.NUM:
             cost += w.num_adjacent
+        if prev_kind is Kind.SPACE and lang == _ZH:
+            if kind is Kind.ZH:
+                cost += w.zh_space_zh
+            elif kind is Kind.EN:
+                cost += w.en_after_zh_space
         return cost
 
     def _syllable_table(self, keys: Sequence[Key]) -> list[list[tuple[int, str, float]]]:

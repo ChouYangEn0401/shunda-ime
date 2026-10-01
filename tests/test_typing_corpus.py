@@ -111,6 +111,11 @@ I_O_CONTEXT = [
     ("cl3dj4i ", "好酷喔"),
     ("ji3m/4python vu,3i ", "我用python 寫喔"),
     ("o ", "ㄟ"),
+    # A space typed after a finished Chinese syllable separates English:
+    # the user's 「第 i 項」 came out as 「第 喔項」.
+    ("m/4 x 1ul3g4", "用 x 表示"),
+    ("cl3 i ", "好 i "),
+    ("su3 e ", "你 e "),  # a deliberate key after a space is not dropped
     pytest.param("o cl3dj4", "欸好酷",
                  marks=pytest.mark.xfail(reason="欸 lacks the colloquial reading ㄟ in the lexicon", strict=True)),
 ]
@@ -119,6 +124,12 @@ I_O_CONTEXT = [
 @pytest.mark.parametrize("keys, expected", I_O_CONTEXT)
 def test_i_o_context(decoder, keys, expected):
     assert decode(decoder, keys) == expected
+
+
+def test_letter_between_spaces_after_chinese_is_english(decoder):
+    # 第/項 vs 地/相 is a homophone choice (learned once picked); the point
+    # here is that " i " stays English instead of becoming 喔
+    assert " i " in decode(decoder, "2u4 i vu;4")
 
 
 @pytest.mark.parametrize("keys, expected", ENGLISH)
