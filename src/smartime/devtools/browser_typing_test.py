@@ -163,7 +163,8 @@ def _focus(hwnd: int) -> bool:
             return True
         for up in (False, True):
             inp = tt.INPUT(type=tt.INPUT_KEYBOARD)
-            inp.u.ki = tt.KEYBDINPUT(wVk=0x87, wScan=0, dwFlags=tt.KEYEVENTF_KEYUP if up else 0)  # VK_F24
+            inp.u.ki = tt.KEYBDINPUT(wVk=0x87, wScan=0, dwFlags=tt.KEYEVENTF_KEYUP if up else 0,  # VK_F24
+                                     dwExtraInfo=tt.INJECTED_TAG)
             user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(tt.INPUT))
         tt.pump(0.2)
     return False
@@ -205,7 +206,7 @@ def _click(hwnd: int, css_x: float, css_y: float, dpr: float) -> None:
     user32.SetCursorPos(pt.x, pt.y)
     for flag in (0x0002, 0x0004):  # MOUSEEVENTF_LEFTDOWN, LEFTUP
         inp = tt.INPUT(type=0)  # INPUT_MOUSE
-        inp.u.mi = tt.MOUSEINPUT(dx=0, dy=0, mouseData=0, dwFlags=flag, time=0, dwExtraInfo=0)
+        inp.u.mi = tt.MOUSEINPUT(dx=0, dy=0, mouseData=0, dwFlags=flag, time=0, dwExtraInfo=tt.INJECTED_TAG)
         user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(tt.INPUT))
     tt.pump(0.3)
 
@@ -286,7 +287,8 @@ def main() -> int:
                                  f"{_title(user32.GetForegroundWindow())!r}; stopped sending keys")
             inp = tt.INPUT(type=tt.INPUT_KEYBOARD)
             flags = (tt.KEYEVENTF_KEYUP if up else 0) | (tt.KEYEVENTF_EXTENDEDKEY if vk in (0xA3, 0xA5) else 0)
-            inp.u.ki = tt.KEYBDINPUT(wVk=vk, wScan=user32.MapVirtualKeyW(vk, 0), dwFlags=flags)
+            inp.u.ki = tt.KEYBDINPUT(wVk=vk, wScan=user32.MapVirtualKeyW(vk, 0), dwFlags=flags,
+                                     dwExtraInfo=tt.INJECTED_TAG)
             user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(tt.INPUT))
 
         def tap(vk, shift=False, ctrl=False, alt=False):

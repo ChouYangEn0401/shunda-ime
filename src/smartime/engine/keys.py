@@ -46,6 +46,11 @@ MODIFIER_VKS = frozenset(
      VK_LCONTROL, VK_RCONTROL, VK_LMENU, VK_RMENU}
 )
 
+# dwExtraInfo on every input event SmartIME sends itself with SendInput (voice
+# typing, the real-app tests), so hooks can tell it from anyone else's input,
+# including other programs' injected input (remote control, macro tools).
+INJECTED_TAG = 0x534D4954  # "SMIT"
+
 SCAN_LSHIFT = 0x2A
 SCAN_RSHIFT = 0x36
 

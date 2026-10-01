@@ -8,6 +8,8 @@ import ctypes
 import threading
 from ctypes import wintypes
 
+from ..engine.keys import INJECTED_TAG
+
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 gdi32 = ctypes.WinDLL("gdi32")
@@ -103,7 +105,7 @@ def type_text(text: str) -> None:
     for u in units:
         for flags in (KEYEVENTF_UNICODE, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP):
             inp = INPUT(type=INPUT_KEYBOARD)
-            inp.u.ki = KEYBDINPUT(wVk=0, wScan=u, dwFlags=flags)
+            inp.u.ki = KEYBDINPUT(wVk=0, wScan=u, dwFlags=flags, dwExtraInfo=INJECTED_TAG)
             events.append(inp)
     for i in range(0, len(events), 64):  # small batches keep apps responsive
         chunk = events[i:i + 64]
@@ -174,7 +176,7 @@ class PushToTalkHook:
 
     def __init__(self, target: MessageWindow, accept_injected: bool = False):
         self.target = target
-        self.accept_injected = accept_injected  # devtools.voice_test presses the key with SendInput
+        self.accept_injected = accept_injected  # devtools.voice_test presses right Ctrl with SendInput
         self.down = False
         self.combo = False
         self.handle = None
@@ -197,7 +199,8 @@ class PushToTalkHook:
     def _hook(self, code, wparam, lparam):
         if code == 0:
             k = ctypes.cast(lparam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
-            if self.accept_injected or not k.flags & LLKHF_INJECTED:
+            ours = self.accept_injected and k.dwExtraInfo == INJECTED_TAG
+            if ours or not k.flags & LLKHF_INJECTED:
                 is_down = wparam in (WM_KEYDOWN, WM_SYSKEYDOWN)
                 if k.vkCode == VK_RCONTROL:
                     if is_down and not self.down:

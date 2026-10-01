@@ -21,6 +21,8 @@ from pathlib import Path
 import time
 from ctypes import wintypes
 
+from ..engine.keys import INJECTED_TAG
+
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 ole32 = ctypes.WinDLL("ole32")
 kernel32 = ctypes.WinDLL("kernel32")
@@ -156,7 +158,9 @@ class Aborted(Exception):
 
 
 # --- Never fight the user for the keyboard -------------------------------
-# Low-level hooks only look at the "injected" flag to tell our SendInput keys
+# Low-level hooks tell our own SendInput events (injected *and* tagged with
+# INJECTED_TAG) from everything else; a person typing through a remote-control
+# tool (Quick Assist, ...) arrives as injected input too and must stop the test.
 # from real ones; key codes are neither recorded nor blocked.
 WH_KEYBOARD_LL = 13
 WH_MOUSE_LL = 14
@@ -198,13 +202,16 @@ class UserGuard:
                        user32.SetWindowsHookExW(WH_MOUSE_LL, self._ms, None, 0)]
 
     def _on_key(self, code, wparam, lparam):
-        if code >= 0 and not ctypes.cast(lparam, ctypes.POINTER(_KBDLLHOOKSTRUCT)).contents.flags & LLKHF_INJECTED:
-            self.user_input = True
+        if code >= 0:
+            k = ctypes.cast(lparam, ctypes.POINTER(_KBDLLHOOKSTRUCT)).contents
+            if not (k.flags & LLKHF_INJECTED and k.dwExtraInfo == INJECTED_TAG):
+                self.user_input = True
         return user32.CallNextHookEx(None, code, wparam, lparam)
 
     def _on_mouse(self, code, wparam, lparam):
         if code >= 0 and wparam in MOUSE_BUTTON_DOWN:
-            if not ctypes.cast(lparam, ctypes.POINTER(_MSLLHOOKSTRUCT)).contents.flags & LLMHF_INJECTED:
+            m = ctypes.cast(lparam, ctypes.POINTER(_MSLLHOOKSTRUCT)).contents
+            if not (m.flags & LLMHF_INJECTED and m.dwExtraInfo == INJECTED_TAG):
                 self.user_input = True
         return user32.CallNextHookEx(None, code, wparam, lparam)
 
@@ -264,6 +271,21 @@ class TestWindow:
         user32.SetWindowTextW(self.caption, text)
 
     def focus(self) -> bool:
+        """Windows' foreground lock only lets the process that produced the
+        latest input switch windows; if the plain attempt fails, inject F24
+        (a key no application uses) and try again."""
+        for _ in range(4):
+            if self._focus_once():
+                return True
+            for up in (False, True):
+                inp = INPUT(type=INPUT_KEYBOARD)
+                inp.u.ki = KEYBDINPUT(wVk=0x87, wScan=0, dwFlags=KEYEVENTF_KEYUP if up else 0,  # VK_F24
+                                      dwExtraInfo=INJECTED_TAG)
+                user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
+            pump(0.2)
+        return False
+
+    def _focus_once(self) -> bool:
         fg = user32.GetForegroundWindow()
         fg_thread = user32.GetWindowThreadProcessId(fg, None)
         me = kernel32.GetCurrentThreadId()
@@ -295,7 +317,7 @@ class TestWindow:
             raise Aborted("test window lost the foreground; stopped sending keys")
         inp = INPUT(type=INPUT_KEYBOARD)
         flags = (KEYEVENTF_KEYUP if up else 0) | (KEYEVENTF_EXTENDEDKEY if vk in (0xA3, 0xA5) else 0)
-        inp.u.ki = KEYBDINPUT(wVk=vk, wScan=user32.MapVirtualKeyW(vk, 0), dwFlags=flags)
+        inp.u.ki = KEYBDINPUT(wVk=vk, wScan=user32.MapVirtualKeyW(vk, 0), dwFlags=flags, dwExtraInfo=INJECTED_TAG)
         user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
 
     def tap(self, vk: int, shift: bool = False, ctrl: bool = False, alt: bool = False) -> None:
