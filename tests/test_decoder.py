@@ -25,6 +25,18 @@ def test_exact_typing(decoder, keys, text):
     assert decode(decoder, keys).text == text
 
 
+def test_stray_key_between_chinese_is_dropped(decoder):
+    # 'e' left behind after deleting a failed syllable's tone (real log)
+    d = decode(decoder, "ji3ee/4")
+    assert d.text == "我更"
+    assert any(s.kind is Kind.DROP for s in d.segments)
+
+
+def test_zh_alternatives_for_english_token(decoder):
+    alts = decoder.zh_alternatives([Key(c) for c in "i "], 0)
+    assert "喔" in [s.text for s in alts]
+
+
 def test_segments_carry_kinds(decoder):
     d = decode(decoder, "ji3m/4python vu,3")
     kinds = [s.kind for s in d.segments]

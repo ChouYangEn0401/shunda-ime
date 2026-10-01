@@ -320,6 +320,21 @@ class Session:
                 target = (a, b, seg_idx)
                 break
         if target is None:
+            # Dropped (invisible) keys sit next to the cursor: delete them
+            # together with the neighbouring character so the keypress has a
+            # visible effect.
+            if before and self.cursor > 0:
+                prev = [a for a, b, _, _ in units if b < self.cursor]
+                self._delete_keys(prev[-1] if prev else 0, self.cursor)
+            elif not before and self.cursor < len(self.keys):
+                nxt = [b for a, b, _, _ in units if a > self.cursor]
+                self._delete_keys(self.cursor, nxt[0] if nxt else len(self.keys))
+            else:
+                return
+            if not self.keys:
+                self._reset_buffer()
+            else:
+                self._redecode()
             return
         a, b, seg_idx = target
         seg = self.decoding.segments[seg_idx]
@@ -391,7 +406,13 @@ class Session:
         if not units:
             return None
         if self.cursor >= len(self.keys):
-            return len(units) - 1
+            # At the end: the last real character (skip trailing spaces, so
+            # "mvp␣" + ↓ offers alternatives for mvp).
+            segs = self.decoding.segments
+            idx = len(units) - 1
+            while idx > 0 and segs[units[idx][3]].kind is Kind.SPACE:
+                idx -= 1
+            return idx
         for idx, (a, _, _, _) in enumerate(units):
             if a >= self.cursor:
                 return idx
@@ -402,17 +423,48 @@ class Session:
         if t is None:
             return
         units = self.decoding.units()
-        seg = self.decoding.segments[units[t][3]]
+        a, b, _, seg_idx = units[t]
+        seg = self.decoding.segments[seg_idx]
+        # Candidates cross categories: Chinese <-> English <-> the raw keys,
+        # so any wrong guess (o␣ vs ㄟ, i␣ vs 喔, mvp vs 勳) is one pick away.
         if seg.kind is Kind.ZH:
             items = self._zh_candidates(units, t, at_end=self.cursor >= len(self.keys))
+            items += self._raw_candidates(a, b)
         elif seg.kind is Kind.EN:
-            items = _en_candidates(seg)
+            items = _en_candidates(seg) + self._zh_alternatives(seg.start)
         elif seg.kind is Kind.PUNCT:
             items = self._punct_candidates(seg)
+        elif seg.kind in (Kind.NUM, Kind.LITERAL):
+            items = [Candidate(seg.text, replace(seg, pinned=True))] + self._zh_alternatives(seg.start)
         else:
             items = []
-        if items:
-            self.cand = CandidateList(items, self.cfg.candidates_per_page)
+        seen: set[tuple[str, int, int]] = set()
+        unique = []
+        for c in items:
+            key = (c.text, c.pin.start, c.pin.end)
+            if key not in seen:
+                seen.add(key)
+                unique.append(c)
+        if unique:
+            self.cand = CandidateList(unique, self.cfg.candidates_per_page)
+
+    def _zh_alternatives(self, start: int) -> list[Candidate]:
+        return [Candidate(s.text, replace(s, pinned=True))
+                for s in self.engine.decoder.zh_alternatives(self.keys, start)]
+
+    def _dropped_before(self, pos: int) -> int:
+        """Start of the run of dropped (invisible) keys that ends at ``pos``."""
+        dropped_ends = {s.end: s.start for s in self.decoding.segments if s.kind is Kind.DROP}
+        while pos in dropped_ends:
+            pos = dropped_ends[pos]
+        return pos
+
+    def _raw_candidates(self, a: int, b: int) -> list[Candidate]:
+        """The keys exactly as typed (including stray keys dropped just
+        before them), to undo any interpretation."""
+        a = self._dropped_before(a)
+        raw = "".join(k.char for k in self.keys[a:b])
+        return [Candidate(raw, Segment(a, b, raw, Kind.LITERAL, -10.0, pinned=True), annotation="原始按鍵")]
 
     def _zh_candidates(self, units, t: int, at_end: bool) -> list[Candidate]:
         segs = self.decoding.segments
@@ -496,13 +548,33 @@ class Session:
     def _hint(self) -> str:
         if not self.cfg.spelling_hint or not self.decoding.segments:
             return ""
+        layout = self.engine.layout
         last = self.decoding.segments[-1]
-        if last.kind is Kind.PENDING and self.cursor == len(self.keys):
-            layout = self.engine.layout
-            # Show what the keys will become, in canonical order (k2 -> ㄉㄜ).
-            canon = bopomofo.canonical(layout.symbol(c) or "" for c in last.text)
-            return canon or layout.symbols_for_keys(last.text)
-        return ""
+        if self.cursor == len(self.keys):
+            if last.kind is Kind.PENDING:
+                # Show what the keys will become, in canonical order (k2 -> ㄉㄜ).
+                canon = bopomofo.canonical(layout.symbol(c) or "" for c in last.text)
+                return canon or layout.symbols_for_keys(last.text)
+            return ""
+        # Cursor moved back to fix something: annotate the character after
+        # the cursor with its reading and the keys behind it, so stray
+        # letters and wrong guesses are easy to spot.
+        t = self._target_unit()
+        if t is None:
+            return ""
+        a, b, ch, seg_idx = self.decoding.units()[t]
+        seg = self.decoding.segments[seg_idx]
+        start = self._dropped_before(a)
+        dropped = "".join(k.char for k in self.keys[start:a])
+        raw = "".join(k.char for k in self.keys[a:b])
+        if seg.kind is Kind.ZH:
+            text = f"{ch} {seg.readings[seg.bounds.index(a)]}  ⌨ {raw}"
+        else:
+            sym = layout.symbol(raw) or layout.tone(raw)
+            text = f"{ch}  ⌨ {raw}" + (f"（ㄅ: {sym}）" if sym else "")
+        if dropped:
+            text = f"（略過 {dropped}）" + text
+        return text
 
     def _update_suggestion(self) -> None:
         self.suggestion = None

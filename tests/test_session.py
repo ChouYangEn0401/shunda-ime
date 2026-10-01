@@ -38,6 +38,31 @@ def test_shifted_punct_alone_commits_fullwidth(session):
     assert out == "？"
 
 
+def test_english_token_offers_chinese_readings(session):
+    # mvp stays English, but 勳 is one pick away
+    _, v = run(session, "mvp {DOWN}")
+    assert v.candidates[0] == "mvp"
+    assert "勳" in v.candidates
+
+
+def test_chinese_offers_raw_keys(session):
+    # ㄟ decoded from "o␣" can be turned back into the letters typed
+    _, v = run(session, "o {DOWN}")
+    assert "o " in v.candidates
+
+
+def test_hint_shows_reading_and_keys_when_cursor_moved_back(session):
+    # stray "e" (left by fast typing) is dropped and pointed out
+    _, v = run(session, "ji3ee/4dj94{LEFT}{LEFT}")
+    assert v.composition == "我更快"
+    assert "ㄍㄥˋ" in v.hint and "e/4" in v.hint and "略過 e" in v.hint
+
+
+def test_backspace_next_to_dropped_key_removes_visible_char(session):
+    _, v = run(session, "ji3ee/4{LEFT}{BS}")
+    assert v.composition == "更"
+
+
 def test_backspace_removes_whole_syllable(session):
     _, v = run(session, "ji3ap7{BS}")
     assert v.composition == "我"

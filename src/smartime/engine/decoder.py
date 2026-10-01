@@ -33,6 +33,7 @@ class Kind(str, Enum):
     SPACE = "space"  # a literal space
     LITERAL = "literal"  # fallback: the key itself
     PENDING = "pending"  # trailing keys of an unfinished syllable (no tone yet)
+    DROP = "drop"  # a stray key (typed by accident) that produces no output
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,11 +72,14 @@ class Weights:
     en_unknown_base: float = -9.0  # alphanumeric token not in the lexicon
     en_unknown_per_char: float = -1.0
     en_digit: float = -2.0  # each digit inside an English token (y94vscode...)
-    en_single_letter: float = -3.0  # one-letter words other than a / I
+    en_single_letter: float = -3.0  # one-letter words other than "a" / capital "I"
     # Digit keys are also ㄅㄉㄓㄚㄞㄢ and the tones, so 283 can be 打 or the
     # number 283. Numbers must not be cheaper than real Chinese syllables.
     num: float = -5.5
     reorder: float = -1.0  # syllable keys typed out of canonical order
+    # A stray lowercase/layout key typed by accident (fast typing, or left
+    # behind by Backspace) is dropped rather than shown as a lone letter.
+    drop: float = -6.5  # must stay below the rarest real syllable (ㄟ -5.9 + space)
     punct_fullwidth: float = -1.0  # Shift+, -> ，
     punct_ascii_alt: float = -4.0  # Shift+, -> <
     punct_layout_key: float = -6.0  # , . / ; - typed as literal punctuation
@@ -91,6 +95,9 @@ FULLWIDTH_PUNCT = {
     "'": "、", "[": "「", "]": "」", "{": "『", "}": "』",
     "(": "（", ")": "）", "~": "～", "\\": "＼",
 }
+# Keys that may be dropped as accidental: lowercase letters and the layout's
+# punctuation keys. Never digits, spaces, capitals or shifted symbols.
+_DROPPABLE = frozenset("abcdefghijklmnopqrstuvwxyz,./;-")
 # Punctuation that closes a clause; the session commits the buffer on these.
 CLAUSE_PUNCT = frozenset("，。？！：；")
 
@@ -165,9 +172,16 @@ class Decoder:
             for seg in edges:
                 for state, (score, _, _, _) in best[i].items():
                     lang, prev_kind = state
-                    total = score + seg.score + self._transition(lang, prev_kind, seg.kind)
-                    new_lang = _ZH if seg.kind is Kind.ZH else _EN if seg.kind is Kind.EN else lang
-                    new_state = (new_lang, seg.kind)
+                    if seg.kind is Kind.DROP:
+                        # Invisible: the context continues as if the key were
+                        # not there (so dropping can't split an English word
+                        # for free — en_adjacent still applies across it).
+                        total = score + seg.score
+                        new_state = state
+                    else:
+                        total = score + seg.score + self._transition(lang, prev_kind, seg.kind)
+                        new_lang = _ZH if seg.kind is Kind.ZH else _EN if seg.kind is Kind.EN else lang
+                        new_state = (new_lang, seg.kind)
                     cur = best[seg.end].get(new_state)
                     if cur is None or total > cur[0]:
                         best[seg.end][new_state] = (total, i, state, seg)
@@ -183,6 +197,25 @@ class Decoder:
             pos, state = prev_i, prev_state
         segments.reverse()
         return Decoding(tuple(segments), final_score)
+
+    def zh_alternatives(self, keys: Sequence[Key], start: int, max_syllables: int = 4) -> list[Segment]:
+        """Every Chinese reading of the keys starting at ``start`` — all
+        phrases, not only the best — for the candidate window. Lets the user
+        turn something decoded as English/raw (``i␣``, ``mvp␣``) into Chinese
+        (喔, 勳). Longer phrases first, then by score."""
+        syllables = self._syllable_table(keys)
+        out: list[Segment] = []
+        stack = [(end, (syl,), (start, end), cost) for end, syl, cost in syllables[start]] if start < len(keys) else []
+        while stack:
+            end, readings, bounds, cost = stack.pop()
+            reading = "-".join(readings)
+            for text, score in self.lex.phrases(reading):
+                out.append(Segment(start, end, text, Kind.ZH, score + cost, readings, bounds))
+            if len(readings) < max_syllables and end < len(keys) and self.lex.has_reading_prefix(reading):
+                for nxt_end, syl, nxt_cost in syllables[end]:
+                    stack.append((nxt_end, readings + (syl,), bounds + (nxt_end,), cost + nxt_cost))
+        out.sort(key=lambda s: (-len(s.readings), -s.score))
+        return out
 
     # ------------------------------------------------------------------
     def _transition(self, lang: int, prev_kind: Kind | None, kind: Kind) -> float:
@@ -277,6 +310,10 @@ class Decoder:
         elif not ch.isalnum() and ch.isprintable():
             yield Segment(i, i + 1, ch, Kind.PUNCT, w.punct_other)
 
+        # --- A stray key typed by accident produces nothing.
+        if ch in _DROPPABLE and not k.numpad:
+            yield Segment(i, i + 1, "", Kind.DROP, w.drop)
+
         # --- Unfinished syllable at the end of the buffer (shown raw + hint).
         if limit == n and 0 < n - i <= 3:
             symbols = []
@@ -315,8 +352,10 @@ class Decoder:
         score = self.lex.en_score(word.lower())
         if score is not None:
             score += w.en_offset
-            if len(word) == 1 and word.lower() not in ("a", "i"):
-                score += w.en_single_letter  # "o" is almost never meant as a word
+            if len(word) == 1 and word != "I" and word.lower() != "a":
+                # A lone lowercase letter (o, i, e, u ...) is far more often
+                # zhuyin (ㄟ, ㄛ = 喔) or a stray key than an English word.
+                score += w.en_single_letter
             return score
         # Unknown token. Digits inside letters (y94vscode, k27) are typical of
         # zhuyin typed in mixed mode, not of English, so each one costs extra.

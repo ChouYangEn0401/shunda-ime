@@ -63,6 +63,22 @@ NUMBERS_AND_SYMBOLS = [
 ]
 
 
+# Second test day: whole key scripts *including Backspace*, replayed through
+# a Session. Fast typists fix a failed syllable by deleting only its last key
+# (e4 ⌫ e/4), which leaves a lone letter behind ("我e更快", "在u想", "j往").
+SESSION_REAL = [
+    ("5k4u;4dk3s/6ji3e4{BS}e/4dj94", "這樣可能我更快"),
+    ("ji3ur.4y94uv;'{BS}{BS}{BS}uv;3", "我就在想"),
+    ("ji3dk31j4dk3u32; ji3rup uw0 j0{BS}j;3fu06", "我可不可以當我今天往前"),
+    ("cl3dj4i ", "好酷喔"),  # i␣ = ㄛ = 喔, not the English word "i"
+    ("2ji kx7cl32ji uvl3uvl3k27u/ jp6y4aj3", "多了好多小小的英文字母"),
+    ("xo4n4vimu u;4fm4", "類似vim一樣去"),
+    ("b06c.4ej0 m6 dictionary", "然後關於 dictionary"),
+    ("183a.3uv, t;6m/4k27", "把某些常用的"),
+    ("w.4eji4ru0320 k27z; g4ru8 bj4dictionaryxu3u0a4", "透過簡單的方式加入dictionary裡面"),
+]
+
+
 def decode(decoder, keys):
     return decoder.decode([Key(c) for c in keys]).text
 
@@ -70,6 +86,14 @@ def decode(decoder, keys):
 @pytest.mark.parametrize("keys, expected", REAL)
 def test_real_typing(decoder, keys, expected):
     assert decode(decoder, keys) == expected
+
+
+@pytest.mark.parametrize("script, expected", SESSION_REAL)
+def test_real_typing_with_edits(session, script, expected):
+    from smartime.devtools.simulate import run
+
+    _, view = run(session, script)
+    assert view.composition == expected
 
 
 @pytest.mark.parametrize("keys, expected", ENGLISH)
