@@ -32,6 +32,8 @@ from .. import PRODUCT_NAME, __version__, paths
 from ..config import Config
 from ..engine.lexicon import Lexicon
 from ..engine.userdict import UserDict
+from ..voice import launch as voice_launch
+from ..voice import models as voice_models
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +66,8 @@ class SettingsApp:
         self.lexicon = Lexicon(system_db or paths.system_db_path())
         self.valid_syllables = self.lexicon.valid_syllables
         self.last_ping = time.monotonic()
+        self.download: dict = {}  # voice model download progress
+        self.install_state: dict = {}  # voice component installation
 
     def close(self) -> None:
         self.user.close()
@@ -89,7 +93,63 @@ class SettingsApp:
         current = Config.load(self.config_path)
         new = Config.from_dict(patch, base=current)
         new.save(self.config_path)
+        if patch.get("voice_enabled") is True:
+            voice_launch.start()  # the service exits by itself when turned off
         return new.to_dict()
+
+    # ---------------------------------------------------------- voice input
+    def busy(self) -> bool:
+        """A background job that must not be cut off by the idle exit."""
+        return bool(self.download.get("active") or self.install_state.get("active"))
+
+    def voice_state(self) -> dict:
+        py = voice_launch.voice_python()
+        return {
+            "models": voice_models.status(),
+            "runtime": bool(py),
+            "running": voice_launch.running(),
+            "download": dict(self.download),
+            "install": dict(self.install_state, log=list(self.install_state.get("log", []))[-8:]),
+        }
+
+    def install_voice(self) -> dict:
+        if self.install_state.get("active"):
+            raise ApiError(400, "已經在安裝了")
+        from ..voice import install as voice_install
+
+        self.install_state = {"active": True, "log": [], "error": ""}
+
+        def run() -> None:
+            try:
+                voice_install.install(lambda line: self.install_state["log"].append(line))
+            except Exception as e:  # noqa: BLE001
+                log.exception("voice component installation failed")
+                self.install_state["error"] = str(e)
+            self.install_state["active"] = False
+
+        threading.Thread(target=run, daemon=True).start()
+        return {"ok": True}
+
+    def start_download(self, key: str) -> dict:
+        if key not in voice_models.MODELS:
+            raise ApiError(400, "沒有這個模型")
+        if self.download.get("active"):
+            raise ApiError(400, "已經在下載了")
+        self.download = {"key": key, "done": 0, "total": 0, "active": True, "error": ""}
+
+        def run() -> None:
+            def progress(done: int, total: int) -> None:
+                self.download.update(done=done, total=total)
+
+            try:
+                voice_models.download(key, progress)
+            except Exception as e:  # noqa: BLE001
+                log.exception("model download failed")
+                self.download["error"] = str(e)
+            self.download["active"] = False
+
+        threading.Thread(target=run, daemon=True).start()
+        return dict(self.download)
 
     def reset_config(self) -> dict:
         cfg = Config()
@@ -369,6 +429,9 @@ class _Handler(BaseHTTPRequestHandler):
             ("POST", "/api/clear-learned"): app.clear_learned,
             ("POST", "/api/open-folder"): app.open_folder,
             ("POST", "/api/debug-log"): lambda: app.set_debug_log(bool(self._json_body().get("on"))),
+            ("GET", "/api/voice"): app.voice_state,
+            ("POST", "/api/voice/download"): lambda: app.start_download(str(self._json_body().get("key", ""))),
+            ("POST", "/api/voice/install"): app.install_voice,
             ("GET", "/api/export"): lambda: (
                 app.export_bundle(), "application/zip",
                 {"Content-Disposition": "attachment; filename*=UTF-8''%E6%88%91%E7%9A%84%E8%A8%98%E6%86%B6.smartime"},

@@ -116,7 +116,9 @@ def main(argv: list[str] | None = None) -> int:
     def watchdog() -> None:
         while True:
             time.sleep(5)
-            if time.monotonic() - app.last_ping > IDLE_EXIT_SECONDS:
+            if app.busy():
+                app.last_ping = time.monotonic()  # finish a model download / install first
+            elif time.monotonic() - app.last_ping > IDLE_EXIT_SECONDS:
                 log.info("no window for %ss; exiting", IDLE_EXIT_SECONDS)
                 server.shutdown()
                 return

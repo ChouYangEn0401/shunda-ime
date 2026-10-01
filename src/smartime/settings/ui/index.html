@@ -333,21 +333,42 @@
       <!-- ============ 語音 ============ -->
       <section class="view" id="view-voice" hidden>
         <h2>語音輸入</h2>
-        <p class="lead">按住快速鍵說話，放開就把文字打到游標位置。全部在你的電腦上辨識，聲音不會上傳。</p>
+        <p class="lead">按住右 <kbd>Ctrl</kbd> 說話，放開就把文字打到游標位置，任何程式都可以用。全部在你的電腦上辨識，聲音不會上傳；只有按住時麥克風才會開啟。</p>
+        <div class="callout" id="voice-no-runtime" hidden>
+          <p style="margin-top:0">語音輸入需要另外安裝辨識元件（不需要系統管理員權限）：下載約 110 MB、占用約 350 MB；有 NVIDIA 顯示卡時另外下載約 1.3 GB 的 CUDA 元件（占用約 1.8 GB），辨識快很多。</p>
+          <button class="btn primary" type="button" id="voice-install">安裝語音元件</button>
+          <pre class="note" id="voice-install-log" style="white-space:pre-wrap; margin:8px 0 0"></pre>
+        </div>
         <div class="group">
-          <h3>語音輸入 <span class="badge later">開發中</span></h3>
-          <div class="row disabled">
-            <div><div class="label">快速鍵</div><div class="desc">建議按住右 <kbd>Ctrl</kbd>：單獨按下不會觸發程式功能。</div></div>
-            <select aria-label="語音快速鍵" disabled><option>按住右 Ctrl</option></select>
+          <h3>語音輸入 <span class="badge" id="voice-running"></span></h3>
+          <div class="row">
+            <div><div class="label">使用語音輸入</div><div class="desc">開啟後會在背景待命；按住右 <kbd>Ctrl</kbd> 說話。右 Ctrl 和其他鍵一起按（快捷鍵）時不會錄音。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="voice_enabled" aria-label="使用語音輸入"><span></span></label>
           </div>
-          <div class="row disabled">
-            <div><div class="label">辨識模型</div><div class="desc">Breeze-ASR-25：聯發科針對台灣華語與中英夾雜調整，用顯示卡。SenseVoice：沒有顯示卡也很快。</div></div>
-            <select aria-label="辨識模型" disabled><option>Breeze-ASR-25（顯示卡）</option></select>
+          <div class="row">
+            <div><div class="label">辨識模型</div><div class="desc">自動：有 NVIDIA 顯示卡用 Breeze-ASR-25，否則用 SenseVoice。換模型後約數秒重新載入。</div></div>
+            <div class="seg" role="group" aria-label="辨識模型" data-cfg="voice_engine">
+              <button data-value="auto">自動</button><button data-value="breeze">Breeze-ASR-25</button><button data-value="sensevoice">SenseVoice</button>
+            </div>
           </div>
-          <div class="row disabled">
-            <div><div class="label">用我的詞庫幫助辨識</div><div class="desc">朋友名字、專案術語會被優先辨識。</div></div>
-            <label class="switch"><input type="checkbox" checked disabled aria-label="詞庫熱詞"><span></span></label>
+          <div class="row">
+            <div><div class="label">用我的詞庫幫助辨識</div><div class="desc">「我的詞庫」裡自己加的詞（朋友名字、專案術語、英文詞）會被優先辨識。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="voice_hotwords" aria-label="詞庫熱詞"><span></span></label>
           </div>
+          <div class="row">
+            <div><div class="label">輸出台灣正體中文</div><div class="desc">SenseVoice 的簡體結果轉成正體字（只換字形，不改你說的詞，例：头发 → 頭髮）。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="voice_traditional" aria-label="正體輸出"><span></span></label>
+          </div>
+        </div>
+        <div class="group">
+          <h3>模型</h3>
+          <div class="row"><div class="full scroll">
+            <table>
+              <thead><tr><th>模型</th><th>說明</th><th style="text-align:right">大小</th><th></th></tr></thead>
+              <tbody id="voice-models"></tbody>
+            </table>
+            <p class="note" style="margin-bottom:0">模型存在 <code>%LOCALAPPDATA%\SmartIME\models</code>，只需下載一次。</p>
+          </div></div>
         </div>
       </section>
 

@@ -45,6 +45,7 @@
     rail.forEach(b => b.setAttribute("aria-current", b.dataset.view === id ? "page" : "false"));
     try { localStorage.setItem("smartime-view", id); } catch (e) { /* storage may be blocked */ }
     if (id === "dict") loadEntries();
+    if (id === "voice") loadVoice();
   }
   rail.forEach(b => b.addEventListener("click", () => show(b.dataset.view)));
 
@@ -437,7 +438,7 @@
 
   // ------------------------------------------------------------ shortcuts
   function renderShortcuts() {
-    const D = ["done", "已完成"], S = ["plan", "即將推出"], L = ["later", "開發中"];
+    const D = ["done", "已完成"], S = ["plan", "即將推出"];
     const corr = "correction_mode" in config ? D : S;
     const pal = "palette_hotkey" in config ? D : S;
     const more = "suggestion_count" in config ? D : S;
@@ -464,7 +465,7 @@
       ["標點", "<kbd>Ctrl</kbd>+<kbd>/</kbd> <kbd>-</kbd>", "… —", D],
       ["標點", "標點上按 <kbd>↓</kbd>", "換成半形、全形或相關符號", D],
       ["標點", "單按右 <kbd>Alt</kbd>", "符號面板（希臘字母、數學、箭頭…）；Tab 換分類", pal],
-      ["語音", "按住右 <kbd>Ctrl</kbd>", "說話，放開後打到游標位置", L],
+      ["語音", "按住右 <kbd>Ctrl</kbd>", "說話，放開後打到游標位置（右 Ctrl＋其他鍵＝一般快捷鍵，不錄音）", D],
     ];
     const tbody = document.querySelector("#keys-table tbody");
     tbody.innerHTML = "";
@@ -477,6 +478,54 @@
       tbody.appendChild(tr);
     });
   }
+
+  // ------------------------------------------------------------ voice
+  let voiceTimer = 0;
+  async function loadVoice() {
+    let v;
+    try { v = await api("GET", "/api/voice"); } catch (e) { return; }
+    document.getElementById("voice-no-runtime").hidden = v.runtime && !(v.install && v.install.active);
+    const inst = v.install || {};
+    const instBtn = document.getElementById("voice-install");
+    instBtn.disabled = !!inst.active;
+    instBtn.textContent = inst.active ? "安裝中…" : "安裝語音元件";
+    document.getElementById("voice-install-log").textContent =
+      (inst.log || []).join("\n") + (inst.error ? "\n錯誤：" + inst.error : "");
+    const badge = document.getElementById("voice-running");
+    badge.className = "badge " + (v.running ? "done" : "later");
+    badge.textContent = v.running ? "待命中" : (config.voice_enabled ? "啟動中…" : "未開啟");
+    const body = document.getElementById("voice-models");
+    body.innerHTML = "";
+    const dl = v.download || {};
+    Object.entries(v.models).forEach(([key, m]) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td><b></b></td><td class="note"></td><td class="num"></td><td class="actions"></td>`;
+      tr.children[0].firstChild.textContent = m.name;
+      tr.children[1].textContent = m.description;
+      tr.children[2].textContent = (m.size / 1e6 >= 1000 ? (m.size / 1e9).toFixed(1) + " GB" : Math.round(m.size / 1e6) + " MB");
+      const cell = tr.children[3];
+      if (m.installed) {
+        const ok = document.createElement("span"); ok.className = "badge done"; ok.textContent = "已安裝"; cell.appendChild(ok);
+      } else if (dl.key === key && dl.active) {
+        const pct = dl.total ? Math.floor(dl.done * 100 / dl.total) : 0;
+        cell.textContent = `下載中 ${pct}%`;
+      } else {
+        const b = document.createElement("button"); b.type = "button"; b.className = "btn small primary"; b.textContent = "下載";
+        b.addEventListener("click", async () => {
+          try { await api("POST", "/api/voice/download", { key }); loadVoice(); } catch (e) { toast(e.message, true); }
+        });
+        cell.appendChild(b);
+        if (dl.key === key && dl.error) { const e = document.createElement("div"); e.className = "error"; e.textContent = dl.error; cell.appendChild(e); }
+      }
+      body.appendChild(tr);
+    });
+    clearTimeout(voiceTimer);
+    if (dl.active || inst.active || (config.voice_enabled && !v.running)) voiceTimer = setTimeout(loadVoice, 1000);
+  }
+  document.getElementById("voice-install").addEventListener("click", async () => {
+    try { await api("POST", "/api/voice/install"); loadVoice(); } catch (e) { toast(e.message, true); }
+  });
+  document.querySelector('[data-cfg="voice_enabled"]').addEventListener("change", () => setTimeout(loadVoice, 800));
 
   // ------------------------------------------------------------ data
   document.getElementById("open-folder").addEventListener("click", async () => {
