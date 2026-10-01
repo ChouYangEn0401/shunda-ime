@@ -26,8 +26,9 @@ ID_MODE_ICON = 1  # left click on the tray icon: same as a Shift tap
 ID_ABOUT = 3
 ID_SETTINGS = 4
 # Right-click menu entries for the three modes.
-MODE_MENU_IDS = {10: Mode.AUTO, 11: Mode.CHINESE, 12: Mode.ENGLISH}
-MODE_ICONS = {Mode.AUTO: "auto.ico", Mode.CHINESE: "chinese.ico", Mode.ENGLISH: "english.ico"}
+MODE_MENU_IDS = {10: Mode.AUTO, 11: Mode.CHINESE, 12: Mode.ENGLISH, 13: Mode.PINYIN, 14: Mode.CANGJIE}
+MODE_ICONS = {Mode.AUTO: "auto.ico", Mode.CHINESE: "chinese.ico", Mode.ENGLISH: "english.ico",
+              Mode.PINYIN: "pinyin.ico", Mode.CANGJIE: "cangjie.ico"}
 
 MESSAGE_DURATION = 3600  # seconds; we hide the message explicitly
 SELECTION_KEYS = "123456789"
@@ -119,8 +120,9 @@ class SmartTextService:
                 self._open_settings("about" if command == ID_ABOUT else "")
             self._render(reply)
         elif method == "onMenu":
-            ret = [{"text": mode.label, "id": cid, "checked": s.mode is mode}
-                   for cid, mode in MODE_MENU_IDS.items()]
+            # every mode this lexicon supports, Shift cycle or not
+            ret = [{"text": s.mode_label() if mode is Mode.AUTO else mode.label, "id": cid, "checked": s.mode is mode}
+                   for cid, mode in MODE_MENU_IDS.items() if s._available(mode)]
             ret += [{}, {"text": "設定…", "id": ID_SETTINGS}, {"text": f"關於{PRODUCT_NAME}", "id": ID_ABOUT}]
         elif method == "onCompartmentChanged":
             pass
@@ -288,7 +290,7 @@ class SmartTextService:
         button = {
             "id": "windows-mode-icon",
             "icon": str(self.icon_dir / MODE_ICONS[mode]),
-            "tooltip": f"{PRODUCT_NAME}：{mode.label}（Shift 切換模式，右鍵選模式）",
+            "tooltip": f"{PRODUCT_NAME}：{self.session.mode_label()}（Shift 切換模式，右鍵選模式）",
             "commandId": ID_MODE_ICON,
             "enable": self.keyboard_open,
         }

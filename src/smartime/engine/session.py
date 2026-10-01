@@ -20,7 +20,10 @@ from pathlib import Path
 
 from ..config import Config
 from . import bopomofo
-from .decoder import CLAUSE_PUNCT, FULLWIDTH_PUNCT, PUNCT_VARIANTS, Decoder, Decoding, Key, Kind, Segment
+from .decoder import (
+    CANGJIE_RADICALS, CLAUSE_PUNCT, FULLWIDTH_PUNCT, PLAIN_PUNCT, PUNCT_VARIANTS, Decoder, Decoding, Key, Kind,
+    Segment,
+)
 from .keys import (
     MODIFIER_VKS, SCAN_LSHIFT, SCAN_RSHIFT, VK_BACK, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE,
     VK_HOME, VK_LEFT, VK_NEXT, VK_OEM_1, VK_OEM_2, VK_OEM_4, VK_OEM_6, VK_OEM_7, VK_OEM_COMMA,
@@ -57,13 +60,19 @@ _COMPOSING_NAV = frozenset(
 
 
 class Mode(str, Enum):
-    AUTO = "auto"  # 中英自動：解碼器自行判斷中文或英文（預設）
-    CHINESE = "chinese"  # 純中文：每個鍵都是注音（數字請用數字鍵盤）
+    AUTO = "auto"  # 中英自動：解碼器自行判斷中文或英文（中文用設定的輸入法；預設）
+    CHINESE = "chinese"  # 純注音：每個鍵都是注音（數字請用數字鍵盤）
     ENGLISH = "english"  # 純英文：按鍵直接交給應用程式
+    PINYIN = "pinyin"  # 純拼音
+    CANGJIE = "cangjie"  # 純倉頡（五代）
 
     @property
     def label(self) -> str:
-        return {"auto": "中英自動", "chinese": "純中文", "english": "純英文"}[self.value]
+        return {"auto": "中英自動", "chinese": "純注音", "english": "純英文",
+                "pinyin": "純拼音", "cangjie": "純倉頡"}[self.value]
+
+
+SCHEME_LABEL = {"zhuyin": "注音", "pinyin": "拼音", "cangjie": "倉頡"}
 
 
 @dataclass
@@ -165,6 +174,8 @@ class Session(CorrectionMixin):
     def __init__(self, engine: Engine):
         self.engine = engine
         self.mode = Mode(self.cfg.start_mode)
+        if not self._available(self.mode):
+            self.mode = Mode.AUTO
         # The Chinese-side mode a Shift tap returns to from English.
         self.chinese_mode = self.mode if self.mode is not Mode.ENGLISH else Mode.AUTO
         self.keys: list[Key] = []
@@ -263,13 +274,49 @@ class Session(CorrectionMixin):
         return True
 
     def toggle_mode(self) -> None:
-        """Shift tap. Default (``shift_cycle = "three"``): 自動 -> 純中文 ->
-        純英文 -> 自動. With "two": English <-> the Chinese-side mode used last."""
+        """Shift tap. Default (``shift_cycle = "three"``): the modes turned on
+        in ``mode_cycle``, in turn (自動 -> 純注音 -> 純英文 ...). With "two":
+        English <-> the Chinese-side mode used last."""
         if self.cfg.shift_cycle == "three":
-            order = [Mode.AUTO, Mode.CHINESE, Mode.ENGLISH]
-            self.set_mode(order[(order.index(self.mode) + 1) % len(order)])
+            order = self.cycle_modes()
+            nxt = order[(order.index(self.mode) + 1) % len(order)] if self.mode in order else order[0]
+            self.set_mode(nxt)
         else:
             self.set_mode(self.chinese_mode if self.mode is Mode.ENGLISH else Mode.ENGLISH)
+
+    def cycle_modes(self) -> list[Mode]:
+        modes = [Mode(m) for m in self.cfg.mode_cycle.split(",") if m]
+        return [m for m in modes if self._available(m)] or [Mode.AUTO, Mode.ENGLISH]
+
+    def _available(self, mode: Mode) -> bool:
+        """Pinyin/Cangjie need data from a newer system lexicon."""
+        lex = self.engine.lexicon
+        if mode is Mode.PINYIN:
+            return lex.has_pinyin
+        if mode is Mode.CANGJIE:
+            return lex.has_cangjie
+        return True
+
+    @property
+    def scheme(self) -> str:
+        """How Chinese is typed right now: zhuyin, pinyin or cangjie."""
+        if self.mode is Mode.PINYIN:
+            return "pinyin"
+        if self.mode is Mode.CANGJIE:
+            return "cangjie"
+        if self.mode is Mode.CHINESE:
+            return "zhuyin"
+        scheme = self.cfg.chinese_scheme
+        if (scheme == "pinyin" and not self.engine.lexicon.has_pinyin) or (
+                scheme == "cangjie" and not self.engine.lexicon.has_cangjie):
+            return "zhuyin"
+        return scheme
+
+    def mode_label(self) -> str:
+        """For the tray: 中英自動 says which Chinese it mixes in."""
+        if self.mode is Mode.AUTO and self.scheme != "zhuyin":
+            return f"中英自動（{SCHEME_LABEL[self.scheme]}）"
+        return self.mode.label
 
     def set_mode(self, mode: Mode) -> None:
         self.commit_all()
@@ -495,7 +542,8 @@ class Session(CorrectionMixin):
         self._undo.clear()
 
     def _redecode(self) -> None:
-        self.decoding = self.engine.decoder.decode(self.keys, self.pins, allow_english=self.mode is Mode.AUTO)
+        self.decoding = self.engine.decoder.decode(self.keys, self.pins, allow_english=self.mode is Mode.AUTO,
+                                                   scheme=self.scheme)
         self._snap_cursor()
         self._update_suggestion()
 
@@ -542,7 +590,11 @@ class Session(CorrectionMixin):
         seg = self.decoding.segments[seg_idx]
         # Candidates cross categories: Chinese <-> English <-> the raw keys,
         # so any wrong guess (o␣ vs ㄟ, i␣ vs 喔, mvp vs 勳) is one pick away.
-        if seg.kind is Kind.ZH:
+        if seg.kind is Kind.ZH and self.scheme != "zhuyin":
+            # pinyin: every tone of the syllables; Cangjie: every character
+            # with the code (homophones by reading would be meaningless)
+            items = self._zh_alternatives(a) + self._raw_candidates(a, b)
+        elif seg.kind is Kind.ZH:
             items = self._zh_candidates(units, t, at_end=self.cursor >= len(self.keys))
             items += self._raw_candidates(a, b)
         elif seg.kind is Kind.EN:
@@ -564,7 +616,7 @@ class Session(CorrectionMixin):
 
     def _zh_alternatives(self, start: int) -> list[Candidate]:
         return [Candidate(s.text, replace(s, pinned=True), self._note(s.text, "-".join(s.readings)))
-                for s in self.engine.decoder.zh_alternatives(self.keys, start)]
+                for s in self.engine.decoder.zh_alternatives(self.keys, start, scheme=self.scheme)]
 
     def _dropped_before(self, pos: int) -> int:
         """Start of the run of dropped (invisible) keys that ends at ``pos``."""
@@ -631,6 +683,8 @@ class Session(CorrectionMixin):
         options = [seg.text]  # current choice first, then the other style
         if raw in FULLWIDTH_PUNCT:
             options += [FULLWIDTH_PUNCT[raw], raw, *PUNCT_VARIANTS.get(raw, "")]
+        elif raw in PLAIN_PUNCT:  # pinyin / Cangjie: , . ; are punctuation keys
+            options += [PLAIN_PUNCT[raw], raw]
         return [Candidate(o, replace(seg, text=o, pinned=True)) for o in dict.fromkeys(options)]
 
     def _candidate_key(self, key: KeyInput) -> bool:
@@ -775,7 +829,12 @@ class Session(CorrectionMixin):
         last = self.decoding.segments[-1]
         if self.cursor == len(self.keys):
             hint = ""
-            if last.kind is Kind.PENDING and self.cfg.spelling_hint:
+            if last.kind is Kind.PENDING and self.cfg.spelling_hint and self.scheme == "cangjie":
+                # 字根 of the code so far, and the character it would give
+                radicals = "".join(CANGJIE_RADICALS.get(c, c) for c in last.text)
+                chars = self.engine.lexicon.cangjie_chars(last.text)
+                return radicals + (f" → {chars[0]}（空白鍵）" if chars else "")
+            if last.kind is Kind.PENDING and self.cfg.spelling_hint and self.scheme == "zhuyin":
                 # Show what the keys will become, in canonical order (k2 -> ㄉㄜ).
                 canon = bopomofo.canonical(layout.symbol(c) or "" for c in last.text)
                 hint = canon or layout.symbols_for_keys(last.text)
@@ -825,7 +884,7 @@ class Session(CorrectionMixin):
         if seg.kind is Kind.ZH:
             text = f"{context}　{seg.readings[seg.bounds.index(a)]}  ⌨ {raw}"
         else:
-            sym = layout.symbol(raw) or layout.tone(raw)
+            sym = (layout.symbol(raw) or layout.tone(raw)) if self.scheme == "zhuyin" else None
             text = f"{context}　⌨ {raw}" + (f"（ㄅ: {sym}）" if sym else "")
         if dropped:
             text = f"（略過 {dropped}）" + text
@@ -851,7 +910,8 @@ class Session(CorrectionMixin):
                 break
         run.reverse()
         lex = self.engine.lexicon
-        layout = self.engine.layout
+        dec = self.engine.decoder
+        scheme = self.scheme
         found: list[Suggestion] = []
         seen: set[str] = set()
         for k in range(len(run), 0, -1):
@@ -868,11 +928,14 @@ class Session(CorrectionMixin):
                 if phrase[k:] in seen:
                     continue
                 extra = reading.split("-")[k:]
-                keys = [Key(c) for syl in extra for c in layout.keys_for_syllable(syl)]
+                typed = [dec.unit_keys(scheme, ch, syl) for ch, syl in zip(phrase[k:], extra)]
+                if not all(typed):
+                    continue  # a character this scheme can't type
+                keys = [Key(c) for t in typed for c in t]
                 bounds = [u[0] for u in tail] + [tail[-1][1]]
                 pos = tail[-1][1]
-                for syl in extra:
-                    pos += len(layout.keys_for_syllable(syl))
+                for t in typed:
+                    pos += len(t)
                     bounds.append(pos)
                 pin = Segment(tail[0][0], pos, phrase, Kind.ZH, score,
                               tuple(reading.split("-")), tuple(bounds), pinned=True)

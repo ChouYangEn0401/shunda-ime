@@ -15,7 +15,8 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 TOGGLE_SHIFT_CHOICES = ("left", "right", "both", "none")
-MODE_CHOICES = ("auto", "chinese", "english")
+MODE_CHOICES = ("auto", "chinese", "english", "pinyin", "cangjie")
+SCHEME_CHOICES = ("zhuyin", "pinyin", "cangjie")
 DROP_CHOICES = ("off", "conservative", "standard")
 # Values written by older versions.
 _MODE_ALIASES = {"mixed": "auto"}
@@ -26,8 +27,13 @@ class Config:
     # Keyboard and modes
     layout: str = "dachen"  # "dachen"（大千）| "eten"（倚天）
     toggle_shift: str = "right"  # which lone Shift tap toggles English <-> the Chinese-side mode
-    shift_cycle: str = "three"  # "three": 自動 -> 純中文 -> 純英文 循環；"two": 英文 <-> 中文側模式
-    start_mode: str = "auto"  # "auto"（中英自動）| "chinese"（純中文）| "english"（純英文）
+    shift_cycle: str = "three"  # "three": mode_cycle 裡的模式輪流；"two": 英文 <-> 上次用的中文模式
+    start_mode: str = "auto"  # "auto"（中英自動）| "chinese"（純注音）| "english" | "pinyin" | "cangjie"
+    # How 中英自動 types Chinese: one scheme at a time, mixed with English
+    # (the same letters mean different things in each scheme).
+    chinese_scheme: str = "zhuyin"  # "zhuyin"（注音）| "pinyin"（拼音）| "cangjie"（倉頡五代）
+    # Modes a Shift tap cycles through, in this order (comma separated).
+    mode_cycle: str = "auto,chinese,english"
 
     # Candidate window
     candidates_per_page: int = 9
@@ -111,6 +117,11 @@ class Config:
         self.start_mode = _MODE_ALIASES.get(self.start_mode, self.start_mode)
         if self.start_mode not in MODE_CHOICES:
             self.start_mode = "auto"
+        if self.chinese_scheme not in SCHEME_CHOICES:
+            self.chinese_scheme = "zhuyin"
+        wanted = {m.strip() for m in self.mode_cycle.split(",")}
+        cycle = [m for m in MODE_CHOICES if m in wanted]
+        self.mode_cycle = ",".join(cycle or ["auto", "chinese", "english"])
         if self.palette_hotkey not in ("ralt", "off"):
             self.palette_hotkey = "ralt"
         if self.layout not in ("dachen", "eten"):

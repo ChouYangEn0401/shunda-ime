@@ -14,11 +14,13 @@ SIZES = [16, 20, 24, 32, 40, 48, 64, 256]
 
 ICONS = {
     # file: (text, background, foreground)
-    "ime.ico": ("智", "#2563EB", "#FFFFFF"),
+    "ime.ico": ("順", "#2563EB", "#FFFFFF"),  # 順打輸入法
     # tray icons, one per mode
     "auto.ico": ("自", "#2563EB", "#FFFFFF"),  # 中英自動
-    "chinese.ico": ("中", "#0F766E", "#FFFFFF"),  # 純中文
+    "chinese.ico": ("中", "#0F766E", "#FFFFFF"),  # 純注音
     "english.ico": ("英", "#4B5563", "#FFFFFF"),  # 純英文
+    "pinyin.ico": ("拼", "#7C3AED", "#FFFFFF"),  # 純拼音
+    "cangjie.ico": ("倉", "#B45309", "#FFFFFF"),  # 純倉頡
 }
 
 

@@ -240,7 +240,7 @@ class CorrectionMixin:
             raw = "".join(k.char for k in self.keys[a:b])
             pin = Segment(a, b, raw, Kind.LITERAL, -10.0, pinned=True)
         else:
-            alts = self.engine.decoder.zh_alternatives(self.keys, seg.start)
+            alts = self.engine.decoder.zh_alternatives(self.keys, seg.start, scheme=self.scheme)
             if not alts:
                 self._notice = "這段按鍵沒有中文讀法"
                 return
@@ -338,7 +338,8 @@ class CorrectionMixin:
         label = f"【修正·{LAYER_LABEL[self.layer]}】"
         if self.layer == "keys" and self.keys:
             k = self.keys[self.cursor].char
-            sym = self.engine.layout.symbol(k) or self.engine.layout.tone(k)
+            layout = self.engine.layout
+            sym = (layout.symbol(k) or layout.tone(k)) if self.scheme == "zhuyin" else None
             dropped = any(s.kind is Kind.DROP and s.start == self.cursor for s in self.decoding.segments)
             info = f"⌨ {'␣' if k == ' ' else k}" + (f"（{sym or '一聲'}）" if sym is not None else "")
             if dropped:

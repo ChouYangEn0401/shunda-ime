@@ -189,18 +189,20 @@ def test_unknown_method_and_bad_json_do_not_crash(engine):
     assert json.loads(out[1].split("|", 2)[2])["success"] is False
 
 
-def test_tray_menu_lists_three_modes_and_switches(engine):
+def test_tray_menu_lists_the_modes_and_switches(engine):
     msgs = [
         {"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True},
         {"method": "onMenu", "seqNum": 2, "id": "windows-mode-icon"},
-        {"method": "onCommand", "seqNum": 3, "id": 11, "type": 2},  # 純中文
+        {"method": "onCommand", "seqNum": 3, "id": 11, "type": 2},  # 純注音
         {"method": "onMenu", "seqNum": 4, "id": "windows-mode-icon"},
         {"method": "onCommand", "seqNum": 5, "id": 1, "type": 0},  # left click: -> English
     ]
     r = {x["seqNum"]: x for x in exchange(engine, msgs)}
     assert r[1]["addButton"][0]["icon"].endswith("auto.ico")
     menu = r[2]["return"]
-    assert [m["text"] for m in menu[:3]] == ["中英自動", "純中文", "純英文"]
+    assert [m["text"] for m in menu[:3]] == ["中英自動", "純注音", "純英文"]
+    if engine.lexicon.has_pinyin and engine.lexicon.has_cangjie:
+        assert [m["text"] for m in menu[3:5]] == ["純拼音", "純倉頡"]
     assert [m["checked"] for m in menu[:3]] == [True, False, False]
     assert r[3]["changeButton"][0]["icon"].endswith("chinese.ico")
     assert [m["checked"] for m in r[4]["return"][:3]] == [False, True, False]

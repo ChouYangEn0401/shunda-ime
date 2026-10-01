@@ -13,7 +13,15 @@ from functools import lru_cache
 from pathlib import Path
 
 from . import bopomofo
+from .pinyin import PinyinTable
 from .userdict import Entry, UserDict
+
+_TONES = str.maketrans("", "", bopomofo.TONE_MARKS)
+
+
+def plain(reading: str) -> str:
+    """Reading without tone marks: ㄨㄛˇ-ㄇㄣ˙ -> ㄨㄛ-ㄇㄣ (pinyin is typed toneless)."""
+    return reading.translate(_TONES)
 
 # Highest code point; used to build "starts with" range queries on indexes.
 _MAX_CHAR = "\U0010ffff"
@@ -44,6 +52,12 @@ class Lexicon:
             "SELECT max(length(reading) - length(replace(reading, '-', '')) + 1) FROM zh"
         ).fetchone()
         self._system_max_syllables = int(max_len or 1)
+        columns = {row[1] for row in self._con.execute("PRAGMA table_info(zh)")}
+        tables = {n for (n,) in self._con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        # schema 2 (tools/build_data.py): toneless readings and Cangjie codes
+        self.has_pinyin = "plain" in columns
+        self.has_cangjie = "cangjie" in tables
+        self._pinyin: PinyinTable | None = None
         self._make_caches()
 
     def _make_caches(self) -> None:
@@ -52,7 +66,20 @@ class Lexicon:
         self.has_reading_prefix = lru_cache(maxsize=65536)(self._has_reading_prefix)
         self.en_score = lru_cache(maxsize=65536)(self._en_score)
         self.system_phrases = lru_cache(maxsize=65536)(self._system_phrases)
+        self.plain_phrases = lru_cache(maxsize=65536)(self._plain_phrases)
+        self.has_plain_prefix = lru_cache(maxsize=65536)(self._has_plain_prefix)
+        self.cangjie_chars = lru_cache(maxsize=16384)(self._cangjie_chars)
+        self.cangjie_code = lru_cache(maxsize=16384)(self._cangjie_code)
+        self.text_info = lru_cache(maxsize=65536)(self._text_info)
         self.max_phrase_syllables = max(self._system_max_syllables, self.user.max_syllables if self.user else 0)
+        # my own phrases by toneless reading and by text (pinyin, Cangjie)
+        self._user_plain: dict[str, list[str]] = {}
+        self._user_text: dict[str, list[str]] = {}
+        if self.user is not None:
+            for reading, by_phrase in self.user.zh.items():
+                self._user_plain.setdefault(plain(reading), []).append(reading)
+                for phrase in by_phrase:
+                    self._user_text.setdefault(phrase, []).append(reading)
 
     def refresh(self) -> bool:
         """Call before decoding; cheap. True if the user dictionary changed."""
@@ -110,6 +137,86 @@ class Lexicon:
             "SELECT 1 FROM zh WHERE reading >= ? AND reading < ? LIMIT 1", (lo, hi)
         ).fetchone()
         return row is not None
+
+    # -- Pinyin (toneless readings) -------------------------------------
+    @property
+    def pinyin(self) -> PinyinTable:
+        if self._pinyin is None:
+            self._pinyin = PinyinTable(plain(s) for s in self.valid_syllables)
+        return self._pinyin
+
+    def _scored(self, phrase: str, reading: str, system: float | None) -> float | None:
+        """A phrase's score with my memory applied; None if blocked."""
+        user = self.user
+        if user is None:
+            return system
+        if user.is_blocked(phrase, reading):
+            return None
+        e = user.lookup(phrase, reading)
+        if e is not None:
+            return e.score(system)
+        return system
+
+    def _plain_phrases(self, plain_reading: str) -> tuple[tuple[str, str, float], ...]:
+        """(phrase, reading, score) for a toneless reading, best first."""
+        if not self.has_pinyin:
+            return ()
+        rows = self._con.execute(
+            "SELECT phrase, reading, max(score) AS s FROM zh WHERE plain = ? GROUP BY phrase, reading",
+            (plain_reading,),
+        ).fetchall()
+        out: dict[tuple[str, str], float] = {}
+        for p, r, s in rows:
+            sc = self._scored(p, r, s)
+            if sc is not None:
+                out[(p, r)] = sc
+        for r in self._user_plain.get(plain_reading, ()):
+            for p, e in self.user.zh.get(r, {}).items():
+                if (p, r) not in out and not self.user.is_blocked(p, r):
+                    out[(p, r)] = e.score(None)
+        return tuple((p, r, sc) for (p, r), sc in sorted(out.items(), key=lambda kv: -kv[1]))
+
+    def _has_plain_prefix(self, plain_reading: str) -> bool:
+        if not self.has_pinyin:
+            return False
+        if any(k.startswith(plain_reading + "-") for k in self._user_plain):
+            return True
+        row = self._con.execute(
+            "SELECT 1 FROM zh WHERE plain >= ? AND plain < ? LIMIT 1", (plain_reading + "-", plain_reading + ".")
+        ).fetchone()
+        return row is not None
+
+    # -- Cangjie ----------------------------------------------------------
+    def _cangjie_chars(self, code: str) -> tuple[str, ...]:
+        """Characters with this Cangjie 5 code, most common first."""
+        if not self.has_cangjie:
+            return ()
+        return tuple(c for (c,) in self._con.execute("SELECT char FROM cangjie WHERE code = ? ORDER BY rank", (code,)))
+
+    def _cangjie_code(self, char: str) -> str:
+        """The (shortest) Cangjie code of a character, "" if unknown."""
+        if not self.has_cangjie:
+            return ""
+        row = self._con.execute(
+            "SELECT code FROM cangjie WHERE char = ? ORDER BY length(code), rank LIMIT 1", (char,)).fetchone()
+        return row[0] if row else ""
+
+    def _text_info(self, text: str) -> tuple[str, float] | None:
+        """Best (reading, score) of a phrase given as text (Cangjie types
+        characters, not readings), with my memory applied."""
+        rows = self._con.execute(
+            "SELECT reading, max(score) FROM zh WHERE phrase = ? GROUP BY reading", (text,)).fetchall()
+        best: tuple[str, float] | None = None
+        for r, s in rows:
+            sc = self._scored(text, r, s)
+            if sc is not None and (best is None or sc > best[1]):
+                best = (r, sc)
+        for r in self._user_text.get(text, ()):
+            e = self.user.lookup(text, r)
+            if e is not None and not e.blocked and (best is None or e.score(None) > best[1]):
+                if not any(r == x for x, _ in rows):
+                    best = (r, e.score(None))
+        return best
 
     def completions(self, prefix: str, limit: int = 8) -> list[tuple[str, str, float]]:
         """Phrases that start with ``prefix`` (text) and are longer than it,
