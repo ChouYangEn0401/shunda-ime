@@ -592,8 +592,12 @@ class Session(CorrectionMixin):
         # so any wrong guess (o␣ vs ㄟ, i␣ vs 喔, mvp vs 勳) is one pick away.
         if seg.kind is Kind.ZH and self.scheme != "zhuyin":
             # pinyin: every tone of the syllables; Cangjie: every character
-            # with the code (homophones by reading would be meaningless)
-            items = self._zh_alternatives(a) + self._raw_candidates(a, b)
+            # with the code (homophones by reading would be meaningless).
+            # This character's own alternatives first (天 before 堤岸 for
+            # "tian"), then longer words starting here.
+            alts = self._zh_alternatives(a)
+            alts.sort(key=lambda c: (c.pin.end != b, len(c.pin.readings) != 1))
+            items = alts + self._raw_candidates(a, b)
         elif seg.kind is Kind.ZH:
             items = self._zh_candidates(units, t, at_end=self.cursor >= len(self.keys))
             items += self._raw_candidates(a, b)

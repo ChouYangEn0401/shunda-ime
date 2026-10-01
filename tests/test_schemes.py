@@ -122,3 +122,11 @@ def test_config_keeps_known_modes_in_order():
     cfg = Config.from_dict({"mode_cycle": "cangjie, klingon,auto", "chinese_scheme": "wubi"})
     assert cfg.mode_cycle == "auto,cangjie"
     assert cfg.chinese_scheme == "zhuyin"
+
+
+def test_pinyin_candidates_start_with_the_character_itself(session):
+    # "tian" can also split as ti+an (堤岸); the character's own
+    # alternatives come first
+    session.set_mode(Mode.PINYIN)
+    _, v = run(session, "jintian{LEFT}{DOWN}")
+    assert len(v.candidates[0]) == 1 and "天" in v.candidates[:3]
