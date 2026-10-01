@@ -44,6 +44,8 @@ Name: "cht"; MessagesFile: "{#StageDir}\ChineseTraditional.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
+cht.OpenSettings=開啟「{#AppName} 設定」
+en.OpenSettings=Open {#AppName} settings
 cht.StepPime=正在安裝 PIME 輸入法框架…
 cht.StepRegister=正在註冊輸入法…
 cht.StepUser=正在加入鍵盤清單並啟動輸入法…
@@ -65,6 +67,12 @@ en.Done=Installed, and a typing test passed.%n%nPress Win + Space and choose "{#
 Source: "{#StageDir}\smartime\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#StageDir}\{#PimeSetupFile}"; Flags: dontcopy
 Source: "{#StageDir}\smartime\installer\stop-backend.ps1"; Flags: dontcopy
+
+[Icons]
+Name: "{autoprograms}\{#AppName} 設定"; Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\settings.py"""; WorkingDir: "{app}"; IconFilename: "{app}\input_methods\smartime\icons\ime.ico"
+
+[Run]
+Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\settings.py"""; WorkingDir: "{app}"; Description: "{cm:OpenSettings}"; Flags: postinstall nowait skipifsilent runasoriginaluser unchecked
 
 [UninstallDelete]
 ; Python creates __pycache__ folders at run time; remove the whole folder.

@@ -8,6 +8,8 @@ candidateList, showMessage, ...), see PIME's python/textService.py.
 from __future__ import annotations
 
 import logging
+import subprocess
+import sys
 from pathlib import Path
 
 from ..engine.keys import (
@@ -19,6 +21,7 @@ log = logging.getLogger(__name__)
 
 ID_MODE_ICON = 1  # left click on the tray icon: same as a Shift tap
 ID_ABOUT = 3
+ID_SETTINGS = 4
 # Right-click menu entries for the three modes.
 MODE_MENU_IDS = {10: Mode.AUTO, 11: Mode.CHINESE, 12: Mode.ENGLISH}
 MODE_ICONS = {Mode.AUTO: "auto.ico", Mode.CHINESE: "chinese.ico", Mode.ENGLISH: "english.ico"}
@@ -100,11 +103,13 @@ class SmartTextService:
                 s.toggle_mode()
             elif command in MODE_MENU_IDS:
                 s.set_mode(MODE_MENU_IDS[command])
+            elif command in (ID_SETTINGS, ID_ABOUT):
+                self._open_settings("about" if command == ID_ABOUT else "")
             self._render(reply)
         elif method == "onMenu":
             ret = [{"text": mode.label, "id": cid, "checked": s.mode is mode}
                    for cid, mode in MODE_MENU_IDS.items()]
-            ret += [{}, {"text": "關於智慧輸入法", "id": ID_ABOUT}]
+            ret += [{}, {"text": "設定…", "id": ID_SETTINGS}, {"text": "關於智慧輸入法", "id": ID_ABOUT}]
         elif method == "onCompartmentChanged":
             pass
         elif method == "onKeyboardStatusChanged":
@@ -204,6 +209,21 @@ class SmartTextService:
         if self._message:
             reply["hideMessage"] = True
             self._message = ""
+
+    def _open_settings(self, section: str = "") -> None:
+        """Start the settings window (backend\\settings.py) without
+        blocking the IME; it is a separate process with its own lifetime."""
+        try:
+            backend_dir = self.icon_dir.resolve().parents[2]
+            script = backend_dir / "settings.py"
+            pythonw = Path(sys.executable).with_name("pythonw.exe")
+            exe = pythonw if pythonw.is_file() else Path(sys.executable)
+            args = [str(exe), str(script)] + ([f"--section={section}"] if section else [])
+            subprocess.Popen(args, cwd=str(backend_dir), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, close_fds=True,
+                             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+        except Exception:
+            log.exception("cannot open the settings window")
 
     def _update_mode_icon(self, reply: dict, force: bool = False, add: bool = False) -> None:
         mode = self.session.mode

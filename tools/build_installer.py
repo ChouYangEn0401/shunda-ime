@@ -100,6 +100,7 @@ def stage(version: str) -> Path:
 
     # Backend entry point and IME manifest/icons (what PIME looks at).
     shutil.copy2(ROOT / "backend" / "server.py", app / "server.py")
+    shutil.copy2(ROOT / "backend" / "settings.py", app / "settings.py")
     shutil.copytree(ROOT / "backend" / "input_methods", app / "input_methods", ignore=IGNORE)
 
     # Engine sources and the system lexicon.

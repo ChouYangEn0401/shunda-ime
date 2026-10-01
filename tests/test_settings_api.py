@@ -1,0 +1,118 @@
+"""Settings app HTTP API (runs a real server on 127.0.0.1)."""
+
+import json
+import threading
+import urllib.error
+import urllib.request
+
+import pytest
+
+from smartime import paths
+from smartime.config import Config
+from smartime.settings.api import SettingsApp, SettingsServer
+
+TOKEN = "test-token"
+
+
+@pytest.fixture
+def server():
+    app = SettingsApp()
+    srv = SettingsServer(app, TOKEN)
+    t = threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
+    t.start()
+    yield srv
+    srv.shutdown()
+    srv.server_close()
+    app.close()
+
+
+def call(srv, method, path, body=None, token=TOKEN, raw=None, host=None):
+    url = f"http://127.0.0.1:{srv.port}{path}"
+    data = raw if raw is not None else (json.dumps(body).encode() if body is not None else None)
+    req = urllib.request.Request(url, data=data, method=method)
+    if token:
+        req.add_header("X-SmartIME-Token", token)
+    if host:
+        req.add_header("Host", host)
+    if body is not None:
+        req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            payload = resp.read()
+            ctype = resp.headers.get("Content-Type", "")
+            return resp.status, (json.loads(payload) if "json" in ctype else payload)
+    except urllib.error.HTTPError as e:
+        payload = e.read()
+        return e.code, json.loads(payload) if payload.startswith(b"{") else payload
+
+
+def test_api_requires_token_and_local_host(server):
+    assert call(server, "GET", "/api/state", token=None)[0] == 403
+    assert call(server, "GET", "/api/state", token="wrong")[0] == 403
+    assert call(server, "GET", "/api/state", host="evil.example")[0] == 403
+    status, state = call(server, "GET", "/api/state")
+    assert status == 200 and state["config"]["start_mode"] == "auto"
+
+
+def test_static_files_and_no_path_traversal(server):
+    status, page = call(server, "GET", "/", token=None)
+    assert status == 200 and "智慧輸入法".encode() in page
+    assert call(server, "GET", "/../api.py", token=None)[0] == 404
+    assert call(server, "GET", "/%2e%2e/api.py", token=None)[0] == 404
+
+
+def test_save_config_is_validated_and_written(server):
+    status, cfg = call(server, "POST", "/api/config",
+                       {"start_mode": "chinese", "candidates_per_page": 99, "learn": "yes", "bogus": 1})
+    assert status == 200
+    assert cfg["start_mode"] == "chinese"
+    assert cfg["candidates_per_page"] == 9  # clamped
+    assert cfg["learn"] is True  # wrong type ignored
+    assert Config.load(paths.config_path()).start_mode == "chinese"
+
+
+def test_add_list_move_and_delete_entries(server):
+    status, r = call(server, "POST", "/api/reading", {"text": "陳怡君"})
+    assert status == 200 and r["kind"] == "zh" and len(r["reading"].split()) == 3
+    status, added = call(server, "POST", "/api/entries", {"phrase": "陳怡君", "reading": "", "category": "朋友"})
+    assert status == 200
+    status, rows = call(server, "GET", "/api/entries?view=%E6%9C%8B%E5%8F%8B")  # 朋友
+    assert [x["phrase"] for x in rows] == ["陳怡君"]
+    assert call(server, "PATCH", f"/api/entries/{added['id']}", {"category": "常用詞"})[0] == 200
+    status, rows = call(server, "GET", "/api/entries?view=%E5%B8%B8%E7%94%A8%E8%A9%9E")  # 常用詞
+    assert rows[0]["category"] == "常用詞"
+    assert call(server, "DELETE", f"/api/entries/{added['id']}")[0] == 200
+    assert call(server, "GET", "/api/entries")[1] == []
+
+
+def test_entry_validation_messages(server):
+    status, err = call(server, "POST", "/api/entries", {"phrase": "陳怡君", "reading": "ㄔㄣˊ ㄧˊ"})
+    assert status == 400 and "3 個字" in err["error"]
+    status, err = call(server, "POST", "/api/entries", {"phrase": "怡君", "reading": "ㄔㄣˊ abc"})
+    assert status == 400
+    status, _ = call(server, "POST", "/api/entries", {"phrase": "vscode"})
+    assert status == 200
+    rows = call(server, "GET", "/api/entries")[1]
+    assert rows[0]["kind"] == "en" and rows[0]["category"] == "常用英文"
+
+
+def test_categories(server):
+    status, r = call(server, "POST", "/api/categories", {"name": "公司同事"})
+    assert status == 200
+    assert call(server, "POST", "/api/categories", {"name": "公司同事"})[0] == 400
+    names = [c["name"] for c in call(server, "GET", "/api/state")[1]["categories"]]
+    assert "公司同事" in names
+    assert call(server, "DELETE", f"/api/categories/{r['id']}")[0] == 200
+
+
+def test_export_then_import_merges(server):
+    call(server, "POST", "/api/entries", {"phrase": "林志豪", "category": "朋友"})
+    status, blob = call(server, "GET", "/api/export")
+    assert status == 200 and blob[:2] == b"PK"
+    call(server, "POST", "/api/clear-learned")
+    rows = call(server, "GET", "/api/entries")[1]
+    call(server, "DELETE", f"/api/entries/{rows[0]['id']}")
+    status, r = call(server, "POST", "/api/import?settings=0", raw=blob)
+    assert status == 200 and r["merged"] == 1
+    assert [x["phrase"] for x in call(server, "GET", "/api/entries")[1]] == ["林志豪"]
+    assert call(server, "POST", "/api/import?settings=0", raw=b"not a file")[0] == 400
