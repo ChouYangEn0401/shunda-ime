@@ -58,6 +58,32 @@ def compose_strict(symbols: Iterable[str], tone: str = "") -> str | None:
     return "".join(out) + tone
 
 
+def canonical(symbols: Iterable[str], tone: str = "") -> str | None:
+    """Put symbols into canonical order regardless of how they were typed.
+
+    Each category holds at most one symbol, so the re-ordered syllable is
+    unique: ``ㄛㄨ`` + ˇ -> ``ㄨㄛˇ``, ``ㄜㄉ`` + ˙ -> ``ㄉㄜ˙``. Returns None if a
+    category repeats (e.g. two initials), which cannot be one syllable.
+    """
+    slots: list[str | None] = [None, None, None]
+    for s in symbols:
+        cat = _CATEGORY.get(s)
+        if cat is None or cat == TONE or slots[cat] is not None:
+            return None
+        slots[cat] = s
+    body = "".join(s for s in slots if s)
+    if not body:
+        return None
+    if tone and _CATEGORY.get(tone) != TONE:
+        return None
+    return body + tone
+
+
+def components(syllable: str) -> list[str]:
+    """Non-tone symbols of a syllable, in canonical order."""
+    return [s for s in syllable if _CATEGORY.get(s) not in (None, TONE)]
+
+
 def strip_tone(syllable: str) -> str:
     if syllable and syllable[-1] in TONE_MARKS:
         return syllable[:-1]

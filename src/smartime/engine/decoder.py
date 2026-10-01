@@ -9,9 +9,9 @@ log10 score; the decoder finds the highest scoring path with Viterbi. A small
 state (last language, last segment kind) lets us charge a cost for switching
 between Chinese and English.
 
-Phase 3 scope: keys must be typed in canonical bopomofo order. The noisy
-channel extensions (re-ordering, extra / missing / adjacent keys) are added in
-Phase 4 on top of the same lattice.
+Noisy-channel extensions live on the same lattice: a syllable whose keys were
+typed out of order (ㄜㄉ˙ for ㄉㄜ˙) is accepted at a small cost (Phase 4 part 1).
+Extra / missing / adjacent keys come next.
 """
 
 from __future__ import annotations
@@ -62,15 +62,20 @@ class Segment:
 
 @dataclass(frozen=True)
 class Weights:
-    """Scoring constants (log10). Tuned against tests; exposed for Phase 5."""
+    """Scoring constants (log10), tuned on tests/test_typing_corpus.py."""
 
     switch_lang: float = -1.5  # Chinese <-> English transition
     en_adjacent: float = -4.0  # two English tokens with no separator
     num_adjacent: float = -4.0
     en_offset: float = 0.0  # added to English lexicon scores
     en_unknown_base: float = -9.0  # alphanumeric token not in the lexicon
-    en_unknown_per_char: float = -0.6
-    num: float = -3.0
+    en_unknown_per_char: float = -1.0
+    en_digit: float = -2.0  # each digit inside an English token (y94vscode...)
+    en_single_letter: float = -3.0  # one-letter words other than a / I
+    # Digit keys are also ㄅㄉㄓㄚㄞㄢ and the tones, so 283 can be 打 or the
+    # number 283. Numbers must not be cheaper than real Chinese syllables.
+    num: float = -5.5
+    reorder: float = -1.0  # syllable keys typed out of canonical order
     punct_fullwidth: float = -1.0  # Shift+, -> ，
     punct_ascii_alt: float = -4.0  # Shift+, -> <
     punct_layout_key: float = -6.0  # , . / ; - typed as literal punctuation
@@ -194,10 +199,15 @@ class Decoder:
             cost += w.num_adjacent
         return cost
 
-    def _syllable_table(self, keys: Sequence[Key]) -> list[list[tuple[int, str]]]:
-        """For each start position: [(end, syllable)] of exact syllables."""
+    def _syllable_table(self, keys: Sequence[Key]) -> list[list[tuple[int, str, float]]]:
+        """For each start position: [(end, syllable, channel_cost)].
+
+        A syllable is 1-3 symbol keys followed by a tone key. Keys typed in
+        canonical order cost nothing; any other order of the same symbols
+        (ㄜㄉ˙ for ㄉㄜ˙, very common when typing fast) costs ``w.reorder``.
+        """
         n = len(keys)
-        table: list[list[tuple[int, str]]] = [[] for _ in range(n)]
+        table: list[list[tuple[int, str, float]]] = [[] for _ in range(n)]
         layout = self.layout
         valid = self.lex.valid_syllables
         for i in range(n):
@@ -209,9 +219,10 @@ class Decoder:
                 tone = layout.tone(k.char)
                 if tone is not None:
                     if symbols:
-                        syl = bopomofo.compose_strict(symbols, tone)
+                        syl = bopomofo.canonical(symbols, tone)
                         if syl is not None and syl in valid:
-                            table[i].append((j + 1, syl))
+                            exact = bopomofo.compose_strict(symbols, tone) == syl
+                            table[i].append((j + 1, syl, 0.0 if exact else self.w.reorder))
                     break
                 sym = layout.symbol(k.char)
                 if sym is None:
@@ -220,7 +231,7 @@ class Decoder:
         return table
 
     def _edges_from(
-        self, keys: Sequence[Key], i: int, limit: int, syllables: list[list[tuple[int, str]]]
+        self, keys: Sequence[Key], i: int, limit: int, syllables: list[list[tuple[int, str, float]]]
     ) -> Iterator[Segment]:
         w = self.w
         n = len(keys)
@@ -275,32 +286,39 @@ class Decoder:
                     break
                 symbols.append(sym)
             else:
-                if "".join(symbols) in self.lex.partial_syllables:
+                canon = bopomofo.canonical(symbols)
+                if canon is not None and canon in self.lex.partial_syllables:
                     yield Segment(i, n, "".join(x.char for x in keys[i:n]), Kind.PENDING, w.pending)
 
         # --- Fallback so that every position stays reachable.
         yield Segment(i, i + 1, ch, Kind.LITERAL, w.literal)
 
-    def _zh_edges(self, i: int, limit: int, syllables: list[list[tuple[int, str]]]) -> Iterator[Segment]:
+    def _zh_edges(self, i: int, limit: int, syllables: list[list[tuple[int, str, float]]]) -> Iterator[Segment]:
         lex = self.lex
         max_len = lex.max_phrase_syllables
-        # Depth-first over syllable chains: (end, readings, bounds)
-        stack = [(end, (syl,), (i, end)) for end, syl in syllables[i] if end <= limit]
+        # Depth-first over syllable chains: (end, readings, bounds, channel cost)
+        stack = [(end, (syl,), (i, end), cost) for end, syl, cost in syllables[i] if end <= limit]
         while stack:
-            end, readings, bounds = stack.pop()
+            end, readings, bounds, cost = stack.pop()
             reading = "-".join(readings)
             phrases = lex.phrases(reading)
             if phrases:
                 text, score = phrases[0]
-                yield Segment(i, end, text, Kind.ZH, score, readings, bounds)
+                yield Segment(i, end, text, Kind.ZH, score + cost, readings, bounds)
             if len(readings) < max_len and end < limit and lex.has_reading_prefix(reading):
-                for nxt_end, syl in syllables[end]:
+                for nxt_end, syl, nxt_cost in syllables[end]:
                     if nxt_end <= limit:
-                        stack.append((nxt_end, readings + (syl,), bounds + (nxt_end,)))
+                        stack.append((nxt_end, readings + (syl,), bounds + (nxt_end,), cost + nxt_cost))
 
     def _en_score(self, word: str) -> float:
         w = self.w
         score = self.lex.en_score(word.lower())
         if score is not None:
-            return score + w.en_offset
-        return w.en_unknown_base + w.en_unknown_per_char * len(word)
+            score += w.en_offset
+            if len(word) == 1 and word.lower() not in ("a", "i"):
+                score += w.en_single_letter  # "o" is almost never meant as a word
+            return score
+        # Unknown token. Digits inside letters (y94vscode, k27) are typical of
+        # zhuyin typed in mixed mode, not of English, so each one costs extra.
+        digits = sum(c in _DIGITS for c in word)
+        return w.en_unknown_base + w.en_unknown_per_char * len(word) + w.en_digit * digits

@@ -42,8 +42,10 @@ EN_WORD_RE = re.compile(r"^[a-z][a-z0-9]*(?:['.-][a-z0-9]+)*$")
 EN_TERM_RE = re.compile(r"^(?=.*[a-z])[a-z0-9]+$")
 
 EN_TOP_N = 80_000
-# Curated terms get at least this log10 frequency (roughly "common word").
-EN_TERM_FLOOR = -5.0
+# Curated terms get at least this log10 frequency: a common word, so that
+# a known term (mvp, vscode) beats a rare single Chinese character (勳)
+# even after paying the Chinese<->English switch cost.
+EN_TERM_FLOOR = -3.5
 
 
 def fetch_mcbopomofo() -> Path:
@@ -209,7 +211,13 @@ def main() -> None:
     data_txt = run_mcbopomofo_pipeline(data_dir)
     zh_rows = load_zh_rows(data_txt)
     en_rows = load_en_rows()
-    write_db(zh_rows, en_rows, args.out)
+    try:
+        write_db(zh_rows, en_rows, args.out)
+    except PermissionError:
+        sys.exit(
+            f"[build] cannot replace {args.out}: it is open by the running IME backend.\n"
+            "        Use: powershell -ExecutionPolicy Bypass -File scripts\\dev-reload.ps1 -Rebuild"
+        )
     print(f"[build] wrote {args.out}  zh={len(zh_rows):,}  en={len(en_rows):,}")
 
 

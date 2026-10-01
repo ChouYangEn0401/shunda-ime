@@ -28,10 +28,13 @@ class Lexicon:
         self.valid_syllables: frozenset[str] = frozenset(singles)
         partials: set[str] = set()
         for syl in singles:
-            body = bopomofo.strip_tone(syl)
-            for i in range(1, len(body) + 1):
-                partials.add(body[:i])
-        # Strict-order prefixes of real syllables, e.g. ㄒ, ㄒㄩ, ㄒㄩㄣ.
+            comps = bopomofo.components(syl)
+            # every non-empty subset, kept in canonical order (bitmask over <= 3 slots)
+            for mask in range(1, 1 << len(comps)):
+                partials.add("".join(c for i, c in enumerate(comps) if mask >> i & 1))
+        # Canonical-order pieces of real syllables, e.g. ㄒ, ㄩ, ㄒㄩ, ㄒㄣ, ㄒㄩㄣ.
+        # A pending (tone not yet typed) key group is plausible if its
+        # canonical form is in this set, whatever order it was typed in.
         self.partial_syllables: frozenset[str] = frozenset(partials)
         (max_len,) = self._con.execute(
             "SELECT max(length(reading) - length(replace(reading, '-', '')) + 1) FROM zh"
