@@ -23,6 +23,11 @@ from pathlib import Path
 SCHEMA_VERSION = 1
 DEFAULT_CATEGORIES = ("常用詞", "朋友", "專案術語", "常用英文")
 
+# Learned words used only once and not again for this long are forgotten
+# (tidy): one-off picks should not pile up forever. Words the user added and
+# "never suggest" blocks are always kept.
+TIDY_AFTER_DAYS = 120
+
 # Scores are log10 like the system lexicon (common words ≈ -3, rare ≈ -7).
 MANUAL_BASE = -3.0  # an added word is at least as likely as a common word
 LEARNED_NEW_BASE = -6.0  # a learned word the system lexicon does not know
@@ -276,7 +281,26 @@ class UserDict:
         r = self._con.execute(
             "SELECT sum(source='manual' AND blocked=0), sum(source='learned' AND blocked=0), sum(blocked) FROM entries"
         ).fetchone()
-        return {"manual": r[0] or 0, "learned": r[1] or 0, "blocked": r[2] or 0}
+        size = sum(p.stat().st_size for p in (self.path, self.path.with_name(self.path.name + "-wal"))
+                   if p.exists())
+        return {"manual": r[0] or 0, "learned": r[1] or 0, "blocked": r[2] or 0, "bytes": size}
+
+    def tidy(self, days: int = TIDY_AFTER_DAYS, compact: bool = False) -> int:
+        """Forget learned words used once and not since ``days`` ago.
+        ``compact`` also shrinks the file (VACUUM; skipped if it is busy)."""
+        cutoff = time.time() - days * 86400
+        cur = self._con.execute(
+            "DELETE FROM entries WHERE source='learned' AND blocked=0 AND count<=1 "
+            "AND coalesce(last_used, created, 0) < ?", (cutoff,))
+        removed = cur.rowcount
+        if removed:
+            self._load()
+        if compact:
+            try:
+                self._con.execute("VACUUM")
+            except sqlite3.OperationalError:
+                pass  # the IME is writing right now; next time
+        return removed
 
     def clear_learned(self) -> int:
         cur = self._con.execute("DELETE FROM entries WHERE source='learned' AND blocked=0")

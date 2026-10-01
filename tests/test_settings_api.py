@@ -116,3 +116,9 @@ def test_export_then_import_merges(server):
     assert status == 200 and r["merged"] == 1
     assert [x["phrase"] for x in call(server, "GET", "/api/entries")[1]] == ["林志豪"]
     assert call(server, "POST", "/api/import?settings=0", raw=b"not a file")[0] == 400
+
+
+def test_tidy_memory_reports_size(server):
+    status, body = call(server, "POST", "/api/memory/tidy")
+    assert status == 200 and body["removed"] == 0
+    assert body["stats"]["bytes"] > 0

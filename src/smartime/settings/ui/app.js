@@ -293,7 +293,17 @@
     });
     const s = state.stats;
     document.getElementById("dict-stats").textContent = `自己加的 ${s.manual} · 學到的 ${s.learned} · 已封鎖 ${s.blocked}`;
+    const kb = Math.max(1, Math.round((s.bytes || 0) / 1024));
+    document.getElementById("memory-size").textContent =
+      `自己加的 ${s.manual} 個詞、學到的 ${s.learned} 個、封鎖 ${s.blocked} 個，檔案約 ${kb >= 1024 ? (kb / 1024).toFixed(1) + " MB" : kb + " KB"}。`;
   }
+  document.getElementById("tidy-memory").addEventListener("click", async () => {
+    try {
+      const r = await api("POST", "/api/memory/tidy");
+      toast(r.removed ? `整理好了：清掉 ${r.removed} 個很久沒用的學習紀錄` : "整理好了：沒有需要清掉的紀錄");
+      await refreshState();
+    } catch (e) { toast(e.message, true); }
+  });
 
   async function refreshState() {
     const fresh = await api("GET", "/api/state");

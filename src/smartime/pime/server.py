@@ -43,6 +43,7 @@ def build_engine() -> Engine:
     config = Config.load(paths.config_path())
     try:
         user = UserDict(paths.user_db_path())
+        user.tidy()  # forget old one-off picks (cheap; no VACUUM here)
     except Exception:
         # A broken user.db must never stop typing; run without memory.
         log.exception("cannot open the user dictionary; continuing without it")

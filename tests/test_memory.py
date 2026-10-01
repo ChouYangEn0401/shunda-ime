@@ -186,3 +186,23 @@ def test_first_learning_is_announced_once(tmp_path, monkeypatch):
     assert "Delete" in v.candidate_title  # how to undo, right where it matters
     _, v = run(session, str(v.candidates.index("們") + 1))
     assert v.notice == ""  # announced only the first time
+
+
+def test_tidy_forgets_old_one_off_picks_only(tmp_path):
+    import time
+
+    from smartime.engine.userdict import UserDict
+
+    u = UserDict(tmp_path / "user.db")
+    u.learn("逗號", "ㄉㄡˋ-ㄏㄠˋ")  # one old pick: forgotten
+    u.learn("們", "ㄇㄣ˙")
+    u.learn("們", "ㄇㄣ˙")  # used twice: kept
+    u.learn("今天", "ㄐㄧㄣ-ㄊㄧㄢ")  # one recent pick: kept
+    u.add("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ", "zh", "朋友")  # mine: kept
+    old = time.time() - 200 * 86400
+    u._con.execute("UPDATE entries SET last_used=?, created=? WHERE phrase IN ('逗號', '們', '陳怡君')", (old, old))
+    assert u.tidy(compact=True) == 1
+    left = {e["phrase"] for e in u.list()}
+    assert left == {"們", "今天", "陳怡君"}
+    assert u.stats()["bytes"] > 0
+    u.close()

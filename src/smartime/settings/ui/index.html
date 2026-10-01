@@ -387,7 +387,11 @@
             <button class="btn" type="button" id="open-folder">打開資料夾</button>
           </div>
           <div class="row">
-            <div><div class="label">匯出我的記憶</div><div class="desc">產生一個「我的記憶.smartime」檔案，包含詞庫、學習紀錄和設定。</div></div>
+            <div><div class="label">記憶大小</div><div class="desc"><span id="memory-size"></span><br>同一個詞選再多次也只占一筆（只增加次數），所以檔案隨「不同的詞」成長，一萬個詞約 1–2 MB。只用過一次、超過 4 個月沒再用的學習紀錄會自動清掉；自己加的詞和封鎖的詞不會。</div></div>
+            <button class="btn" type="button" id="tidy-memory">立即整理</button>
+          </div>
+          <div class="row">
+            <div><div class="label">匯出我的記憶</div><div class="desc">產生一個「我的記憶.smartime」檔案，包含設定、我的詞庫（含分類）、學習紀錄和封鎖的詞。</div></div>
             <a class="btn" id="export-link" href="#" download="我的記憶.smartime">匯出…</a>
           </div>
           <div class="row">

@@ -255,6 +255,10 @@ class SettingsApp:
     def clear_learned(self) -> dict:
         return {"removed": self.user.clear_learned()}
 
+    def tidy_memory(self) -> dict:
+        removed = self.user.tidy(compact=True)
+        return {"removed": removed, "stats": self.user.stats()}
+
     # ---------------------------------------------------------- export / import
     def export_bundle(self) -> bytes:
         """A zip with user.db (consistent snapshot) and config.json."""
@@ -427,6 +431,7 @@ class _Handler(BaseHTTPRequestHandler):
             ("POST", "/api/reading"): lambda: app.suggest_reading(str(self._json_body().get("text", ""))),
             ("POST", "/api/categories"): lambda: app.add_category(self._json_body()),
             ("POST", "/api/clear-learned"): app.clear_learned,
+            ("POST", "/api/memory/tidy"): app.tidy_memory,
             ("POST", "/api/open-folder"): app.open_folder,
             ("POST", "/api/debug-log"): lambda: app.set_debug_log(bool(self._json_body().get("on"))),
             ("GET", "/api/voice"): app.voice_state,
