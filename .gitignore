@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build artifacts / generated data
+build/
+dist/
+*.sqlite
+*.db
+data/generated/
+
+# Downloaded third-party data & models (fetched by scripts, not committed)
+data/vendor/
+models/
+
+# Local user data / logs
+*.log
+user_data/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
