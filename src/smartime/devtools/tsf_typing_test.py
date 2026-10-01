@@ -431,6 +431,22 @@ class MemoryGuard:
             self.files[f] = f.read_bytes() if f.exists() else None
         Config().save(paths.config_path())  # defaults while testing
 
+    def rewind(self) -> None:
+        """Put the memory back to its state before the test (between cases,
+        so that what one case teaches cannot change the next one)."""
+        import sqlite3
+
+        if self.backup.exists():
+            con = sqlite3.connect(self.db)
+            con.execute("ATTACH DATABASE ? AS bak", (str(self.backup),))
+            with con:
+                con.execute("DELETE FROM main.entries")
+                con.execute("DELETE FROM main.categories")
+                con.execute("INSERT INTO main.categories SELECT * FROM bak.categories")
+                con.execute("INSERT INTO main.entries SELECT * FROM bak.entries")
+            con.execute("DETACH DATABASE bak")
+            con.close()
+
     def restore(self) -> None:
         import sqlite3
 
@@ -481,6 +497,7 @@ def main() -> int:
             return 1
         pump(0.8)  # let TSF load PIMETextService.dll and connect to the launcher
         for n, (script, expected) in enumerate(cases, 1):
+            memory.rewind()
             win.set_caption(f"  智慧輸入法自動測試 {n}/{len(cases)}（碰鍵盤或滑鼠會立即停止）\r\n"
                             f"  按鍵：{script}\r\n  預期：{expected}")
             win.clear()
