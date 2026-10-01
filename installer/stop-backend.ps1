@@ -16,10 +16,11 @@ while ((Get-Process PIMELauncher -ErrorAction SilentlyContinue) -and (Get-Date) 
 }
 Get-Process PIMELauncher -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
-# Our backend runs from <PIME>\smartime\runtime\python.exe.
-$ours = Join-Path $Pime 'smartime\runtime\python.exe'
-Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.ExecutablePath -and ($_.ExecutablePath -ieq $ours) } |
+# Our backend runs from <PIME>\smartime\runtime\python.exe, the settings
+# window from pythonw.exe there; both keep the system lexicon open.
+$runtime = Join-Path $Pime 'smartime\runtime'
+Get-CimInstance Win32_Process -Filter "Name = 'python.exe' OR Name = 'pythonw.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.ExecutablePath -and ((Split-Path $_.ExecutablePath -Parent) -ieq $runtime) } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Milliseconds 300
 exit 0

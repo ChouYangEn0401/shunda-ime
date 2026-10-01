@@ -25,8 +25,10 @@ $deadline = (Get-Date).AddSeconds(10)
 while ((Get-Process PIMELauncher -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {
     Start-Sleep -Milliseconds 200
 }
-Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
-    Where-Object { $_.ExecutablePath -like '*PIME\smartime\runtime\python.exe' } |
+# the backend (python.exe) and an open settings window (pythonw.exe) both
+# keep smartime.db open
+Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='pythonw.exe'" |
+    Where-Object { $_.ExecutablePath -like '*PIME\smartime\runtime\python*.exe' } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 
 $failed = $null
