@@ -229,3 +229,12 @@ def test_overflow_commits_oldest_text(session, engine):
     out, v = run(session, "ji3ap7ji3ap7ji3")
     assert out.startswith("我們")
     assert len(v.composition) <= 4
+
+
+def test_text_typed_by_programs_passes_through(session):
+    # VK_PACKET = a Unicode character from SendInput (voice input, paste tools)
+    from smartime.engine.keys import VK_PACKET, KeyInput
+
+    assert not session.filter_key_down(KeyInput(vk=VK_PACKET, char="我"))
+    run(session, "ji3")
+    assert not session.filter_key_down(KeyInput(vk=VK_PACKET, char="a"))

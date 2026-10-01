@@ -25,7 +25,7 @@ from .keys import (
     MODIFIER_VKS, SCAN_LSHIFT, SCAN_RSHIFT, VK_BACK, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE,
     VK_HOME, VK_LEFT, VK_NEXT, VK_OEM_1, VK_OEM_2, VK_OEM_4, VK_OEM_6, VK_OEM_7, VK_OEM_COMMA,
     VK_OEM_MINUS, VK_OEM_PERIOD, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SHIFT, VK_SPACE, VK_TAB,
-    VK_UP, VK_MENU, KeyInput,
+    VK_UP, VK_MENU, VK_PACKET, KeyInput,
 )
 from .layouts import Layout
 from .lexicon import Lexicon
@@ -294,7 +294,9 @@ class Session(CorrectionMixin):
         return CTRL_PUNCT.get((key.vk, key.shift))
 
     def _wants(self, key: KeyInput) -> bool:
-        if key.vk in MODIFIER_VKS:
+        if key.vk in MODIFIER_VKS or key.vk == VK_PACKET:
+            # VK_PACKET: text typed by a program (our voice input, password
+            # managers); it is already final, never zhuyin
             return False
         if self.cand is not None:
             return True

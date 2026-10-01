@@ -25,6 +25,7 @@ VK_DELETE = 0x2E
 VK_NUMPAD0 = 0x60
 VK_DIVIDE = 0x6F
 VK_NUMLOCK = 0x90
+VK_PACKET = 0xE7  # a Unicode character sent by a program (voice input, paste tools)
 VK_OEM_1 = 0xBA  # ;
 VK_OEM_COMMA = 0xBC
 VK_OEM_MINUS = 0xBD
