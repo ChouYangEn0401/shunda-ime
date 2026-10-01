@@ -261,8 +261,8 @@ class Session(CorrectionMixin):
         return True
 
     def toggle_mode(self) -> None:
-        """Shift tap. Default: English <-> the Chinese-side mode used last.
-        With ``shift_cycle = "three"``: 自動 -> 純中文 -> 純英文 -> 自動."""
+        """Shift tap. Default (``shift_cycle = "three"``): 自動 -> 純中文 ->
+        純英文 -> 自動. With "two": English <-> the Chinese-side mode used last."""
         if self.cfg.shift_cycle == "three":
             order = [Mode.AUTO, Mode.CHINESE, Mode.ENGLISH]
             self.set_mode(order[(order.index(self.mode) + 1) % len(order)])

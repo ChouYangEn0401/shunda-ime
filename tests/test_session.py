@@ -153,6 +153,7 @@ def test_tab_accepts_suggestion(session):
 
 
 def test_shift_tap_toggles_english_mode(session):
+    session.cfg.shift_cycle = "two"
     out, v = run(session, "{SHIFT}ji3")
     assert v.mode is Mode.ENGLISH
     assert out == "ji3"  # passed through to the app
@@ -170,6 +171,7 @@ def test_pure_chinese_mode_never_outputs_english(session):
 
 
 def test_shift_returns_to_last_chinese_side_mode(session):
+    session.cfg.shift_cycle = "two"
     session.set_mode(Mode.CHINESE)
     _, v = run(session, "{SHIFT}")
     assert v.mode is Mode.ENGLISH
@@ -177,8 +179,8 @@ def test_shift_returns_to_last_chinese_side_mode(session):
     assert v.mode is Mode.CHINESE
 
 
-def test_shift_can_cycle_through_three_modes(session):
-    session.cfg.shift_cycle = "three"
+def test_shift_cycles_through_three_modes_by_default(session):
+    # requested: Shift reaches 英文, 中文 and 自動
     modes = []
     for _ in range(3):
         _, v = run(session, "{SHIFT}")
@@ -225,7 +227,7 @@ def test_ctrl_punctuation_passes_through_in_english_mode(session):
     from smartime.devtools.simulate import press
     from smartime.engine.keys import VK_OEM_COMMA, KeyInput
 
-    run(session, "{SHIFT}")
+    session.set_mode(Mode.ENGLISH)
     handled, _ = press(session, KeyInput(vk=VK_OEM_COMMA, ctrl=True))
     assert handled is False
 

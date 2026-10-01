@@ -26,7 +26,7 @@ class Config:
     # Keyboard and modes
     layout: str = "dachen"  # "dachen"（大千）| "eten"（倚天）
     toggle_shift: str = "right"  # which lone Shift tap toggles English <-> the Chinese-side mode
-    shift_cycle: str = "two"  # "two": 英文 <-> 中文側模式；"three": 自動 -> 純中文 -> 純英文 循環
+    shift_cycle: str = "three"  # "three": 自動 -> 純中文 -> 純英文 循環；"two": 英文 <-> 中文側模式
     start_mode: str = "auto"  # "auto"（中英自動）| "chinese"（純中文）| "english"（純英文）
 
     # Candidate window
@@ -106,7 +106,7 @@ class Config:
         if self.toggle_shift not in TOGGLE_SHIFT_CHOICES:
             self.toggle_shift = "right"
         if self.shift_cycle not in ("two", "three"):
-            self.shift_cycle = "two"
+            self.shift_cycle = "three"
         self.start_mode = _MODE_ALIASES.get(self.start_mode, self.start_mode)
         if self.start_mode not in MODE_CHOICES:
             self.start_mode = "auto"

@@ -287,7 +287,7 @@ class SmartTextService:
         button = {
             "id": "windows-mode-icon",
             "icon": str(self.icon_dir / MODE_ICONS[mode]),
-            "tooltip": f"智慧輸入法：{mode.label}（Shift 切換英文，右鍵選模式）",
+            "tooltip": f"智慧輸入法：{mode.label}（Shift 切換模式，右鍵選模式）",
             "commandId": ID_MODE_ICON,
             "enable": self.keyboard_open,
         }
