@@ -49,7 +49,8 @@ def build_engine() -> Engine:
         user = None
     lexicon = Lexicon(paths.system_db_path(), user)
     layout = get_layout(config.layout)
-    decoder = Decoder(lexicon, layout, halfwidth_symbols=config.halfwidth_symbols)
+    decoder = Decoder(lexicon, layout)
+    decoder.apply_config(config)
     engine = Engine(lexicon=lexicon, layout=layout, decoder=decoder, config=config,
                     config_path=paths.config_path())
     engine.refresh()  # record the config file's current mtime

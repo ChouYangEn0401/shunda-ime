@@ -17,7 +17,7 @@ Extra / missing / adjacent keys come next.
 from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 
 from . import bopomofo
@@ -142,6 +142,20 @@ class Decoder:
         self.layout = layout
         self.w = weights or Weights()
         self.halfwidth_symbols = frozenset(halfwidth_symbols)
+        self.reorder_tolerance = True
+        self.drop_enabled = True
+
+    def apply_config(self, cfg) -> None:
+        """Settings that change decoding (from config.Config)."""
+        self.halfwidth_symbols = frozenset(cfg.halfwidth_symbols)
+        self.reorder_tolerance = cfg.reorder_tolerance
+        self.drop_enabled = cfg.drop_stray_keys != "off"
+        base = Weights()
+        self.w = replace(
+            base,
+            drop=-8.5 if cfg.drop_stray_keys == "conservative" else base.drop,
+            en_single_letter=base.en_single_letter if cfg.single_letter_context else 0.0,
+        )
 
     # ------------------------------------------------------------------
     def decode(self, keys: Sequence[Key], pins: Sequence[Segment] = (), allow_english: bool = True) -> Decoding:
@@ -265,7 +279,8 @@ class Decoder:
                         syl = bopomofo.canonical(symbols, tone)
                         if syl is not None and syl in valid:
                             exact = bopomofo.compose_strict(symbols, tone) == syl
-                            table[i].append((j + 1, syl, 0.0 if exact else self.w.reorder))
+                            if exact or self.reorder_tolerance:
+                                table[i].append((j + 1, syl, 0.0 if exact else self.w.reorder))
                     break
                 sym = layout.symbol(k.char)
                 if sym is None:
@@ -326,7 +341,7 @@ class Decoder:
             yield Segment(i, i + 1, ch, Kind.PUNCT, w.punct_other)
 
         # --- A stray key typed by accident produces nothing.
-        if ch in _DROPPABLE and not k.numpad:
+        if self.drop_enabled and ch in _DROPPABLE and not k.numpad:
             yield Segment(i, i + 1, "", Kind.DROP, w.drop)
 
         # --- Unfinished syllable at the end of the buffer (shown raw + hint).

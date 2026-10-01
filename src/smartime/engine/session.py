@@ -145,7 +145,7 @@ class Engine:
         if mtime != self._config_mtime:
             if self._config_mtime:  # not the first check
                 self.config = Config.load(self.config_path)
-                self.decoder.halfwidth_symbols = frozenset(self.config.halfwidth_symbols)
+                self.decoder.apply_config(self.config)
             self._config_mtime = mtime
 
 
@@ -695,12 +695,12 @@ class Session:
 
     # ========================================================= assistance
     def _hint(self) -> str:
-        if not self.cfg.spelling_hint or not self.decoding.segments:
+        if not self.decoding.segments:
             return ""
         layout = self.engine.layout
         last = self.decoding.segments[-1]
         if self.cursor == len(self.keys):
-            if last.kind is Kind.PENDING:
+            if last.kind is Kind.PENDING and self.cfg.spelling_hint:
                 # Show what the keys will become, in canonical order (k2 -> ㄉㄜ).
                 canon = bopomofo.canonical(layout.symbol(c) or "" for c in last.text)
                 return canon or layout.symbols_for_keys(last.text)
@@ -708,6 +708,8 @@ class Session:
         # Cursor moved back to fix something: annotate the character after
         # the cursor with its reading and the keys behind it, so stray
         # letters and wrong guesses are easy to spot.
+        if not self.cfg.key_hint_on_move:
+            return ""
         t = self._target_unit()
         if t is None:
             return ""
