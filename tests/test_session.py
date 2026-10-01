@@ -67,6 +67,21 @@ def test_hint_shows_reading_and_keys_when_cursor_moved_back(session):
     assert "ㄍㄥˋ" in v.hint and "e/4" in v.hint and "略過 e" in v.hint
 
 
+def test_hint_names_a_key_just_dropped(session):
+    # a stray key is no longer removed silently (reported: "pup" -> "up"
+    # without any sign of the dropped p)
+    _, v = run(session, "ji3ee/4")
+    assert v.composition == "我更"
+    assert "略過 e" in v.hint
+
+
+def test_hint_shows_the_character_in_its_sentence_when_moving_back(session):
+    # reported: hard to see which character is being fixed
+    _, v = run(session, "ji3ap7rup wu0 cl3{LEFT}{LEFT}")
+    assert "［天］" in v.hint and "今" in v.hint and "好" in v.hint
+    assert "ㄊㄧㄢ" in v.hint
+
+
 def test_backspace_next_to_dropped_key_removes_visible_char(session):
     _, v = run(session, "ji3ee/4{LEFT}{BS}")
     assert v.composition == "更"

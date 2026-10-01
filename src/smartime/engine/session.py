@@ -769,11 +769,17 @@ class Session(CorrectionMixin):
         layout = self.engine.layout
         last = self.decoding.segments[-1]
         if self.cursor == len(self.keys):
+            hint = ""
             if last.kind is Kind.PENDING and self.cfg.spelling_hint:
                 # Show what the keys will become, in canonical order (k2 -> ㄉㄜ).
                 canon = bopomofo.canonical(layout.symbol(c) or "" for c in last.text)
-                return canon or layout.symbols_for_keys(last.text)
-            return ""
+                hint = canon or layout.symbols_for_keys(last.text)
+            dropped = self._recent_drops()
+            if dropped:
+                # A key just typed was treated as a stray and is not shown
+                # (pup -> up): say so, so a wrong guess is not silent.
+                hint = f"（略過 {dropped}，↓ 可還原）" + hint
+            return hint
         # Cursor moved back to fix something: annotate the character after
         # the cursor with its reading and the keys behind it, so stray
         # letters and wrong guesses are easy to spot.
@@ -781,9 +787,26 @@ class Session(CorrectionMixin):
             return ""
         return self._unit_info()
 
+    def _recent_drops(self, window: int = 4) -> str:
+        """Keys among the last ``window`` typed that the decoder dropped."""
+        n = len(self.keys)
+        return "".join(self.keys[s.start].char for s in self.decoding.segments
+                       if s.kind is Kind.DROP and s.start >= n - window)
+
+    def _unit_context(self, t: int, width: int = 3) -> str:
+        """The sentence around unit ``t`` with ［ ］ on it, so it is clear
+        which character is being changed: 今天［針］對數."""
+        units = self.decoding.units()
+        show = lambda u: "␣" if u[2] == " " else u[2]  # noqa: E731
+        before = "".join(show(u) for u in units[max(0, t - width):t])
+        after = "".join(show(u) for u in units[t + 1:t + 1 + width])
+        lead = "…" if t > width else ""
+        tail = "…" if t + 1 + width < len(units) else ""
+        return f"{lead}{before}［{show(units[t])}］{after}{tail}"
+
     def _unit_info(self) -> str:
-        """「字 注音 ⌨ 按鍵」for the character after the cursor, with any
-        stray keys dropped just before it."""
+        """「…前文［字］後文　注音 ⌨ 按鍵」for the character after the cursor,
+        with any stray keys dropped just before it."""
         t = self._target_unit()
         if t is None:
             return ""
@@ -793,11 +816,12 @@ class Session(CorrectionMixin):
         start = self._dropped_before(a)
         dropped = "".join(k.char for k in self.keys[start:a])
         raw = "".join(k.char for k in self.keys[a:b])
+        context = self._unit_context(t)
         if seg.kind is Kind.ZH:
-            text = f"{ch} {seg.readings[seg.bounds.index(a)]}  ⌨ {raw}"
+            text = f"{context}　{seg.readings[seg.bounds.index(a)]}  ⌨ {raw}"
         else:
             sym = layout.symbol(raw) or layout.tone(raw)
-            text = f"{ch}  ⌨ {raw}" + (f"（ㄅ: {sym}）" if sym else "")
+            text = f"{context}　⌨ {raw}" + (f"（ㄅ: {sym}）" if sym else "")
         if dropped:
             text = f"（略過 {dropped}）" + text
         return text
