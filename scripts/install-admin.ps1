@@ -27,6 +27,21 @@ try {
     $Target = Join-Path $Pime 'smartime'
     $Source = Join-Path $Repo 'backend'
 
+    # A version installed with SmartIME-Setup.exe: remove it with its own
+    # uninstaller, so "Apps & features" does not keep a stale entry.
+    $uninstKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D0A6055C-3F02-41F7-992F-4BADAC52DDB5}_is1'
+    if (Test-Path $uninstKey) {
+        $uninst = ((Get-ItemProperty $uninstKey).UninstallString).Trim('"')
+        if (Test-Path $uninst) {
+            Write-Host "running the installed version's uninstaller: $uninst"
+            Start-Process -FilePath $uninst -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait
+            Start-Sleep -Seconds 3  # the uninstaller deletes itself after exiting
+        }
+    }
+
+    # The running backend keeps files (smartime.db, python.exe) open.
+    & (Join-Path $Repo 'installer\stop-backend.ps1') -Pime $Pime
+
     # Remove a previous install, but only if it is ours.
     if (Test-Path $Target) {
         $item = Get-Item $Target -Force
