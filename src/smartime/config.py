@@ -172,7 +172,7 @@ class Config:
         self.candidates_per_page = max(1, min(9, self.candidates_per_page))
         self.candidate_font_size = max(10, min(32, self.candidate_font_size))
         self.max_buffer_chars = max(10, min(80, self.max_buffer_chars))
-        self.suggestion_count = max(1, min(5, self.suggestion_count))
+        self.suggestion_count = max(1, min(9, self.suggestion_count))
         if not self.default_category.strip():
             self.default_category = "常用詞"
 

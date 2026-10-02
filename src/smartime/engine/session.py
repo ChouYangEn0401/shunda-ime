@@ -47,6 +47,7 @@ SHIFT_TAP_SECONDS = 0.5
 CTRL_TAP_SECONDS = 0.3
 SELECTION_DIGITS = "123456789"
 SINGLE_CHAR_SUGGEST_MARGIN = 1.5  # stricter autocomplete threshold for 1-char context
+MAX_SUGGESTIONS = 18  # continuations kept (the hint box shows suggestion_count; Shift+Tab lists all)
 
 # Keys we consume while composing even though they produce no character.
 _COMPOSING_NAV = frozenset(
@@ -1242,7 +1243,7 @@ class Session(CorrectionMixin):
             prefix_reading = "-".join(u[3] for u in tail)
             # A single character is weak context; only suggest common phrases.
             min_score = self.cfg.autocomplete_min_score + (SINGLE_CHAR_SUGGEST_MARGIN if k == 1 else 0.0)
-            for phrase, reading, score in lex.completions(prefix, limit=12):
+            for phrase, reading, score in lex.completions(prefix, limit=24):
                 if score < min_score:
                     break
                 if not reading.startswith(prefix_reading + "-") or len(phrase) - k > 3:
@@ -1263,9 +1264,9 @@ class Session(CorrectionMixin):
                               tuple(reading.split("-")), tuple(bounds), pinned=True)
                 found.append(Suggestion(phrase[k:], pin, keys))
                 seen.add(phrase[k:])
-                if len(found) >= 9:
+                if len(found) >= MAX_SUGGESTIONS:
                     break
-            if len(found) >= 9:
+            if len(found) >= MAX_SUGGESTIONS:
                 break
         self.suggestions = found
         self.suggestion = found[0] if found else None

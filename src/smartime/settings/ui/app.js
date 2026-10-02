@@ -222,7 +222,7 @@
       candList.appendChild(li);
     });
   function renderSuggestions() {
-    const sugg = ["會", "會議", "心", "始", "車"];
+    const sugg = ["會", "會議", "心", "始", "車", "放", "門", "學", "口"];
     const k = config.suggestion_count || 1;
     const tip = document.getElementById("sugg-tip");
     tip.textContent = config.autocomplete === false ? "（接續建議已關閉）"
