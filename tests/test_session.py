@@ -300,3 +300,77 @@ def test_media_keys_do_not_commit(session):
     run(session, "ji3")
     assert not session.filter_key_down(KeyInput(vk=0xAF))  # volume up
     assert session.composing
+
+
+# ---- Backspace removes exactly one visible character (#4) -----------------
+# Cases from the user's real typing log (2026-10-02): a hidden stray key came
+# back after Backspace (`…顯d` -> `…顯g`), or one Backspace removed two
+# letters because the rest was decoded again.
+
+def test_backspace_takes_the_hidden_stray_key_with_the_character(session):
+    _, v = run(session, "ji3yu")
+    assert v.composition == "我u" and "略過 y" in v.hint
+    _, v = run(session, "{BS}")
+    assert v.composition == "我"  # not 我y
+    assert [k.char for k in session.keys] == list("ji3")
+
+
+def test_backspace_never_changes_the_other_characters(session):
+    _, v = run(session, "ji3wjk27{LEFT}{BS}")
+    assert v.composition == "我w的"  # not 我的 (w turned into a hidden key)
+
+
+def test_backspace_does_not_merge_neighbours_into_another_word(session):
+    _, v = run(session, "rup kjg6c.4")
+    assert v.composition == "今kj時候"
+    _, v = run(session, "{LEFT}{BS}")
+    assert v.composition == "今kj候"  # 時 removed; k j keep their meaning
+
+
+def test_backspace_inside_an_english_token_keeps_the_rest(session):
+    _, v = run(session, "ji3fv4{BS}")
+    assert v.composition == "我fv"
+
+
+def test_ctrl_z_undoes_backspace_typing_and_choices(session):
+    _, v = run(session, "ji3ap7{BS}")
+    assert v.composition == "我"
+    _, v = run(session, "{C-z}")
+    assert v.composition == "我們"
+    _, v = run(session, "{C-y}")
+    assert v.composition == "我"
+    session._reset_buffer()
+    # typing is undone a word (completed syllable) at a time
+    _, v = run(session, "ji3ap7{C-z}")
+    assert v.composition == "我"
+    _, v = run(session, "{C-z}")
+    assert v.composition == ""
+    session._reset_buffer()
+    # a candidate choice is one step
+    _, v = run(session, "ji3a87")
+    assert v.composition == "我嗎"
+    _, v = run(session, "{LEFT}{UP}2")
+    assert v.composition == "我嘛"
+    _, v = run(session, "{C-z}")
+    assert v.composition == "我嗎"
+
+
+def test_ctrl_z_is_ours_only_while_composing(session):
+    from smartime.devtools.simulate import press
+    from smartime.engine.keys import KeyInput
+
+    ctrl_z = KeyInput(vk=ord("Z"), ctrl=True)
+    handled, _ = press(session, ctrl_z)
+    assert handled is False  # nothing composing: the app's own undo
+    run(session, "ji3")
+    handled, v = press(session, ctrl_z)
+    assert handled is True and v.composition == "" and v.commit == ""
+
+
+def test_undo_in_correction_mode_shares_the_history(session):
+    _, v = run(session, "ji3ap7{ESC}x")
+    assert v.composition == "我" and v.correcting
+    _, v = run(session, "u")
+    assert v.composition == "我們" and v.correcting
+    _, v = run(session, "{C-z}")  # Ctrl+Z works there too (and stays in correction mode)
+    assert v.composition == "我" and v.correcting

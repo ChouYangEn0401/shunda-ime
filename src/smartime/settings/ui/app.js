@@ -489,7 +489,9 @@
     const rows = [
       ["打字", "<kbd>␣</kbd> <kbd>6</kbd> <kbd>3</kbd> <kbd>4</kbd> <kbd>7</kbd>", "聲調鍵（一 ˊ ˇ ˋ ˙），把注音轉成中文", D],
       ["打字", "<kbd>Enter</kbd>", "送出整段", D],
-      ["打字", "<kbd>Backspace</kbd>", "刪一個字（還沒打聲調時刪一個鍵）", D],
+      ["打字", "<kbd>Backspace</kbd>", "刪掉游標前看得到的一個字（還沒打聲調時刪一個鍵），連同緊貼著它被略過的雜鍵；其他字不變", D],
+      ["打字", "<kbd>Ctrl</kbd>+<kbd>Z</kbd> <kbd>Ctrl</kbd>+<kbd>Y</kbd>", "組字中復原／重做（打字以一個字為一步）；沒在組字時交給程式", D],
+      ["打字", "<kbd>Ctrl</kbd>+<kbd>V</kbd> 等其他快捷鍵", "組字中按：先把字送出，再交給程式（貼上不會插進組字中間）", D],
       ["打字", "<kbd>Tab</kbd>", "帶入接續建議", D],
       ["打字", "<kbd>Shift</kbd>+<kbd>Tab</kbd>", "打開完整接續清單", more],
       ["打字", "<kbd>Ctrl</kbd>+<kbd>D</kbd>", "把游標前的中文加入我的詞庫", D],

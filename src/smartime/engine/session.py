@@ -37,6 +37,8 @@ from .correction import CorrectionMixin
 from .symbols import CATEGORIES, SymbolPanel
 
 VK_D = 0x44
+VK_Y = 0x59
+VK_Z = 0x5A
 SHIFT_TAP_SECONDS = 0.5
 SELECTION_DIGITS = "123456789"
 SINGLE_CHAR_SUGGEST_MARGIN = 1.5  # stricter autocomplete threshold for 1-char context
@@ -193,6 +195,11 @@ class Session(CorrectionMixin):
         self._shift_down_at: float | None = None
         self._ralt_down_at: float | None = None
         self._shift_scan = 0
+        # Undo inside the composition (Ctrl+Z / Ctrl+Y, and u in correction
+        # mode): (keys, pins, cursor) before each edit.
+        self._history: list[tuple[list[Key], list[Segment], int]] = []
+        self._redo: list[tuple[list[Key], list[Segment], int]] = []
+        self._typing_run = False  # the last step is a run of typing that may still grow
         self._init_correction()
 
     # ================================================================ API
@@ -277,7 +284,7 @@ class Session(CorrectionMixin):
         if key.vk == VK_PACKET:
             return True
         if key.ctrl or key.alt:
-            return self._ctrl_punct(key) is None and not (key.ctrl and key.vk == VK_D)
+            return self._ctrl_punct(key) is None and not (key.ctrl and not key.alt and key.vk in (VK_D, VK_Y, VK_Z))
         return not key.printable and key.vk not in _COMPOSING_NAV
 
     def filter_key_up(self, key: KeyInput) -> bool:
@@ -375,8 +382,8 @@ class Session(CorrectionMixin):
             return True
         if self._ctrl_punct(key) is not None:
             return True
-        if self.composing and key.ctrl and not key.alt and key.vk == VK_D:
-            return True  # add the composition to my dictionary
+        if self.composing and key.ctrl and not key.alt and key.vk in (VK_D, VK_Y, VK_Z):
+            return True  # add the composition to my dictionary / undo / redo
         if self._for_the_app(key):
             return True  # commit, then pass it on (key_down returns False)
         if key.ctrl or key.alt:
@@ -416,6 +423,10 @@ class Session(CorrectionMixin):
         if key.ctrl and vk == VK_D:
             self._add_composition_to_dict()
             return True
+        if key.ctrl and vk in (VK_Y, VK_Z):
+            # undo / redo inside the composition (Ctrl+Shift+Z = redo too)
+            self.redo() if (vk == VK_Y or key.shift) else self.undo()
+            return True
         if vk == VK_TAB and key.shift:
             self._open_continuations()
             return True
@@ -435,9 +446,11 @@ class Session(CorrectionMixin):
         elif vk == VK_RIGHT:
             self._move_unit(+1)
         elif vk == VK_HOME:
+            self._typing_run = False
             self.cursor = 0
             self._refresh()
         elif vk == VK_END:
+            self._typing_run = False
             self.cursor = len(self.keys)
             self._refresh()
         elif vk in (VK_UP, VK_DOWN):
@@ -453,8 +466,49 @@ class Session(CorrectionMixin):
             return False
         return True
 
+    # ============================================================ undo
+    def _checkpoint(self, typing: bool = False) -> None:
+        """Remember the buffer before an edit. Typing is undone a word at a
+        time: consecutive keys share one step until a tone key, a space or
+        punctuation completes something."""
+        if typing and self._typing_run:
+            return
+        self._history.append((list(self.keys), list(self.pins), self.cursor))
+        del self._history[:-100]
+        self._redo.clear()
+        self._typing_run = typing
+
+    def undo(self) -> bool:
+        return self._step(self._history, self._redo, "沒有可以復原的動作")
+
+    def redo(self) -> bool:
+        return self._step(self._redo, self._history, "沒有可以重做的動作")
+
+    def _step(self, source: list, target: list, empty: str) -> bool:
+        self._typing_run = False
+        if not source:
+            self._notice = empty
+            return False
+        target.append((list(self.keys), list(self.pins), self.cursor))
+        self.keys, self.pins, self.cursor = source.pop()
+        self.cand = None
+        if not self.keys:
+            history, redo = self._history, self._redo
+            self._reset_buffer()  # (clears the history, which is still wanted)
+            self._history, self._redo = history, redo
+            return True
+        self._redecode()
+        return True
+
+    def _forget_history(self) -> None:
+        """Text was committed: older states no longer match the buffer."""
+        self._history.clear()
+        self._redo.clear()
+        self._typing_run = False
+
     # ============================================================ editing
     def _insert(self, k: Key) -> None:
+        self._checkpoint(typing=True)
         pos = self.cursor
         self.keys.insert(pos, k)
         kept = []
@@ -467,6 +521,9 @@ class Session(CorrectionMixin):
         self.pins = kept
         self.cursor = pos + 1
         self._redecode()
+        here = next((s for s in self.decoding.segments if s.start <= pos < s.end), None)
+        # a finished syllable, a space or punctuation ends this undo step
+        self._typing_run = not (k.char == " " or not k.char.isalnum() or (here is not None and here.kind is Kind.ZH))
         if self.cfg.commit_on_clause_punct and self.cursor == len(self.keys):
             last = self.decoding.segments[-1] if self.decoding.segments else None
             if last is not None and last.kind is Kind.PUNCT and last.text in CLAUSE_PUNCT:
@@ -490,40 +547,69 @@ class Session(CorrectionMixin):
             self.cursor = a
 
     def _delete_unit(self, before: bool) -> None:
+        """Backspace / Delete: remove exactly one character you can see —
+        together with any hidden stray keys touching it (so they cannot
+        reappear later) — and nothing else. Real typing logs showed the old
+        behaviour surprising people: `…顯d` + Backspace became `…顯g` (a
+        dropped key came back), `自己wj的` lost two letters at once."""
         units = self.decoding.units()
-        target = None
-        for a, b, _, seg_idx in units:
-            if (before and b == self.cursor) or (not before and a == self.cursor):
-                target = (a, b, seg_idx)
-                break
-        if target is None:
-            # Dropped (invisible) keys sit next to the cursor: delete them
-            # together with the neighbouring character so the keypress has a
-            # visible effect.
-            if before and self.cursor > 0:
-                prev = [a for a, b, _, _ in units if b < self.cursor]
-                self._delete_keys(prev[-1] if prev else 0, self.cursor)
-            elif not before and self.cursor < len(self.keys):
-                nxt = [b for a, b, _, _ in units if a > self.cursor]
-                self._delete_keys(self.cursor, nxt[0] if nxt else len(self.keys))
+        if before:
+            prev = [u for u in units if u[1] <= self.cursor]
+            if not prev:
+                a, b = 0, self.cursor  # only hidden keys before the cursor
             else:
-                return
-            if not self.keys:
-                self._reset_buffer()
-            else:
-                self._redecode()
+                # the character before the cursor (an unfinished syllable's
+                # keys are characters of their own: one key at a time), the
+                # stray keys typed just before it, and any between it and
+                # the cursor
+                a, b = self._dropped_before(prev[-1][0]), self.cursor
+        else:
+            nxt = [u for u in units if u[0] >= self.cursor]
+            a, b = self.cursor, (nxt[0][1] if nxt else len(self.keys))
+        if a >= b:
             return
-        a, b, seg_idx = target
-        seg = self.decoding.segments[seg_idx]
-        if seg.kind is Kind.PENDING and before:
-            a = b - 1  # unfinished syllable: delete one key at a time
+        self._checkpoint()
+        self._delete_range(a, b)
+
+    def _delete_range(self, a: int, b: int, stable: bool = True) -> None:
+        """Delete keys [a, b) and decode again. With ``stable``, every other
+        character stays exactly as it was on screen: the shorter buffer must
+        not reveal a hidden stray key or merge neighbours into a different
+        word. Where the decoder would change something, the old reading is
+        pinned (only there)."""
+        old = self.decoding
         self._delete_keys(a, b)
         if not self.keys:
             self._reset_buffer()
-        else:
+            return
+        self._redecode()
+        if not stable:
+            return
+        width = b - a
+        expected = [(s, e, ch) for s, e, ch, _ in old.units() if e <= a] + \
+                   [(s - width, e - width, ch) for s, e, ch, _ in old.units() if s >= b]
+        hidden = {(s.start - (width if s.start >= b else 0)) for s in old.segments
+                  if s.kind is Kind.DROP and (s.end <= a or s.start >= b)}
+
+        def matches() -> bool:
+            dec = self.decoding
+            now_hidden = {s.start for s in dec.segments if s.kind is Kind.DROP}
+            return [(s, e, ch) for s, e, ch, _ in dec.units()] == expected and hidden <= now_hidden
+
+        if matches():
+            return
+        parts = [p for seg in old.segments for p in _parts_outside(seg, a, b) if p.kind is not Kind.PENDING]
+        current = {(s.start, s.end, s.text, s.kind) for s in self.decoding.segments}
+        for only_changed in (True, False):
+            fixed = [p for p in parts if not (only_changed and (p.start, p.end, p.text, p.kind) in current)]
+            self.pins = sorted([q for q in self.pins if all(q.end <= p.start or q.start >= p.end for p in fixed)]
+                               + fixed, key=lambda p: p.start)
             self._redecode()
+            if matches():
+                return
 
     def _move_unit(self, delta: int) -> None:
+        self._typing_run = False  # typing somewhere else is a new undo step
         units = self.decoding.units()
         if delta < 0:
             prev = [a for a, b, _, _ in units if b <= self.cursor]
@@ -552,6 +638,7 @@ class Session(CorrectionMixin):
                 break
             self._commit += first.text
             self._delete_keys(0, first.end)
+            self._forget_history()
             self._redecode()
 
     def _reset_buffer(self) -> None:
@@ -564,7 +651,7 @@ class Session(CorrectionMixin):
         self.correcting = False
         self.layer = "text"
         self._cycle = None
-        self._undo.clear()
+        self._forget_history()
 
     def _redecode(self) -> None:
         self.decoding = self.engine.decoder.decode(self.keys, self.pins, allow_english=self.mode is Mode.AUTO,
@@ -761,6 +848,7 @@ class Session(CorrectionMixin):
             self._accept_suggestion(c.suggestion)
             return
         pin = c.pin
+        self._checkpoint()
         self.pins = [p for p in self.pins if p.end <= pin.start or p.start >= pin.end]
         self.pins.append(pin)
         self.pins.sort(key=lambda p: p.start)
@@ -1026,6 +1114,7 @@ class Session(CorrectionMixin):
         self._redecode()
 
     def _accept_suggestion(self, sug: Suggestion) -> None:
+        self._checkpoint()
         start = len(self.keys)
         self.keys.extend(sug.keys)
         pin = sug.pin
@@ -1045,6 +1134,33 @@ def _shift_segment(seg: Segment, delta: int) -> Segment:
         end=seg.end + delta,
         bounds=tuple(b + delta for b in seg.bounds),
     )
+
+
+def _parts_outside(seg: Segment, a: int, b: int) -> list[Segment]:
+    """The pieces of ``seg`` outside the deleted keys [a, b), positioned for
+    the buffer after the deletion, as pins. A Chinese phrase splits only at
+    syllable edges; everything else has one character per key."""
+    width = b - a
+    if seg.end <= a:
+        return [replace(seg, pinned=True)]
+    if seg.start >= b:
+        return [replace(_shift_segment(seg, -width), pinned=True)]
+    out = []
+    if seg.kind is Kind.ZH:
+        if seg.start < a and a in seg.bounds:
+            k = seg.bounds.index(a)
+            out.append(replace(seg, end=a, text=seg.text[:k], readings=seg.readings[:k],
+                               bounds=seg.bounds[:k + 1], pinned=True))
+        if seg.end > b and b in seg.bounds:
+            k = seg.bounds.index(b)
+            out.append(replace(seg, start=a, end=seg.end - width, text=seg.text[k:], readings=seg.readings[k:],
+                               bounds=tuple(x - width for x in seg.bounds[k:]), pinned=True))
+    elif seg.kind is not Kind.DROP:
+        if seg.start < a:
+            out.append(replace(seg, end=a, text=seg.text[:a - seg.start], pinned=True))
+        if seg.end > b:
+            out.append(replace(seg, start=a, end=seg.end - width, text=seg.text[b - seg.start:], pinned=True))
+    return out
 
 
 def _en_candidates(seg: Segment) -> list[Candidate]:

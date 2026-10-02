@@ -45,13 +45,11 @@ class CorrectionMixin:
     def _init_correction(self) -> None:
         self.correcting = False
         self.layer = "text"
-        self._undo: list[tuple] = []
         self._cycle: _Cycle | None = None
 
     def enter_correction(self) -> None:
         self.correcting = True
         self.layer = "text"
-        self._undo.clear()
         self._cycle = None
         self.suggestion = None
         # at the end: the last real character (not a trailing space, so
@@ -65,7 +63,6 @@ class CorrectionMixin:
         self._finish_cycle()
         self.correcting = False
         self.layer = "text"
-        self._undo.clear()
 
     # ------------------------------------------------------------ cursor
     def _unit_starts(self) -> list[int]:
@@ -98,22 +95,23 @@ class CorrectionMixin:
         return units[-1] if units else None
 
     # ------------------------------------------------------------ undo
+    # One history for the whole composition (Session._checkpoint): u in
+    # correction mode and Ctrl+Z while typing undo the same steps.
     def _snapshot(self) -> None:
-        self._undo.append((list(self.keys), list(self.pins), self.cursor, self.layer))
-        del self._undo[:-50]
+        self._checkpoint()
 
-    def _restore(self) -> None:
-        if not self._undo:
-            self._notice = "沒有可以復原的修正"
-            return
+    def _restore(self, redo: bool = False) -> None:
         self._cycle = None
-        self.keys, self.pins, self.cursor, self.layer = self._undo.pop()
-        self._redecode()
-        self._snap_to_unit()
+        if self.redo() if redo else self.undo():
+            if self.correcting:
+                self._snap_to_unit()
 
     # ------------------------------------------------------------ key handling
     def _correction_key(self, key: KeyInput) -> bool:
         vk, ch = key.vk, key.char
+        if key.ctrl and not key.alt and vk in (0x59, 0x5A):  # Ctrl+Y / Ctrl+Z
+            self._restore(redo=vk == 0x59 or key.shift)
+            return True
         if key.ctrl or key.alt:
             return False
         if vk in (VK_UP, VK_DOWN):
@@ -193,19 +191,19 @@ class CorrectionMixin:
             return
         self._snapshot()
         if self.layer == "keys":
-            self._delete_keys(self.cursor, self.cursor + 1)
+            # deleting a raw key is meant to change how its neighbours read
+            self._delete_range(self.cursor, self.cursor + 1, stable=False)
         else:
             t = self._target()
             if t is None:
                 return
             a, b = self._dropped_before(t[0]), t[1]
-            self._delete_keys(a, b)
+            self._delete_range(a, b)
             self.cursor = a
         if not self.keys:
             self.exit_correction()
             self._reset_buffer()
             return
-        self._redecode()
         self._snap_to_unit()
 
     def _retype(self) -> None:
