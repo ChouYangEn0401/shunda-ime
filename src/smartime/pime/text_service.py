@@ -280,7 +280,7 @@ class SmartTextService:
             message = ""
         if self._show_panel(v) and v.correcting and not v.notice and v.candidates is None:
             # the panel shows everything; the hint box stays as its anchor
-            message = "修正模式 · i 回到打字"
+            message = "修正模式 · Esc 回到打字"
         # PIME applies showMessage *before* the composition update, and when
         # no composition exists yet it opens a temporary one and ends it at
         # the end of the reply — which commits our first key as raw text.

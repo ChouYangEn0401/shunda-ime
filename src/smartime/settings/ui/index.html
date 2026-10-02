@@ -224,7 +224,7 @@
         <div class="group" id="group-correction">
           <h3>修正模式（類似 Vim） <span class="badge plan" id="badge-correction">即將推出</span></h3>
           <div class="row"><div class="full">
-            <p class="callout" style="margin-top:0">組字中按 <kbd>Esc</kbd> 進入修正模式（修正模式中再按 <kbd>Esc</kbd> 才清除整段）。手不用離開主鍵區，就能看到每個字背後的注音和按鍵並直接修改。</p>
+            <p class="callout" style="margin-top:0">組字中按 <kbd>Esc</kbd> 進入修正模式：旁邊出現琥珀色外框的解碼面板，三列對齊顯示「按鍵 → 注音 → 國字」，被略過的雜鍵、順序被修正的音節都看得到。手不用離開主鍵區就能直接修改；只有 <kbd>i</kbd>／<kbd>Esc</kbd>／<kbd>Enter</kbd>／<kbd>D</kbd><kbd>D</kbd> 這些明確的指令才會離開。</p>
             <div class="views" style="margin: 12px 0">
               <div><b>國字（v 切換）</b><span>我更快的打字</span></div>
               <div><b>注音</b><span>ㄨㄛˇ ㄍㄥˋ ㄎㄨㄞˋ ㄉㄜ˙ ㄉㄚˇ ㄗˋ</span></div>
@@ -238,10 +238,11 @@
                 <tr><td><kbd>v</kbd></td><td>切換顯示：國字 → 注音 → 按鍵</td></tr>
                 <tr><td><kbd>x</kbd></td><td>刪掉游標上的字；在「按鍵」檢視時只刪一個鍵（例如那個多按的 e）</td></tr>
                 <tr><td><kbd>e</kbd></td><td>這段在 中文 ⇄ 英文 ⇄ 原始按鍵 之間切換</td></tr>
-                <tr><td><kbd>r</kbd></td><td>重打這一個字（其他字不動）</td></tr>
+                <tr><td><kbd>r</kbd></td><td>重打這一個字（其他字不動，打完自動回到修正模式）</td></tr>
                 <tr><td><kbd>a</kbd></td><td>把游標前的詞加入詞庫</td></tr>
                 <tr><td><kbd>u</kbd></td><td>復原上一步（和打字時的 <kbd>Ctrl</kbd>+<kbd>Z</kbd> 同一份紀錄；<kbd>Ctrl</kbd>+<kbd>Y</kbd> 重做）</td></tr>
-                <tr><td><kbd>i</kbd></td><td>回到打字；<kbd>Enter</kbd> 送出整段</td></tr>
+                <tr><td><kbd>i</kbd> 或 <kbd>Esc</kbd></td><td>回到打字（字都還在）；<kbd>Enter</kbd> 送出整段</td></tr>
+                <tr><td><kbd>D</kbd> <kbd>D</kbd></td><td>清除整段（要連按兩次，不會送出）</td></tr>
               </tbody>
             </table></div>
           </div></div>

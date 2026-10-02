@@ -150,7 +150,7 @@ def main() -> int:
             failures += bool(problems)
             print(f"{'FAIL' if problems else 'PASS'}  {name:12} panel={panel} anchors={anchors}"
                   + ("  " + "; ".join(problems) if problems else ""))
-            t.type_script(win.tap, "{ESC}{ESC}")
+            t.type_script(win.tap, "DD")  # clear (correction mode)
             t.pump(0.3)
         return 1 if failures else 0
     except t.Aborted as e:

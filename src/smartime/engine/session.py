@@ -529,6 +529,10 @@ class Session(CorrectionMixin):
         here = next((s for s in self.decoding.segments if s.start <= pos < s.end), None)
         # a finished syllable, a space or punctuation ends this undo step
         self._typing_run = not (k.char == " " or not k.char.isalnum() or (here is not None and here.kind is Kind.ZH))
+        if self._retype_at is not None:
+            self._retype_done()
+            if self.correcting:
+                return
         if self.cfg.commit_on_clause_punct and self.cursor == len(self.keys):
             last = self.decoding.segments[-1] if self.decoding.segments else None
             if last is not None and last.kind is Kind.PUNCT and last.text in CLAUSE_PUNCT:
@@ -615,6 +619,7 @@ class Session(CorrectionMixin):
 
     def _move_unit(self, delta: int) -> None:
         self._typing_run = False  # typing somewhere else is a new undo step
+        self._retype_at = None
         units = self.decoding.units()
         if delta < 0:
             prev = [a for a, b, _, _ in units if b <= self.cursor]
@@ -656,6 +661,7 @@ class Session(CorrectionMixin):
         self.correcting = False
         self.layer = "text"
         self._cycle = None
+        self._retype_at = None
         self._forget_history()
 
     def _redecode(self) -> None:

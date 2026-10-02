@@ -99,8 +99,8 @@ def test_backspace_in_unfinished_syllable_removes_one_key(session):
 
 
 def test_escape_twice_clears_without_commit(session):
-    # the first Esc enters correction mode (tests/test_correction.py)
-    out, v = run(session, "ji3ap7{ESC}{ESC}")
+    # Esc enters correction mode (tests/test_correction.py); D twice clears
+    out, v = run(session, "ji3ap7{ESC}DD")
     assert out == ""
     assert v.composition == ""
 

@@ -3,12 +3,28 @@
 from smartime.devtools.simulate import run
 
 
-def test_esc_enters_correction_and_second_esc_clears(session):
+def test_esc_enters_correction_and_esc_again_returns_to_typing(session):
     out, v = run(session, "ji3ap7{ESC}")
     assert out == "" and v.composition == "我們" and v.correcting
     assert v.hint.startswith("【修正·國字】")
+    # explicit and harmless: nothing is cleared (user feedback #1)
     out, v = run(session, "{ESC}")
-    assert out == "" and v.composition == "" and not v.correcting
+    assert out == "" and v.composition == "我們" and not v.correcting
+
+
+def test_d_twice_clears_everything(session):
+    _, v = run(session, "ji3ap7{ESC}D")
+    assert v.composition == "我們" and v.correcting and "再按一次 D" in v.notice
+    _, v = run(session, "D")
+    assert v.composition == "" and not v.correcting
+    # D then another key: not armed any more
+    _, v = run(session, "ji3ap7{ESC}DhD")
+    assert v.composition == "我們" and v.correcting
+
+
+def test_ctrl_punctuation_does_not_leave_correction_mode(session):
+    _, v = run(session, "ji3{ESC}{C-,}")
+    assert v.composition == "我" and v.correcting and "i" in v.notice
 
 
 def test_correction_mode_can_be_turned_off(session):
@@ -74,15 +90,18 @@ def test_e_switches_chinese_and_raw_keys(session):
     assert v.composition == "勳"
     _, v = run(session, "e")
     assert v.composition == "mvp "
-    _, v = run(session, "{ESC}{ESC}ji3k27{ESC}e")
+    _, v = run(session, "DDji3k27{ESC}e")
     assert v.composition == "我k27"
 
 
 def test_r_retypes_one_character(session):
     _, v = run(session, "ji3k27{ESC}hr")
     assert not v.correcting and v.composition == "的"
-    _, v = run(session, "su3")
-    assert v.composition == "你的"
+    _, v = run(session, "su")
+    assert not v.correcting  # still typing the replacement
+    _, v = run(session, "3")
+    # done: back in correction mode by itself, on the new character
+    assert v.composition == "你的" and v.correcting and v.cursor == 0
 
 
 def test_i_returns_to_typing_before_the_character(session):

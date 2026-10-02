@@ -10,8 +10,13 @@ it). Three views of the same buffer:
 
 Commands: h/l move · j/k swap in the next/previous candidate in place ·
 v next view · x delete (one key in the 按鍵 view) · e Chinese <-> English/raw
-· r retype one character · a add the word to my dictionary · u undo ·
-i back to typing · Enter commit · Esc clear everything.
+· r retype one character (back here by itself when it is done) · a add the
+word to my dictionary · u undo · i or Esc back to typing · Enter commit ·
+D twice: clear everything.
+
+The mode is only left by an explicit command (i, Esc, Enter, D D, or a key
+meant for the app such as Ctrl+V); other keys never type text by accident,
+and the panel's amber frame shows the mode is on.
 
 Cycling with j/k does not teach the memory every candidate it passes; only
 the final choice is learned, when the cursor leaves it.
@@ -29,7 +34,7 @@ from .keys import (
 
 LAYERS = ("text", "zhuyin", "keys")
 LAYER_LABEL = {"text": "國字", "zhuyin": "注音", "keys": "按鍵"}
-HELP = "h l 移動 · j k 換字 · v 檢視 · x 刪 · e 中英 · r 重打 · a 加詞 · u 復原 · i 打字"
+HELP = "h l 移動 · j k 換字 · v 檢視 · x 刪 · e 中英 · r 重打 · a 加詞 · u 復原 · i／Esc 打字 · D D 清除"
 
 
 @dataclass
@@ -46,11 +51,15 @@ class CorrectionMixin:
         self.correcting = False
         self.layer = "text"
         self._cycle: _Cycle | None = None
+        self._clear_armed = False  # D pressed once: the next D clears everything
+        self._retype_at: int | None = None  # r: typing one replacement character here
 
     def enter_correction(self) -> None:
         self.correcting = True
         self.layer = "text"
         self._cycle = None
+        self._clear_armed = False
+        self._retype_at = None
         self.suggestion = None
         # at the end: the last real character (not a trailing space, so
         # "mvp␣" + Esc lands on mvp)
@@ -109,8 +118,13 @@ class CorrectionMixin:
     # ------------------------------------------------------------ key handling
     def _correction_key(self, key: KeyInput) -> bool:
         vk, ch = key.vk, key.char
+        armed, self._clear_armed = self._clear_armed, False
         if key.ctrl and not key.alt and vk in (0x59, 0x5A):  # Ctrl+Y / Ctrl+Z
             self._restore(redo=vk == 0x59 or key.shift)
+            return True
+        if self._ctrl_punct(key) is not None:
+            # no typing in correction mode (the frame says so); stay here
+            self._notice = "修正模式中不打字：按 i 或 Esc 回到打字"
             return True
         if key.ctrl or key.alt:
             return False
@@ -123,8 +137,17 @@ class CorrectionMixin:
             self.commit_all()
             return True
         if vk == VK_ESCAPE:
+            # back to typing; nothing is lost (Esc again comes back here)
             self.exit_correction()
-            self._reset_buffer()
+            self._refresh()
+            return True
+        if ch == "D":
+            if armed:
+                self.exit_correction()
+                self._reset_buffer()
+            else:
+                self._clear_armed = True
+                self._notice = "再按一次 D 清除整段（不會送出）"
             return True
         if vk == VK_TAB:
             return True
@@ -207,7 +230,9 @@ class CorrectionMixin:
         self._snap_to_unit()
 
     def _retype(self) -> None:
-        """Delete this character's keys and type it again (insert mode)."""
+        """Delete this character's keys and type it again; when the new
+        syllable is complete, correction mode comes back by itself (like
+        Vim's r). Esc returns early."""
         self._finish_cycle()
         t = self._target()
         if t is None:
@@ -222,7 +247,25 @@ class CorrectionMixin:
         else:
             self._redecode()
             self.cursor = a
-        self._notice = "重打這個字，打完按 Esc 回到修正模式"
+        self._retype_at = a
+        self._notice = "重打這個字：打完這個字自動回到修正模式"
+
+    def _retype_done(self) -> None:
+        """After a key typed in r mode: back to correction mode once the
+        replacement is a finished Chinese character."""
+        a = self._retype_at
+        if a is None:
+            return
+        seg = next((s for s in self.decoding.segments if s.start <= a < s.end), None)
+        if seg is not None and seg.kind is Kind.ZH and self.cursor in seg.bounds and self.cursor > a:
+            self._retype_at = None
+            self.correcting = True
+            self.layer = "text"
+            self._cycle = None
+            self.cursor = a
+            self._snap_to_unit()
+            self.suggestion = None
+            self.suggestions = []
 
     def _toggle_kind(self) -> None:
         """Chinese <-> the raw keys / English for the segment under the cursor."""

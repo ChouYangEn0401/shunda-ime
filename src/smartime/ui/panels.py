@@ -22,7 +22,7 @@ WORD_GAP, CHAR_GAP = 9, 2
 LAYER_NAME = {"text": "國字", "zhuyin": "注音", "keys": "按鍵"}
 TYPING_HELP = [("Esc", "修正模式"), ("Ctrl+Z", "復原"), ("↓", "選字")]
 CORRECTING_HELP = [("h l", "移動"), ("j k", "換字"), ("x", "刪"), ("e", "中⇄英"), ("r", "重打"),
-                   ("v", "檢視"), ("u", "復原"), ("i", "回到打字"), ("Enter", "送出")]
+                   ("v", "檢視"), ("u", "復原"), ("i/Esc", "打字"), ("Enter", "送出"), ("DD", "清除")]
 
 
 @dataclass
@@ -181,7 +181,7 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
         cw = c.measure(chip, s.title)[0] + 14 * k
         c.fill(PAD_X * k, y, cw, 19 * k, t.fix_soft, radius=4 * k)
         c.text(PAD_X * k + 7 * k, y + 2 * k, chip, s.title, t.fix)
-        view = f"{LAYER_NAME.get(p.layer, '')}檢視 · 字不會送出，按 i 回到打字"
+        view = f"{LAYER_NAME.get(p.layer, '')}檢視 · 字不會送出，i 或 Esc 回到打字"
         c.text(PAD_X * k + cw + 8 * k, y + 3 * k, view, s.help, t.muted)
         y += header_h
 
