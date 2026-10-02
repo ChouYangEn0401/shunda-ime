@@ -18,7 +18,7 @@ def snip_session(tmp_path):
     from smartime.engine.userdict import UserDict
 
     user = UserDict(tmp_path / "user.db")
-    user.add_snippet("台北市大安區羅斯福路四段一號\n（請寄到這裡）", "我的地址", "addr")
+    user.add_snippet("範例市範例區示範路 100 號\n（請寄到這裡）", "我的地址", "addr")
     user.add_snippet("感謝您的來信！", "", "thanks")
     lex = Lexicon(paths.system_db_path(), user)
     engine = Engine(lexicon=lex, layout=DACHEN, decoder=Decoder(lex, DACHEN), config=Config(),
@@ -32,7 +32,7 @@ def test_double_semicolon_lists_snippets_with_a_preview(snip_session):
     _, v = run(snip_session, ";;")
     assert v.candidates[:2] == ["我的地址", "感謝您的來信！"]
     p = candidate_panel(snip_session)
-    assert p.snippet and p.preview.startswith("台北市")
+    assert p.snippet and p.preview.startswith("範例市")
     _, v = run(snip_session, "{DOWN}")
     assert candidate_panel(snip_session).preview == "感謝您的來信！"
 
@@ -47,7 +47,7 @@ def test_keyword_filters_and_enter_types_the_whole_text(snip_session):
 
 def test_digit_picks_and_multiline_text_is_typed_as_is(snip_session):
     out, _ = run(snip_session, ";;1")
-    assert out == "台北市大安區羅斯福路四段一號\n（請寄到這裡）"
+    assert out == "範例市範例區示範路 100 號\n（請寄到這裡）"
 
 
 def test_esc_keeps_what_was_typed_and_backspace_edits_the_filter(snip_session):
