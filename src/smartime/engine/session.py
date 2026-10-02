@@ -34,6 +34,7 @@ from .layouts import Layout
 from .lexicon import Lexicon
 from .userdict import UserDict
 from .correction import CorrectionMixin
+from .panel import DecodePanel, decode_panel
 from .symbols import CATEGORIES, SymbolPanel
 
 VK_D = 0x44
@@ -139,6 +140,7 @@ class View:
     mode: Mode = Mode.AUTO
     correcting: bool = False  # correction mode (Esc)
     layer: str = "text"  # its view: text | zhuyin | keys
+    panel: "DecodePanel | None" = None  # decode panel to draw (see engine.panel), if wanted
 
 
 @dataclass
@@ -227,6 +229,9 @@ class Session(CorrectionMixin):
         if self.correcting:
             v.composition, v.cursor = self._correction_view()
             v.correcting, v.layer = True, self.layer
+        wanted = self.cfg.panel_decode
+        if self.keys and (wanted == "always" or (wanted == "correction" and self.correcting)):
+            v.panel = decode_panel(self)
         if self.cand is not None:
             page = self.cand.page_items()
             v.candidates = [c.text for c in page]

@@ -72,6 +72,12 @@ class Config:
     # Correction mode: Esc while composing enters it (Vim-like); off = Esc clears
     correction_mode: bool = True
 
+    # On-screen panels drawn by the IME itself (smartime.ui), docked under
+    # the hint box. Decode panel (按鍵／注音／國字 in columns): "correction"
+    # = in correction mode only (default), "always" = whenever composing, "off".
+    panel_decode: str = "correction"
+    panel_theme: str = "system"  # "system" | "light" | "dark"
+
     # Memory (my dictionary)
     learn: bool = True  # remember candidates I pick and continuations I accept
     learn_notice: bool = True  # say so the first time a word is learned
@@ -130,6 +136,10 @@ class Config:
             self.voice_engine = "auto"
         if self.drop_stray_keys not in DROP_CHOICES:
             self.drop_stray_keys = "standard"
+        if self.panel_decode not in ("off", "correction", "always"):
+            self.panel_decode = "correction"
+        if self.panel_theme not in ("system", "light", "dark"):
+            self.panel_theme = "system"
         self.candidates_per_page = max(1, min(9, self.candidates_per_page))
         self.candidate_font_size = max(10, min(32, self.candidate_font_size))
         self.max_buffer_chars = max(10, min(80, self.max_buffer_chars))

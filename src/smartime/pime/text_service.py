@@ -36,6 +36,15 @@ MESSAGE_DURATION = 3600  # seconds; we hide the message explicitly
 SELECTION_KEYS = "123456789"
 
 
+def _panel_window(create: bool):
+    """The panel window (smartime.ui.overlay), or None where it cannot exist."""
+    try:
+        from ..ui import overlay
+    except Exception:  # noqa: BLE001 - not on Windows, or a broken install: plain PIME windows
+        return None
+    return overlay.get() if create else overlay._overlay
+
+
 def key_from_msg(msg: dict) -> KeyInput:
     states = msg.get("keyStates") or [0] * 256
 
@@ -269,6 +278,9 @@ class SmartTextService:
             message = ""
         if not v.composition:
             message = ""
+        if self._show_panel(v) and v.correcting and not v.notice and v.candidates is None:
+            # the panel shows everything; the hint box stays as its anchor
+            message = "修正模式 · i 回到打字"
         # PIME applies showMessage *before* the composition update, and when
         # no composition exists yet it opens a temporary one and ends it at
         # the end of the reply — which commits our first key as raw text.
@@ -288,7 +300,24 @@ class SmartTextService:
 
         self._update_mode_icon(reply)
 
+    def _show_panel(self, v) -> bool:
+        """Show / hide our own panel window for this view. True if shown."""
+        overlay = _panel_window(create=v.panel is not None)
+        if overlay is None:
+            return False
+        if v.panel is None or not v.composition:
+            overlay.hide(self)
+            return False
+        cfg = self.engine.config
+        from ..ui.theme import pick
+
+        overlay.show(self, "decode", v.panel, pick(cfg.panel_theme), cfg.candidate_font_size / 16)
+        return True
+
     def _clear_ui(self, reply: dict, composition: bool = True) -> None:
+        overlay = _panel_window(create=False)
+        if overlay is not None:
+            overlay.hide(self)
         self._composing = False
         if composition:
             reply["compositionString"] = ""
