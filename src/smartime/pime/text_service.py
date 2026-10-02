@@ -36,12 +36,14 @@ MESSAGE_DURATION = 3600  # seconds; we hide the message explicitly
 SELECTION_KEYS = "123456789"
 
 
-def _panel_window(create: bool):
-    """The panel window (smartime.ui.overlay), or None where it cannot exist."""
+def _panel_window(create: bool, second: bool = False):
+    """A panel window (smartime.ui.overlay), or None where it cannot exist."""
     try:
         from ..ui import overlay
     except Exception:  # noqa: BLE001 - not on Windows, or a broken install: plain PIME windows
         return None
+    if second:
+        return overlay.get_second() if create else overlay._second
     return overlay.get() if create else overlay._overlay
 
 
@@ -287,6 +289,7 @@ class SmartTextService:
             message = ""
         if not v.composition:
             message = ""
+        self._show_smart(v)
         if self._show_panel(v, panel_kind) == "decode" and v.correcting and not v.notice:
             # the panel shows everything; the hint box stays as its anchor
             message = "修正模式 · Esc 回到打字"
@@ -311,6 +314,20 @@ class SmartTextService:
             self._message = message
 
         self._update_mode_icon(reply)
+
+    def _show_smart(self, v) -> None:
+        """超智慧推薦 (experimental) in a second window under the first."""
+        want = v.smart_panel is not None and bool(v.composition) and v.candidates is None
+        overlay = _panel_window(create=want, second=True)
+        if overlay is None:
+            return
+        if not want:
+            overlay.hide(self)
+            return
+        cfg = self.engine.config
+        from ..ui.theme import pick
+
+        overlay.show(self, "smart", v.smart_panel, pick(cfg.panel_theme), cfg.candidate_font_size / 16)
 
     def _panel_kind(self, v) -> str:
         """Which of our panels this view wants: "candidates", "decode" or "".
@@ -341,9 +358,10 @@ class SmartTextService:
         return kind
 
     def _clear_ui(self, reply: dict, composition: bool = True) -> None:
-        overlay = _panel_window(create=False)
-        if overlay is not None:
-            overlay.hide(self)
+        for second in (False, True):
+            overlay = _panel_window(create=False, second=second)
+            if overlay is not None:
+                overlay.hide(self)
         self._composing = False
         if composition:
             reply["compositionString"] = ""

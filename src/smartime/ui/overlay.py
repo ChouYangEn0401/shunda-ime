@@ -28,7 +28,7 @@ from ctypes import wintypes
 
 from . import win32 as w
 from .canvas import Canvas, Fonts, Surface
-from .panels import paint_candidates, paint_decode
+from .panels import paint_candidates, paint_decode, paint_smart
 from .theme import Theme
 from .win32 import user32
 
@@ -43,11 +43,21 @@ FOLLOW_MS = 40
 LOST_ANCHOR_SECONDS = 0.6  # hide when the composition's window has been gone this long
 GAP = 4
 
-PAINTERS = {"decode": paint_decode, "candidates": paint_candidates}
+PAINTERS = {"decode": paint_decode, "candidates": paint_candidates, "smart": paint_smart}
 
 
 def _rect(r: wintypes.RECT) -> tuple[int, int, int, int]:
     return r.left, r.top, r.right, r.bottom
+
+
+def find_own(class_name: str) -> tuple[int, int, int, int] | None:
+    """Our other panel window, if it is showing (the second panel docks under it)."""
+    hwnd = user32.FindWindowExW(None, None, class_name, None)
+    if not hwnd or not user32.IsWindowVisible(hwnd):
+        return None
+    r = wintypes.RECT()
+    user32.GetWindowRect(hwnd, ctypes.byref(r))
+    return _rect(r)
 
 
 def find_anchor() -> tuple[int, int, int, int] | None:
@@ -114,7 +124,9 @@ class Overlay:
     """One panel window per backend process; the input context that showed
     it last owns it."""
 
-    def __init__(self) -> None:
+    def __init__(self, class_name: str = CLASS_NAME, dock_under: str | None = None) -> None:
+        self.class_name = class_name
+        self.dock_under = dock_under  # dock under this other panel window when it shows
         self._lock = threading.Lock()
         self._want: tuple | None = None  # (owner, kind, model, theme, size) or None = hidden
         self._owner = None
@@ -162,10 +174,10 @@ class Overlay:
             self._proc = w.WNDPROC(self._wndproc)  # keep a reference
             hinst = w.kernel32.GetModuleHandleW(None)
             wc = w.WNDCLASSEXW(cbSize=ctypes.sizeof(w.WNDCLASSEXW), style=w.CS_DROPSHADOW, lpfnWndProc=self._proc,
-                               hInstance=hinst, lpszClassName=CLASS_NAME)
+                               hInstance=hinst, lpszClassName=self.class_name)
             user32.RegisterClassExW(ctypes.byref(wc))
             ex = w.WS_EX_TOPMOST | w.WS_EX_TOOLWINDOW | w.WS_EX_NOACTIVATE
-            self._hwnd = user32.CreateWindowExW(ex, CLASS_NAME, "順打輸入法面板", w.WS_POPUP, 0, 0, 10, 10,
+            self._hwnd = user32.CreateWindowExW(ex, self.class_name, "順打輸入法面板", w.WS_POPUP, 0, 0, 10, 10,
                                                 None, None, hinst, None)
             if w.dwmapi is not None:
                 pref = ctypes.c_int(w.DWMWCP_ROUNDSMALL)
@@ -252,7 +264,7 @@ class Overlay:
     def _place(self, resize: bool) -> bool:
         """Position (and with ``resize`` size + repaint) next to the anchor.
         Returns whether an anchor was found."""
-        anchor = find_anchor()
+        anchor = (find_own(self.dock_under) if self.dock_under else None) or find_anchor()
         below = True
         if anchor is None:
             anchor = caret_rect()
@@ -318,6 +330,9 @@ class Overlay:
 
 _overlay: Overlay | None = None
 _overlay_failed = False
+_second: Overlay | None = None
+_second_failed = False
+SECOND_CLASS = "ShundaImePanel2"
 
 
 def get() -> Overlay | None:
@@ -335,3 +350,21 @@ def get() -> Overlay | None:
             log.exception("panel window unavailable")
             _overlay_failed = True
     return _overlay
+
+
+def get_second() -> Overlay | None:
+    """A second panel window (超智慧推薦) that docks under the first one
+    when it is showing, else under PIME's hint box."""
+    global _second, _second_failed
+    if os.environ.get("SMARTIME_NO_PANEL"):
+        return None
+    if _second is None and not _second_failed:
+        try:
+            _second = Overlay(SECOND_CLASS, dock_under=CLASS_NAME)
+            if not _second.available:
+                _second_failed = True
+                _second = None
+        except Exception:  # noqa: BLE001
+            log.exception("second panel window unavailable")
+            _second_failed = True
+    return _second

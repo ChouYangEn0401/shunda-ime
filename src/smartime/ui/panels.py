@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ..engine.panel import CandidatePanel, Column, DecodePanel
+from ..engine.panel import CandidatePanel, Column, DecodePanel, SmartPanel
 from .canvas import Canvas
 from .theme import Theme
 
@@ -99,7 +99,8 @@ def center_mixed(c: Canvas, x: float, y: float, width: float, text: str, font: i
 # ======================================================================== decode
 def _column_width(c: Canvas, s: Styles, col: Column) -> float:
     widths = [measure_mixed(c, col.keys, s.keys, s.keys_symbol),
-              measure_mixed(c, col.reading + ("↺" if col.reordered else ""), s.reading, s.symbol),
+              measure_mixed(c, col.reading + ("↺" if col.reordered else "") + ("…" if col.abbreviated else ""),
+                            s.reading, s.symbol),
               c.measure(col.text, s.text)[0]]
     return max(max(widths) + 10, 24)
 
@@ -254,10 +255,12 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
         elif col.role == "pending":
             c.text_center(cx, y_read + 2 * k, cw, col.reading, s.reading_bold, t.accent)
         elif col.role == "zh":
-            # ↺: the keys were typed out of order and read in the right order
-            label = col.reading + ("↺" if col.reordered else "")
+            # ↺: the keys were typed out of order and read in the right order;
+            # …: 瘋狂模式 guessed the rest of the syllable
+            label = col.reading + ("↺" if col.reordered else "") + ("…" if col.abbreviated else "")
             font = s.reading_bold if focused and p.layer == "zhuyin" else s.reading
-            center_mixed(c, cx, y_read + 2 * k, cw, label, font, s.symbol, t.fix if col.reordered else t.muted)
+            center_mixed(c, cx, y_read + 2 * k, cw, label, font, s.symbol,
+                         t.fix if (col.reordered or col.abbreviated) else t.muted)
         else:
             c.text_center(cx, y_read + 3 * k, cw, col.reading, s.small, t.faint)
         # --- text row
@@ -299,7 +302,7 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
 # suggestions purple; raw keys faint; the rest neutral. Coloured groups get a
 # bar in front of every item, so a whole group can be skipped at a glance.
 GROUP_COLOR = {"我的詞庫": "memory", "學過": "memory", "接續": "predict", "片語": "predict",
-               "顏文字": "predict", "原始按鍵": "faint"}
+               "顏文字": "predict", "原始按鍵": "faint", "長句": "predict", "也許是": "fix"}
 ROW_H, GROUP_H, LABEL_W = 29, 19, 16
 CAND_HELP = [("↑↓", "移動"), ("1–9", "選"), ("Tab", "分類"), ("→", "更多"), ("Del", "忘記"), ("Ctrl+D", "加詞")]
 CAND_HELP_SINGLE = [("↑↓", "移動"), ("1–9", "選"), ("Tab", "分類"), ("← →", "翻頁"), ("Del", "忘記"),
@@ -530,4 +533,65 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
     fy = y + body_h + preview_h + 8 * k
     c.hline(x0, width - PAD_X * k, fy - 4 * k, t.border, 1)
     _paint_help(c, s, t, x0, fy, help_items, width - PAD_X * k)
+    return out
+
+
+# ======================================================================== 超智慧推薦
+SMART_HELP = [("Shift+Tab", "選"), ("Tab", "接黃框的第一個"), ("標點／Enter", "收起")]
+
+
+def paint_smart(c: Canvas, t: Theme, p: SmartPanel, size: float = 1.0, draw: bool = True) -> Painted:
+    """The experimental suggestion panel: purple (= suggestions), docked
+    under the other panel. Numbers are the ones Shift+Tab shows."""
+    s = Styles(c, t, size)
+    k = size
+    rows: list[tuple[str, str, str, str]] = []  # (kind, number, text, extra)
+    if p.chains:
+        rows.append(("label", "", "接下來", ""))
+        rows += [("chain", n, text, "") for n, text in p.chains]
+    if p.fixes:
+        rows.append(("label", "", "也許是", ""))
+        rows += [("fix", n, new, old) for n, old, new in p.fixes]
+    widths = [_help_width(c, s, SMART_HELP), c.measure("超智慧推薦 · 實驗", s.title)[0] + 150 * k]
+    for kind, n, text, extra in rows:
+        if kind == "chain":
+            widths.append((LABEL_W + 10) * k + c.measure(text, s.cand)[0])
+        elif kind == "fix":
+            widths.append((LABEL_W + 10) * k + c.measure(extra, s.reading)[0] + 30 * k + c.measure(text, s.cand)[0])
+    width = min(max(widths) + 2 * PAD_X * k, 620 * k)
+    body_h = sum(GROUP_H * k if kind == "label" else ROW_H * k for kind, *_ in rows)
+    height = PAD_Y * k + 22 * k + body_h + 8 * k + 20 * k + PAD_Y * k
+    out = Painted(width, height)
+    if not draw:
+        return out
+    c.fill(0, 0, width, height, t.bg)
+    c.stroke(0, 0, width, height, t.predict, line=1.5)
+    x0, y = PAD_X * k, PAD_Y * k
+    chip = "超智慧推薦 · 實驗"
+    cw = c.measure(chip, s.title)[0] + 14 * k
+    c.fill(x0, y, cw, 19 * k, t.predict_soft, radius=4 * k)
+    c.text(x0 + 7 * k, y + 2 * k, chip, s.title, t.predict)
+    if p.stale:
+        c.text(x0 + cw + 8 * k, y + 3 * k, "打完這個字後更新", s.help, t.faint)
+    y += 22 * k
+    for kind, n, text, extra in rows:
+        if kind == "label":
+            c.text(x0 + 2 * k, y + 2 * k, text, s.small_bold, t.fix if text == "也許是" else t.predict)
+            y += GROUP_H * k
+            continue
+        color = t.faint if p.stale else t.fg
+        if n:
+            c.text(x0 + 4 * k, y + 6 * k, n, s.num, t.faint)
+        tx = x0 + (LABEL_W + 10) * k
+        if kind == "chain":
+            c.text(tx, y + 2 * k, text, s.cand, color)
+        else:
+            c.text(tx, y + 6 * k, extra, s.reading, t.faint)
+            ax = tx + c.measure(extra, s.reading)[0] + 8 * k
+            c.text(ax, y + 6 * k, "→", s.reading, t.fix)
+            c.text(ax + 22 * k, y + 2 * k, text, s.cand, color)
+        y += ROW_H * k
+    fy = y + 8 * k
+    c.hline(x0, width - PAD_X * k, fy - 4 * k, t.border, 1)
+    _paint_help(c, s, t, x0, fy, SMART_HELP, width - PAD_X * k)
     return out

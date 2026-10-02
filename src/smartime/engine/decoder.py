@@ -100,6 +100,11 @@ class Weights:
     # code, so its tail waits unless it is a likely English word (auto mode).
     pending_pinyin: float = -12.0
     pending_cangjie: float = -6.0
+    # 瘋狂模式 (experimental): a syllable typed only by its first symbol(s).
+    # Typing the whole syllable with its tone stays cheaper.
+    abbr: float = -1.2  # per abbreviated syllable
+    abbr_symbol: float = 0.3  # each symbol typed beyond the first (more certain)
+    pending_crazy: float = -9.0  # an unfinished syllable shows raw only if no word fits
 
 
 # Shifted / non-layout punctuation -> full-width Chinese punctuation.
@@ -132,6 +137,8 @@ _EN_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234
 _LETTERS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 _DIGITS = frozenset("0123456789")
 MAX_EN_LEN = 40
+MAX_ABBR_KEYS = 8  # 瘋狂模式: keys looked at from one position
+MAX_ABBR_SYLLABLES = 6
 
 
 def _tones_match(reading: str, tones) -> bool:
@@ -173,6 +180,7 @@ class Decoder:
         self.halfwidth_symbols = frozenset(halfwidth_symbols)
         self.reorder_tolerance = True
         self.drop_enabled = True
+        self.crazy = False  # 瘋狂模式
         self._set_layout(layout)
 
     def _set_layout(self, layout: Layout) -> None:
@@ -191,11 +199,13 @@ class Decoder:
             self._set_layout(get_layout(cfg.layout))
         self.reorder_tolerance = cfg.reorder_tolerance
         self.drop_enabled = cfg.drop_stray_keys != "off"
+        self.crazy = bool(getattr(cfg, "crazy_mode", False))
         base = Weights()
         self.w = replace(
             base,
             drop=-8.5 if cfg.drop_stray_keys == "conservative" else base.drop,
             en_single_letter=base.en_single_letter if cfg.single_letter_context else 0.0,
+            pending=base.pending_crazy if self.crazy else base.pending,
         )
 
     # ------------------------------------------------------------------
@@ -518,6 +528,8 @@ class Decoder:
             yield from self._cj_edges(i, limit, syllables)
         else:
             yield from self._zh_edges(i, limit, syllables)
+            if self.crazy:
+                yield from self._abbr_edges(keys, i, limit)
 
         # --- English / alphanumeric tokens, output exactly as typed.
         if allow_english and ch in _EN_CHARS and not k.numpad:
@@ -592,6 +604,51 @@ class Decoder:
 
         # --- Fallback so that every position stays reachable.
         yield Segment(i, i + 1, ch, Kind.LITERAL, w.literal)
+
+    def _abbr_edges(self, keys: Sequence[Key], i: int, limit: int) -> Iterator[Segment]:
+        """瘋狂模式: the zhuyin symbol keys from ``i`` (no tone keys) split into
+        syllable beginnings — each part 1-3 symbols in syllable order — and
+        matched against phrases whose syllables start that way."""
+        syms: list[str] = []
+        for j in range(i, min(limit, i + MAX_ABBR_KEYS)):
+            k = keys[j]
+            sym = None if k.numpad else self.layout.symbol(k.char)
+            if sym is None:
+                break
+            syms.append(sym)
+        if not syms:
+            return
+        cat = bopomofo.category
+        # every way to split syms[0:m] into syllable beginnings, for each m
+        stack: list[tuple[int, tuple[tuple[int, int], ...]]] = [(0, ())]
+        while stack:
+            pos, parts = stack.pop()
+            if parts:
+                yield from self._abbr_phrases(syms, i, parts)
+            if pos >= len(syms) or len(parts) >= MAX_ABBR_SYLLABLES:
+                continue
+            end = pos + 1
+            stack.append((end, parts + ((pos, end),)))
+            while end < len(syms) and end - pos < 3 and cat(syms[end]) > cat(syms[end - 1]):
+                end += 1
+                stack.append((end, parts + ((pos, end),)))
+
+    def _abbr_phrases(self, syms: list[str], i: int, parts: tuple[tuple[int, int], ...]) -> Iterator[Segment]:
+        key = "".join(syms[a] for a, _ in parts)
+        found = 0
+        for phrase, reading, score in self.lex.abbreviations(key):
+            readings = tuple(reading.split("-"))
+            if len(readings) != len(parts):
+                continue
+            if any(bopomofo.components(syl)[:b - a] != syms[a:b] for syl, (a, b) in zip(readings, parts)):
+                continue
+            extra = sum(b - a - 1 for a, b in parts)
+            bounds = tuple(i + a for a, _ in parts) + (i + parts[-1][1],)
+            yield Segment(i, i + parts[-1][1], phrase, Kind.ZH,
+                          score + self.w.abbr * len(parts) + self.w.abbr_symbol * extra, readings, bounds)
+            found += 1
+            if found >= 2:
+                return
 
     def _zh_edges(self, i: int, limit: int, syllables: list[list[tuple[int, str, float]]]) -> Iterator[Segment]:
         lex = self.lex

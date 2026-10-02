@@ -34,7 +34,7 @@ from .layouts import Layout
 from .lexicon import Lexicon
 from .userdict import UserDict
 from .correction import CorrectionMixin
-from .panel import CandidatePanel, DecodePanel, candidate_panel, decode_panel
+from .panel import CandidatePanel, DecodePanel, SmartPanel, candidate_panel, decode_panel, smart_panel
 from .punct import ctrl_output
 from .symbols import CATEGORIES, LIST_TABS, TABS, SymbolPanel
 
@@ -79,7 +79,8 @@ SCHEME_LABEL = {"zhuyin": "注音", "pinyin": "拼音", "cangjie": "倉頡"}
 # first, then what you chose before, then the dictionary, then the other
 # ways to read the keys (user feedback #6-2: "先從自訂群組匹配，然後常用，
 # 最後推薦"). The panel colours each group (smartime.ui.theme).
-GROUP_ORDER = ("我的詞庫", "學過", "詞庫", "英文", "數字", "標點", "其他讀法", "原始按鍵", "接續", "符號")
+GROUP_ORDER = ("我的詞庫", "學過", "詞庫", "英文", "數字", "標點", "其他讀法", "原始按鍵", "長句", "也許是", "接續",
+               "符號")
 MAX_COLUMNS = 4  # multi-column candidate window: pages shown side by side
 
 
@@ -187,6 +188,17 @@ class Suggestion:
 
 
 @dataclass
+class Smart:
+    """超智慧推薦 (experimental): chains of what may come next, and
+    homophones of the last characters. ``stale`` while a syllable is being
+    typed: still shown (it does not flicker away) but not pickable."""
+
+    chains: list[Suggestion]
+    fixes: list[Candidate]
+    stale: bool = False
+
+
+@dataclass
 class View:
     """Everything a frontend needs to render after an event."""
 
@@ -206,6 +218,7 @@ class View:
     layer: str = "text"  # its view: text | zhuyin | keys
     panel: "DecodePanel | None" = None  # decode panel to draw (see engine.panel), if wanted
     candidate_panel: "CandidatePanel | None" = None  # the candidate window as a panel
+    smart_panel: "SmartPanel | None" = None  # 超智慧推薦 (experimental)
 
 
 @dataclass
@@ -268,6 +281,7 @@ class Session(CorrectionMixin):
         self._redo: list[tuple[list[Key], list[Segment], int]] = []
         self._typing_run = False  # the last step is a run of typing that may still grow
         self.hand_back: KeyInput | None = None  # see key_down / take_hand_back
+        self.smart: Smart | None = None  # 超智慧推薦 (experimental)
         self._init_correction()
 
     # ================================================================ API
@@ -295,9 +309,12 @@ class Session(CorrectionMixin):
         if self.correcting:
             v.composition, v.cursor = self._correction_view()
             v.correcting, v.layer = True, self.layer
-        wanted = self.cfg.panel_decode
+        # 瘋狂模式 guesses a lot: always show what each key became
+        wanted = "always" if self.cfg.crazy_mode and self.scheme == "zhuyin" else self.cfg.panel_decode
         if self.keys and (wanted == "always" or (wanted == "correction" and self.correcting)):
             v.panel = decode_panel(self)
+        if self.cfg.smart_suggest and self.keys and not self.correcting and self.cand is None:
+            v.smart_panel = smart_panel(self)
         if self.cand is not None:
             page = self.cand.page_items()
             v.candidates = [c.text for c in page]
@@ -750,6 +767,7 @@ class Session(CorrectionMixin):
         self.layer = "text"
         self._cycle = None
         self._retype_at = None
+        self.smart = None  # committed: no longer editable
         self._forget_history()
 
     def _redecode(self) -> None:
@@ -1223,7 +1241,69 @@ class Session(CorrectionMixin):
             text = f"（略過 {dropped}）" + text
         return text
 
+    def _trailing_run(self, limit: int = 3) -> list[tuple[int, int, str, str]]:
+        """(key_start, key_end, char, reading) of the Chinese characters at
+        the end of the composition (at most ``limit``)."""
+        segs = self.decoding.segments
+        run = []
+        for a, b, ch, seg_idx in reversed(self.decoding.units()):
+            seg = segs[seg_idx]
+            if seg.kind is not Kind.ZH:
+                break
+            run.append((a, b, ch, seg.readings[seg.bounds.index(a)]))
+            if len(run) == limit:
+                break
+        run.reverse()
+        return run
+
+    def _update_smart(self) -> None:
+        """超智慧推薦: recompute when the Chinese text at the end changed;
+        while something else is being typed, keep the last one (stale)."""
+        if not self.cfg.smart_suggest or self.correcting or self.cand is not None:
+            return
+        segs = self.decoding.segments
+        if self.cursor != len(self.keys) or not segs or segs[-1].kind is not Kind.ZH:
+            if self.smart is not None:
+                self.smart.stale = True
+            return
+        from . import predict
+
+        run = self._trailing_run(4)
+        tail = [(u[2], u[3]) for u in run]
+        chains = []
+        for c in predict.chains(self.engine.lexicon, tail[-3:], self.cfg.autocomplete_min_score):
+            sug = self._make_suggestion(run[-1:], c.text, c.readings, c.score)
+            if sug is not None:
+                chains.append(sug)
+        fixes = []
+        for k, word in predict.alternatives(self.engine.lexicon, tail):
+            part = run[-k:]
+            readings = tuple(u[3] for u in part)
+            bounds = tuple(u[0] for u in part) + (part[-1][1],)
+            pin = Segment(part[0][0], part[-1][1], word, Kind.ZH, 0.0, readings, bounds, pinned=True)
+            fixes.append(Candidate(word, pin, "".join(u[2] for u in part), group="也許是"))
+        self.smart = Smart(chains, fixes)
+
+    def _make_suggestion(self, tail, text: str, readings: tuple[str, ...], score: float) -> "Suggestion | None":
+        """A continuation of ``text`` after the trailing characters ``tail``
+        (whose readings are kept), as the keys to append and the pin."""
+        dec = self.engine.decoder
+        typed = [dec.unit_keys(self.scheme, ch, syl) for ch, syl in zip(text, readings)]
+        if not typed or not all(typed):
+            return None
+        keys = [Key(c) for t in typed for c in t]
+        bounds = [u[0] for u in tail] + [tail[-1][1]]
+        pos = tail[-1][1]
+        for t in typed:
+            pos += len(t)
+            bounds.append(pos)
+        phrase = "".join(u[2] for u in tail) + text
+        pin = Segment(tail[0][0], pos, phrase, Kind.ZH, score, tuple(u[3] for u in tail) + tuple(readings),
+                      tuple(bounds), pinned=True)
+        return Suggestion(text, pin, keys)
+
     def _update_suggestion(self) -> None:
+        self._update_smart()
         self.suggestion = None
         self.suggestions = []
         if (not self.cfg.autocomplete or self.cand is not None or self.cursor != len(self.keys)
@@ -1232,16 +1312,7 @@ class Session(CorrectionMixin):
         segs = self.decoding.segments
         if not segs or segs[-1].kind is not Kind.ZH:
             return
-        units = self.decoding.units()
-        run = []  # (key_start, key_end, char, reading) of trailing Chinese chars
-        for a, b, ch, seg_idx in reversed(units):
-            seg = segs[seg_idx]
-            if seg.kind is not Kind.ZH:
-                break
-            run.append((a, b, ch, seg.readings[seg.bounds.index(a)]))
-            if len(run) == 3:
-                break
-        run.reverse()
+        run = self._trailing_run()
         lex = self.engine.lexicon
         dec = self.engine.decoder
         scheme = self.scheme
@@ -1281,12 +1352,22 @@ class Session(CorrectionMixin):
         self.suggestions = found
         self.suggestion = found[0] if found else None
 
+    def _smart_items(self) -> list[Candidate]:
+        """Pickable 超智慧推薦 items, in the order the panel numbers them."""
+        smart = self.smart
+        if smart is None or smart.stale:
+            return []
+        return [Candidate(s.text, None, "接下來", suggestion=s, group="長句") for s in smart.chains] + \
+            [replace(f) for f in smart.fixes]
+
     def _open_continuations(self) -> None:
-        """Shift+Tab: all continuations in the candidate window."""
-        if not self.suggestions:
+        """Shift+Tab: all continuations in the candidate window (with
+        超智慧推薦 on: its chains and homophones first, numbered as in its panel)."""
+        items = self._smart_items()
+        items += [Candidate(s.text, None, s.pin.text, suggestion=s, group="接續") for s in self.suggestions]
+        if not items:
             self._notice = "現在沒有接續建議"
             return
-        items = [Candidate(s.text, None, s.pin.text, suggestion=s, group="接續") for s in self.suggestions]
         self.cand = self._new_list(items, title="接續")
 
     # ============================================================ symbol panel
