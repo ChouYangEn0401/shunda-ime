@@ -207,3 +207,44 @@ def test_tray_menu_lists_the_modes_and_switches(engine):
     assert r[3]["changeButton"][0]["icon"].endswith("chinese.ico")
     assert [m["checked"] for m in r[4]["return"][:3]] == [False, True, False]
     assert r[5]["changeButton"][0]["icon"].endswith("english.ico")
+
+
+def exchange_many(engine, lines):
+    """[(client_id, message)] -> {(client_id, seqNum): reply}"""
+    stdin = io.BytesIO("".join(f"{c}|{json.dumps(m, ensure_ascii=False)}\n" for c, m in lines).encode("utf-8"))
+    stdout = io.BytesIO()
+    serve(stdin, stdout, engine, Path("C:/PIME/smartime/icons"))
+    out = {}
+    for line in stdout.getvalue().decode("utf-8").splitlines():
+        _, client, payload = line.split("|", 2)
+        reply = json.loads(payload)
+        out[(client, reply["seqNum"])] = reply
+    return out
+
+
+def test_mode_icon_reloads_after_another_window_deactivates(engine):
+    # Regression (自/中/英 icon vanished from the taskbar, or showed a cursor
+    # shape): PIME destroys every cached icon of the app process when any of
+    # its input contexts deactivates, so the other windows' buttons must be
+    # re-sent under a different spelling of the same path to get a new handle.
+    import os
+
+    lines = [
+        ("a", {"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True}),
+        ("b", {"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True}),
+        ("a", key_msg(2, "filterKeyDown", "j")),  # nothing happened yet: no button update
+        ("b", {"method": "onDeactivate", "seqNum": 2}),
+        ("a", key_msg(3, "filterKeyDown", "j")),
+        ("a", key_msg(4, "filterKeyDown", "j")),  # already refreshed
+        ("b", {"method": "close"}),
+        ("a", key_msg(5, "filterKeyDown", "j")),
+    ]
+    r = exchange_many(engine, lines)
+    first = r[("a", 1)]["addButton"][0]["icon"]
+    assert "changeButton" not in r[("a", 2)]
+    assert "removeButton" in r[("b", 2)] and "changeButton" not in r[("b", 2)]
+    second = r[("a", 3)]["changeButton"][0]["icon"]
+    assert second != first and os.path.normpath(second) == os.path.normpath(first)
+    assert "changeButton" not in r[("a", 4)]
+    third = r[("a", 5)]["changeButton"][0]["icon"]
+    assert third == first  # alternates, so the cache key always changes

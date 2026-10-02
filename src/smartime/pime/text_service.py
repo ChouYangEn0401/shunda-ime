@@ -8,6 +8,7 @@ candidateList, showMessage, ...), see PIME's python/textService.py.
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -54,6 +55,20 @@ def key_from_msg(msg: dict) -> KeyInput:
 
 
 class SmartTextService:
+    # PIME keeps one icon cache per *application process* and destroys every
+    # icon in it whenever any of that process's input contexts deactivates
+    # (LangBarButton::clearIconCache). The mode buttons of the app's other
+    # windows keep the dead handle: the 自/中/英 icon vanishes from the
+    # taskbar, or shows whatever icon or cursor later reuses the handle.
+    # PIME reloads an icon only when its file path changes, so after any
+    # deactivation every other button is re-sent under the other spelling of
+    # its path (icons\auto.ico <-> icons\.\auto.ico, the same file).
+    _icons_cleared = 0  # deactivations/closes seen by this backend
+
+    @classmethod
+    def icons_invalidated(cls) -> None:
+        cls._icons_cleared += 1
+
     def __init__(self, engine: Engine, icon_dir: Path):
         self.engine = engine
         self.icon_dir = icon_dir
@@ -63,6 +78,8 @@ class SmartTextService:
         self._message = ""
         self._showing_candidates = False
         self._mode_shown: Mode | None = None
+        self._icon_epoch = SmartTextService._icons_cleared
+        self._icon_variant = 0  # which spelling of the icon path was sent last
         self._composing = False  # a composition existed after our previous reply
         self._passthrough_at = 0.0
         self._composing_app = ""
@@ -92,6 +109,7 @@ class SmartTextService:
             self._clear_ui(reply)
             reply.setdefault("removeButton", []).append("windows-mode-icon")
             self._mode_shown = None
+            SmartTextService.icons_invalidated()
         elif method == "filterKeyDown":
             key = key_from_msg(msg)
             ret = self.keyboard_open and s.filter_key_down(key)
@@ -160,6 +178,13 @@ class SmartTextService:
                 log.debug("composition ended by our own commit; keeping buffer")
         else:
             success = False
+
+        if self._icon_epoch != SmartTextService._icons_cleared:
+            # another input context deactivated: our icon handle may be dead
+            self._icon_epoch = SmartTextService._icons_cleared
+            if self._mode_shown is not None and "addButton" not in reply:
+                self._icon_variant ^= 1
+                self._update_mode_icon(reply, force=True)
 
         if ret is not None:
             reply["return"] = bool(ret) if method.startswith(("filter", "onKey")) else ret
@@ -287,11 +312,15 @@ class SmartTextService:
         self._mode_shown = mode
         if not self.is_windows8_above:
             return
+        name = MODE_ICONS[mode]
+        # same file, different spelling: makes PIME load a fresh handle (see _icons_cleared)
+        icon = os.path.join(str(self.icon_dir), ".", name) if self._icon_variant else str(self.icon_dir / name)
         button = {
             "id": "windows-mode-icon",
-            "icon": str(self.icon_dir / MODE_ICONS[mode]),
+            "icon": icon,
             "tooltip": f"{PRODUCT_NAME}：{self.session.mode_label()}（Shift 切換模式，右鍵選模式）",
             "commandId": ID_MODE_ICON,
             "enable": self.keyboard_open,
         }
-        reply.setdefault("addButton" if add else "changeButton", []).append(button)
+        buttons = reply.setdefault("addButton" if add else "changeButton", [])
+        buttons[:] = [b for b in buttons if b.get("id") != button["id"]] + [button]

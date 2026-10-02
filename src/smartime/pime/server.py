@@ -72,6 +72,7 @@ def serve(stdin, stdout, engine: Engine, icon_dir: Path) -> None:
             seq = msg.get("seqNum", 0)
             if msg.get("method") == "close":
                 clients.pop(client_id, None)
+                SmartTextService.icons_invalidated()  # PIME clears the app's icon cache here too
                 log.info("client closed: %s", client_id)
                 continue
             service = clients.get(client_id)
