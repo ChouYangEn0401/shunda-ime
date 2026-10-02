@@ -24,6 +24,9 @@ CASES = [
     ("correcting", "ji3ee/4dj94k27{ESC}h"),
     ("keys-view", "ji3ee/4dj94k27{ESC}vv{HOME}lll"),
     ("long", "b06c.4283tj x96k27y4b/6b06j6z83fm4u/ jp6k27jp4{ESC}hhh"),
+    ("candidates", "ji35p {DOWN}"),
+    ("candidates-filter", "mvp {DOWN}{TAB}"),
+    ("palette", "ji3{RALT}{TAB}{TAB}"),
 ]
 
 user32 = t.user32
@@ -150,7 +153,7 @@ def main() -> int:
             failures += bool(problems)
             print(f"{'FAIL' if problems else 'PASS'}  {name:12} panel={panel} anchors={anchors}"
                   + ("  " + "; ".join(problems) if problems else ""))
-            t.type_script(win.tap, "DD")  # clear (correction mode)
+            t.type_script(win.tap, "{ESC}{ENTER}")  # close / leave whatever is open, commit
             t.pump(0.3)
         return 1 if failures else 0
     except t.Aborted as e:

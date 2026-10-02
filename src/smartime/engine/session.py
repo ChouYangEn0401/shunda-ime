@@ -34,7 +34,7 @@ from .layouts import Layout
 from .lexicon import Lexicon
 from .userdict import UserDict
 from .correction import CorrectionMixin
-from .panel import DecodePanel, decode_panel
+from .panel import CandidatePanel, DecodePanel, candidate_panel, decode_panel
 from .symbols import CATEGORIES, SymbolPanel
 
 VK_D = 0x44
@@ -81,6 +81,14 @@ class Mode(str, Enum):
 SCHEME_LABEL = {"zhuyin": "注音", "pinyin": "拼音", "cangjie": "倉頡"}
 
 
+# Candidate groups, in the order the window lists them: your own words
+# first, then what you chose before, then the dictionary, then the other
+# ways to read the keys (user feedback #6-2: "先從自訂群組匹配，然後常用，
+# 最後推薦"). The panel colours each group (smartime.ui.theme).
+GROUP_ORDER = ("我的詞庫", "學過", "詞庫", "英文", "數字", "標點", "其他讀法", "原始按鍵", "接續", "符號")
+MAX_COLUMNS = 4  # multi-column candidate window: pages shown side by side
+
+
 @dataclass
 class Candidate:
     text: str
@@ -88,31 +96,89 @@ class Candidate:
     annotation: str = ""
     symbol: str = ""  # symbol panel entry
     suggestion: "Suggestion | None" = None  # continuation list entry
+    group: str = ""  # see GROUP_ORDER
 
 
 @dataclass
 class CandidateList:
+    """The candidate window's state. ``index`` points into ``shown`` (the
+    items left after the group filter). Single-column mode turns pages with
+    ←/→; multi-column mode opens the next page as another column with →
+    and folds back to one column with ← on the first."""
+
     items: list[Candidate]
     page_size: int
     index: int = 0
     title: str = ""  # shown in the message window (symbol panel category)
     palette: int | None = None  # symbol panel: current category index
+    multi: bool = False  # → opens columns instead of turning pages
+    filter: str = ""  # "" = every group
+    columns: int = 1  # pages shown side by side
+    first_page: int = 0  # leftmost page shown
+
+    @property
+    def shown(self) -> list[Candidate]:
+        return [c for c in self.items if not self.filter or c.group == self.filter]
+
+    @property
+    def current(self) -> Candidate:
+        return self.shown[self.index]
 
     @property
     def page(self) -> int:
         return self.index // self.page_size
 
-    def page_items(self) -> list[Candidate]:
-        start = self.page * self.page_size
-        return self.items[start:start + self.page_size]
+    @property
+    def pages(self) -> int:
+        return max(1, (len(self.shown) + self.page_size - 1) // self.page_size)
+
+    def page_items(self, page: int | None = None) -> list[Candidate]:
+        start = (self.page if page is None else page) * self.page_size
+        return self.shown[start:start + self.page_size]
+
+    def groups(self) -> list[str]:
+        """Groups present, in display order (the filter cycles through them)."""
+        return list(dict.fromkeys(c.group for c in self.items if c.group))
 
     def move(self, delta: int) -> None:
-        self.index = (self.index + delta) % len(self.items)
+        self.index = (self.index + delta) % len(self.shown)
+        self._keep_visible()
 
     def move_page(self, delta: int) -> None:
-        pages = (len(self.items) + self.page_size - 1) // self.page_size
-        page = (self.page + delta) % pages
+        page = (self.page + delta) % self.pages
         self.index = page * self.page_size
+        self.first_page, self.columns = page, 1
+
+    def move_column(self, delta: int) -> None:
+        """Multi-column mode: → the same row in the next page (opening a
+        column for it); ← the previous one; ← on the first folds back."""
+        target = self.page + delta
+        if target < 0 or (delta < 0 and self.page == self.first_page and self.columns > 1 and target < self.first_page):
+            self.columns, self.first_page = 1, self.page
+            return
+        if target >= self.pages:
+            return
+        row = self.index % self.page_size
+        self.index = min(target * self.page_size + row, len(self.shown) - 1)
+        self._keep_visible(grow=True)
+
+    def cycle_filter(self, delta: int) -> None:
+        options = [""] + self.groups()
+        if len(options) <= 2:
+            return  # a single group: nothing to filter
+        self.filter = options[(options.index(self.filter) + delta) % len(options)]
+        self.index = self.first_page = 0
+        self.columns = 1
+
+    def _keep_visible(self, grow: bool = False) -> None:
+        page = self.page
+        if page < self.first_page:
+            self.first_page = page
+        elif page >= self.first_page + self.columns:
+            if grow and self.multi and page - self.first_page + 1 <= MAX_COLUMNS:
+                self.columns = page - self.first_page + 1
+            else:
+                self.first_page = page - self.columns + 1
 
 
 @dataclass
@@ -141,6 +207,7 @@ class View:
     correcting: bool = False  # correction mode (Esc)
     layer: str = "text"  # its view: text | zhuyin | keys
     panel: "DecodePanel | None" = None  # decode panel to draw (see engine.panel), if wanted
+    candidate_panel: "CandidatePanel | None" = None  # the candidate window as a panel
 
 
 @dataclass
@@ -240,6 +307,7 @@ class Session(CorrectionMixin):
             v.candidate_title = self.cand.title
             if not v.candidate_title and "學過" in v.candidate_notes:
                 v.candidate_title = "選字框裡按 Delete 可忘記「學過」的詞"
+            v.candidate_panel = candidate_panel(self)
         elif self.correcting:
             v.hint = self._correction_hint()
         else:
@@ -699,10 +767,22 @@ class Session(CorrectionMixin):
                 return idx
         return len(units) - 1
 
+    def _new_list(self, items: list[Candidate], **kw) -> CandidateList:
+        return CandidateList(items, self.cfg.candidates_per_page, multi=self.cfg.candidate_multi_column, **kw)
+
     def _open_candidates(self) -> None:
         items = self._candidate_items()
         if items:
-            self.cand = CandidateList(items, self.cfg.candidates_per_page)
+            self.cand = self._new_list(items)
+            # start on what is on screen now (your own words are listed
+            # first, so the first item is not always the current text):
+            # Enter keeps it, ↓ walks to the alternatives
+            units = self.decoding.units()
+            for i, c in enumerate(items):
+                if c.pin is not None and c.text == "".join(u[2] for u in units if c.pin.start <= u[0] < c.pin.end):
+                    self.cand.index = i
+                    self.cand._keep_visible()
+                    break
 
     def _candidate_items(self) -> list[Candidate]:
         t = self._target_unit()
@@ -718,7 +798,7 @@ class Session(CorrectionMixin):
             # with the code (homophones by reading would be meaningless).
             # This character's own alternatives first (天 before 堤岸 for
             # "tian"), then longer words starting here.
-            alts = self._zh_alternatives(a)
+            alts = self._zh_alternatives(a, own=True)
             alts.sort(key=lambda c: (c.pin.end != b, len(c.pin.readings) != 1))
             items = alts + self._raw_candidates(a, b)
         elif seg.kind is Kind.ZH:
@@ -729,9 +809,16 @@ class Session(CorrectionMixin):
         elif seg.kind is Kind.PUNCT:
             items = self._punct_candidates(seg)
         elif seg.kind in (Kind.NUM, Kind.LITERAL):
-            items = [Candidate(seg.text, replace(seg, pinned=True))] + self._zh_alternatives(seg.start)
+            group = "數字" if seg.kind is Kind.NUM else "原始按鍵"
+            items = [Candidate(seg.text, replace(seg, pinned=True), group=group)] + self._zh_alternatives(seg.start)
         else:
             items = []
+        # Your own words first, then what you chose before, then the
+        # dictionary (stable: the order within a group stays). The target's
+        # own kind (英文, 數字, 標點) leads when it is not Chinese.
+        lead = {Kind.EN: "英文", Kind.NUM: "數字", Kind.PUNCT: "標點"}.get(seg.kind)
+        order = ([lead] if lead else []) + [g for g in GROUP_ORDER if g != lead]
+        items.sort(key=lambda c: order.index(c.group) if c.group in order else len(order))
         seen: set[tuple[str, int, int]] = set()
         unique = []
         for c in items:
@@ -741,9 +828,20 @@ class Session(CorrectionMixin):
                 unique.append(c)
         return unique
 
-    def _zh_alternatives(self, start: int) -> list[Candidate]:
-        return [Candidate(s.text, replace(s, pinned=True), self._note(s.text, "-".join(s.readings)))
-                for s in self.engine.decoder.zh_alternatives(self.keys, start, scheme=self.scheme)]
+    def _zh_alternatives(self, start: int, own: bool = False) -> list[Candidate]:
+        """Chinese readings of the keys at ``start``. ``own``: they are the
+        target's own candidates (group 詞庫), not another way to read
+        something decoded as English/raw (group 其他讀法, noted with the
+        reading so it is clear where it comes from)."""
+        out = []
+        for s in self.engine.decoder.zh_alternatives(self.keys, start, scheme=self.scheme):
+            reading = "-".join(s.readings)
+            note, group = self._note_group(s.text, reading)
+            if not group:
+                group = "詞庫" if own else "其他讀法"
+                note = "" if own else reading.replace("-", " ")
+            out.append(Candidate(s.text, replace(s, pinned=True), note, group=group))
+        return out
 
     def _dropped_before(self, pos: int) -> int:
         """Start of the run of dropped (invisible) keys that ends at ``pos``."""
@@ -757,7 +855,8 @@ class Session(CorrectionMixin):
         before them), to undo any interpretation."""
         a = self._dropped_before(a)
         raw = "".join(k.char for k in self.keys[a:b])
-        return [Candidate(raw, Segment(a, b, raw, Kind.LITERAL, -10.0, pinned=True), annotation="原始按鍵")]
+        return [Candidate(raw, Segment(a, b, raw, Kind.LITERAL, -10.0, pinned=True), annotation="原始按鍵",
+                          group="原始按鍵")]
 
     def _zh_candidates(self, units, t: int, at_end: bool) -> list[Candidate]:
         segs = self.decoding.segments
@@ -793,17 +892,23 @@ class Session(CorrectionMixin):
                     continue
                 seen.add(key)
                 pin = Segment(bounds[0], bounds[-1], text, Kind.ZH, score, rs, bounds, pinned=True)
-                items.append(Candidate(text, pin, self._note(text, "-".join(rs))))
+                note, group = self._note_group(text, "-".join(rs))
+                items.append(Candidate(text, pin, note, group=group or "詞庫"))
         return items
 
     def _note(self, phrase: str, reading: str) -> str:
         """Candidate annotation from my dictionary: its category, or 學過."""
+        return self._note_group(phrase, reading)[0]
+
+    def _note_group(self, phrase: str, reading: str) -> tuple[str, str]:
+        """(annotation, group) from my dictionary: a word you added is in
+        我的詞庫 (noted with its category), one you chose before in 學過."""
         e = self.engine.lexicon.entry(phrase, reading)
         if e is None:
-            return ""
-        if e.category:
-            return e.category
-        return "學過" if e.count > 0 else ""
+            return "", ""
+        if e.source == "manual" or e.category:
+            return e.category or "我的詞庫", "我的詞庫"
+        return ("學過", "學過") if e.count > 0 else ("", "")
 
     def _punct_candidates(self, seg: Segment) -> list[Candidate]:
         raw = self.keys[seg.start].char
@@ -812,37 +917,51 @@ class Session(CorrectionMixin):
             options += [FULLWIDTH_PUNCT[raw], raw, *PUNCT_VARIANTS.get(raw, "")]
         elif raw in PLAIN_PUNCT:  # pinyin / Cangjie: , . ; are punctuation keys
             options += [PLAIN_PUNCT[raw], raw]
-        return [Candidate(o, replace(seg, text=o, pinned=True)) for o in dict.fromkeys(options)]
+        return [Candidate(o, replace(seg, text=o, pinned=True), group="標點") for o in dict.fromkeys(options)]
 
     def _candidate_key(self, key: KeyInput) -> bool:
         cand = self.cand
         assert cand is not None
         vk = key.vk
         if key.ctrl and vk == VK_D:
-            self._add_candidate_to_dict(cand.items[cand.index])
+            self._add_candidate_to_dict(cand.current)
             return True
         if key.ctrl or key.alt:
             return False
         if vk == VK_TAB and cand.palette is not None:
             self._open_palette(cand.palette + (-1 if key.shift else 1))
             return True
+        if cand.palette is not None and vk in (VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN):
+            # the symbol panel is a grid (a page per row): arrows move by cell / row
+            step = {VK_LEFT: -1, VK_RIGHT: +1, VK_UP: -cand.page_size, VK_DOWN: +cand.page_size}[vk]
+            if 0 <= cand.index + step < len(cand.shown) or abs(step) == 1:
+                cand.move(step)
+            return True
+        if vk == VK_TAB:
+            # show one group at a time: 全部 -> 我的詞庫 -> 學過 -> 詞庫 -> …
+            cand.cycle_filter(-1 if key.shift else +1)
+            return True
         if key.char and key.char in SELECTION_DIGITS:  # top row or numpad
             i = SELECTION_DIGITS.index(key.char)
-            page = cand.page_items()
+            page = cand.page_items()  # the column the selection is in
             if i < len(page):
                 self._choose(page[i])
             return True
         if vk == VK_DELETE:
-            self._forget_candidate(cand.items[cand.index])
+            self._forget_candidate(cand.current)
         elif vk in (VK_RETURN, VK_SPACE):
-            self._choose(cand.items[cand.index])
+            self._choose(cand.current)
         elif vk == VK_DOWN:
             cand.move(+1)
         elif vk == VK_UP:
             cand.move(-1)
-        elif vk in (VK_RIGHT, VK_NEXT):
+        elif vk == VK_RIGHT:
+            cand.move_column(+1) if cand.multi else cand.move_page(+1)
+        elif vk == VK_LEFT:
+            cand.move_column(-1) if cand.multi else cand.move_page(-1)
+        elif vk == VK_NEXT:
             cand.move_page(+1)
-        elif vk in (VK_LEFT, VK_PRIOR):
+        elif vk == VK_PRIOR:
             cand.move_page(-1)
         elif vk in (VK_ESCAPE, VK_BACK):
             self.cand = None
@@ -912,7 +1031,7 @@ class Session(CorrectionMixin):
         self._redecode()
         self._open_candidates()
         if self.cand is not None:
-            self.cand.index = min(keep_index, len(self.cand.items) - 1)
+            self.cand.index = min(keep_index, len(self.cand.shown) - 1)
 
     def _add_candidate_to_dict(self, c: Candidate) -> None:
         seg = c.pin
@@ -1081,8 +1200,8 @@ class Session(CorrectionMixin):
         if not self.suggestions:
             self._notice = "現在沒有接續建議"
             return
-        items = [Candidate(s.text, None, s.pin.text, suggestion=s) for s in self.suggestions]
-        self.cand = CandidateList(items, self.cfg.candidates_per_page, title="接續")
+        items = [Candidate(s.text, None, s.pin.text, suggestion=s, group="接續") for s in self.suggestions]
+        self.cand = self._new_list(items, title="接續")
 
     # ============================================================ symbol panel
     def _is_palette_tap(self, key: KeyInput) -> bool:
@@ -1103,12 +1222,13 @@ class Session(CorrectionMixin):
         index %= len(CATEGORIES)
         name, symbols = self.engine.symbols.category(index)
         tabs = " ".join(f"[{n}]" if i == index else n for i, (n, _) in enumerate(CATEGORIES))
-        items = [Candidate(sym, None, symbol=sym) for sym in symbols]
+        items = [Candidate(sym, None, symbol=sym, group="符號") for sym in symbols]
         # the category name rides on the first row, so it is visible even
         # when nothing is being composed (no message window then)
         items[0].annotation = f"{name} · Tab 換分類"
-        self.cand = CandidateList(items, self.cfg.candidates_per_page,
-                                  title=f"符號 {tabs} · Tab 換分類", palette=index)
+        self.cand = self._new_list(items, title=f"符號 {tabs} · Tab 換分類", palette=index)
+        self.cand.multi = True
+        self.cand.columns = min(self.cand.pages, 4)  # rows of the grid shown at once
 
     def _insert_symbol(self, symbol: str) -> None:
         self.cand = None
@@ -1177,4 +1297,4 @@ def _parts_outside(seg: Segment, a: int, b: int) -> list[Segment]:
 def _en_candidates(seg: Segment) -> list[Candidate]:
     word = seg.text
     variants = dict.fromkeys([word, word.lower(), word.upper(), word[:1].upper() + word[1:].lower()])
-    return [Candidate(v, replace(seg, text=v, pinned=True)) for v in variants]
+    return [Candidate(v, replace(seg, text=v, pinned=True), group="英文") for v in variants]

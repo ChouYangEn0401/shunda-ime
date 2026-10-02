@@ -25,19 +25,29 @@ SAMPLES = [
 ]
 
 
-def render(panel, theme, scale: float, path: Path) -> None:
+CANDIDATE_SAMPLES = [
+    ("cand-zh", "ji35p {DOWN}", False),
+    ("cand-en", "mvp {DOWN}", False),
+    ("cand-multi", "u4{DOWN}{RIGHT}{RIGHT}", True),
+    ("cand-filter", "mvp {DOWN}{TAB}{TAB}", False),
+    ("palette", "ji3{RALT}{TAB}{TAB}{RIGHT}", True),
+]
+
+
+def render(panel, theme, scale: float, path: Path, kind: str = "decode") -> None:
     from PIL import Image
 
     from ..ui.canvas import Canvas, Fonts, Surface
-    from ..ui.panels import paint_decode
+    from ..ui.panels import paint_candidates, paint_decode
 
+    paint = paint_candidates if kind == "candidates" else paint_decode
     fonts = Fonts(scale)
     probe = Surface(4, 4)
-    size = paint_decode(Canvas(probe.hdc, scale, fonts), theme, panel, draw=False)
+    size = paint(Canvas(probe.hdc, scale, fonts), theme, panel, draw=False)
     probe.close()
     surf = Surface(round(size.width * scale) + 1, round(size.height * scale) + 1)
     canvas = Canvas(surf.hdc, scale, fonts)
-    paint_decode(canvas, theme, panel)
+    paint(canvas, theme, panel)
     Image.frombytes("RGB", (surf.width, surf.height), surf.rgb_bytes()).save(path)
     canvas.close()
     surf.close()
@@ -75,6 +85,26 @@ def main() -> int:
                 path = out / f"decode-{name}-{'dark' if theme.dark else 'light'}.png"
                 render(panel, theme, args.scale, path)
                 print(path)
+        if not args.script:
+            # a word in my dictionary and a learned one, so every group shows
+            engine.lexicon.user.add("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ", "zh", "朋友")
+            engine.lexicon.user.add("珍", "ㄓㄣ", "zh", "朋友")
+            engine.lexicon.user.learn("真", "ㄓㄣ", "zh")
+            engine.lexicon.invalidate()
+            for name, script, multi in CANDIDATE_SAMPLES:
+                engine.config.candidate_multi_column = multi
+                session = Session(engine)
+                run(session, script)
+                from ..engine.panel import candidate_panel
+
+                panel = candidate_panel(session)
+                if panel is None:
+                    print("no candidates for", script)
+                    continue
+                for theme in themes:
+                    path = out / f"{name}-{'dark' if theme.dark else 'light'}.png"
+                    render(panel, theme, args.scale, path, "candidates")
+                    print(path)
         engine.lexicon.user.close()
         engine.lexicon.close()
     return 0

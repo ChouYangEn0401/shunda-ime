@@ -40,6 +40,9 @@ class Config:
     candidate_font: str = "Microsoft JhengHei UI"
     candidate_font_size: int = 16
     vertical_candidates: bool = True
+    # → opens the next page as another column (← on the first column folds
+    # back) instead of turning the page; the IME's own panel only.
+    candidate_multi_column: bool = False
 
     # Composition behaviour
     max_buffer_chars: int = 30  # older text is committed automatically beyond this
@@ -77,6 +80,9 @@ class Config:
     # = in correction mode only (default), "always" = whenever composing, "off".
     panel_decode: str = "correction"
     panel_theme: str = "system"  # "system" | "light" | "dark"
+    # The candidate window drawn as a panel: groups in colour (我的詞庫, 學過,
+    # 詞庫 …), Tab filters a group. Off = PIME's plain list.
+    panel_candidates: bool = True
 
     # Memory (my dictionary)
     learn: bool = True  # remember candidates I pick and continuations I accept

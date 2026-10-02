@@ -295,9 +295,202 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
 
 
 # ======================================================================== candidates
-GROUP_COLOR = {"我的詞庫": "memory", "學過": "memory", "接續": "predict", "片語": "predict"}
+# Group -> theme colour. Your own words and learned ones are green (memory),
+# suggestions purple; raw keys faint; the rest neutral. Coloured groups get a
+# bar in front of every item, so a whole group can be skipped at a glance.
+GROUP_COLOR = {"我的詞庫": "memory", "學過": "memory", "接續": "predict", "片語": "predict",
+               "顏文字": "predict", "原始按鍵": "faint"}
+ROW_H, GROUP_H, LABEL_W = 29, 19, 16
+CAND_HELP = [("↑↓", "移動"), ("1–9", "選"), ("Tab", "分類"), ("→", "更多"), ("Del", "忘記"), ("Ctrl+D", "加詞")]
+CAND_HELP_SINGLE = [("↑↓", "移動"), ("1–9", "選"), ("Tab", "分類"), ("← →", "翻頁"), ("Del", "忘記"),
+                    ("Ctrl+D", "加詞")]
+PALETTE_HELP = [("1–9", "選"), ("Tab", "換分類"), ("→", "更多"), ("Esc", "關閉")]
+
+
+def _group_color(t: Theme, group: str) -> int | None:
+    name = GROUP_COLOR.get(group)
+    return getattr(t, name) if name else None
+
+
+def _columns(p: CandidatePanel):
+    """[(page, [(index, item), ...]), ...] for the pages shown."""
+    out = []
+    for page in range(p.first_page, min(p.first_page + p.columns, p.pages)):
+        start = page * p.page_size
+        out.append((page, list(enumerate(p.items[start:start + p.page_size], start))))
+    return out
+
+
+def _column_rows(rows):
+    """Insert a group header wherever the group changes inside a column."""
+    out, last = [], None
+    for idx, item in rows:
+        if item.group != last and item.group:
+            out.append(("group", item.group))
+            last = item.group
+        out.append(("item", (idx, item)))
+    return out
+
+
+CELL_W, CELL_H = 38, 38
+
+
+def paint_palette(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, draw: bool = True) -> Painted:
+    """The symbol panel: a grid, one page (1–9) per row, the category chips
+    above. Numbers are shown on the row the selection is in."""
+    s = Styles(c, t, size)
+    k = size
+    rows = _columns(p)  # pages shown = rows here
+    grid_w = p.page_size * CELL_W * k
+    chips_w = sum(c.measure(ch, s.small)[0] + 18 * k for ch in p.chips)
+    width = max(grid_w, min(chips_w, 560 * k), _help_width(c, s, PALETTE_HELP)) + 2 * PAD_X * k
+    chip_lines = _chip_lines(c, s, p.chips, width - 2 * PAD_X * k, k)
+    title_h = 20 * k
+    chips_h = 24 * k * len(chip_lines)
+    grid_h = len(rows) * CELL_H * k
+    height = PAD_Y * k + title_h + chips_h + 6 * k + grid_h + 8 * k + 20 * k + PAD_Y * k
+    out = Painted(width, height)
+    if not draw:
+        return out
+    c.fill(0, 0, width, height, t.bg)
+    c.stroke(0, 0, width, height, t.border, line=1)
+    x0, y = PAD_X * k, PAD_Y * k
+    c.text(x0, y, f"符號 · {p.chip}", s.help, t.muted)
+    pages = f"{p.first_page + 1}–{p.first_page + len(rows)}/{p.pages}" if len(rows) > 1 else f"1/{p.pages}"
+    if p.pages > 1:
+        c.text(width - PAD_X * k - c.measure(pages, s.num)[0], y + 1 * k, pages, s.num, t.faint)
+    y += title_h
+    for line in chip_lines:
+        _paint_chips(c, s, t, x0, y, line, p.chip, k)
+        y += 24 * k
+    c.hline(x0, width - PAD_X * k, y + 2 * k, t.border, 1)
+    y += 6 * k
+    for r, (page, items) in enumerate(rows):
+        cy = y + r * CELL_H * k
+        for col, (idx, item) in enumerate(items):
+            cx = x0 + col * CELL_W * k
+            selected = idx == p.index
+            if selected:
+                c.fill(cx + 1 * k, cy + 1 * k, CELL_W * k - 2 * k, CELL_H * k - 2 * k, t.accent, radius=5 * k)
+            if item.label:
+                c.text(cx + 3 * k, cy + 1 * k, item.label, s.label, t.on_accent if selected else t.faint)
+            c.text_center(cx, cy + 9 * k, CELL_W * k, item.text, s.cand, t.on_accent if selected else t.fg)
+    fy = y + grid_h + 8 * k
+    c.hline(x0, width - PAD_X * k, fy - 4 * k, t.border, 1)
+    _paint_help(c, s, t, x0, fy, PALETTE_HELP, width - PAD_X * k)
+    return out
+
+
+def _chip_lines(c: Canvas, s: Styles, chips: list[str], room: float, k: float) -> list[list[str]]:
+    lines: list[list[str]] = [[]]
+    used = 0.0
+    for ch in chips:
+        cw = c.measure(ch, s.small)[0] + 18 * k
+        if lines[-1] and used + cw > room:
+            lines.append([])
+            used = 0.0
+        lines[-1].append(ch)
+        used += cw
+    return [line for line in lines if line]
+
+
+def _paint_chips(c: Canvas, s: Styles, t: Theme, x: float, y: float, chips: list[str], active: str,
+                 k: float) -> None:
+    for ch in chips:
+        cw = c.measure(ch, s.small)[0] + 14 * k
+        color = _group_color(t, ch)
+        if ch == active:
+            c.fill(x, y + 1 * k, cw, 19 * k, t.accent_soft, radius=9 * k)
+            c.text(x + 7 * k, y + 3 * k, ch, s.small_bold, t.accent)
+        else:
+            c.text(x + 7 * k, y + 3 * k, ch, s.small, color if color is not None else t.muted)
+        x += cw + 4 * k
 
 
 def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, draw: bool = True) -> Painted:
-    """Placeholder until the grouped candidate window lands (Phase B3)."""
-    return Painted(0, 0)
+    if p.palette:
+        return paint_palette(c, t, p, size, draw)
+    s = Styles(c, t, size)
+    k = size
+    cols = _columns(p)
+    col_rows = [_column_rows(rows) for _, rows in cols]
+    # widths
+    col_w = []
+    for rows in col_rows:
+        w = 96 * k
+        for kind, val in rows:
+            if kind == "group":
+                w = max(w, c.measure(val, s.small_bold)[0] + 16 * k)
+            else:
+                _, item = val
+                tw = c.measure(item.text, s.cand)[0]
+                nw = c.measure(item.note, s.cand_note)[0] if item.note else 0
+                w = max(w, (LABEL_W + 10) * k + tw + (10 * k + nw if nw else 0) + 14 * k)
+        col_w.append(w)
+    gap = 10 * k
+    cols_w = sum(col_w) + gap * max(0, len(col_w) - 1)
+    help_items = PALETTE_HELP if p.palette else (CAND_HELP if p.multi else CAND_HELP_SINGLE)
+    title_w = c.measure(p.title, s.help)[0] + 60 * k
+    chips_w = sum(c.measure(ch, s.small)[0] + 18 * k for ch in p.chips)
+    width = max(cols_w, _help_width(c, s, help_items), title_w, chips_w) + 2 * PAD_X * k
+    width = min(width, max(cols_w + 2 * PAD_X * k, 420 * k))
+    title_h = 20 * k
+    chips_h = 24 * k if p.chips else 0
+    body_h = max((sum(GROUP_H * k if kind == "group" else ROW_H * k for kind, _ in rows) for rows in col_rows),
+                 default=ROW_H * k)
+    footer_h = 20 * k
+    height = PAD_Y * k + title_h + chips_h + 4 * k + body_h + 8 * k + footer_h + PAD_Y * k
+    out = Painted(width, height)
+    if not draw:
+        return out
+
+    c.fill(0, 0, width, height, t.bg)
+    c.stroke(0, 0, width, height, t.border, line=1)
+    x0, y = PAD_X * k, PAD_Y * k
+    # title: what is being chosen, and where we are
+    pages = f"{p.first_page + 1}–{p.first_page + len(cols)}/{p.pages}" if len(cols) > 1 else f"{p.index // p.page_size + 1}/{p.pages}"
+    c.text(x0, y, p.title, s.help, t.muted)
+    pw = c.measure(pages, s.num)[0]
+    if p.pages > 1:
+        c.text(width - PAD_X * k - pw, y + 1 * k, pages, s.num, t.faint)
+    y += title_h
+    # Tab chips: the groups; the active filter filled
+    if p.chips:
+        _paint_chips(c, s, t, x0, y, p.chips, p.chip, k)
+        y += chips_h
+    c.hline(x0, width - PAD_X * k, y + 1 * k, t.border, 1)
+    y += 4 * k
+    # columns
+    x = x0
+    for (page, _), rows, cw in zip(cols, col_rows, col_w):
+        ry = y + 2 * k
+        for kind, val in rows:
+            if kind == "group":
+                color = _group_color(t, val)
+                c.text(x + 2 * k, ry + 2 * k, val, s.small_bold, color if color is not None else t.faint)
+                ry += GROUP_H * k
+                continue
+            idx, item = val
+            selected = idx == p.index
+            color = _group_color(t, item.group)
+            if selected:
+                c.fill(x, ry, cw, ROW_H * k - 2 * k, t.accent, radius=5 * k)
+            elif color is not None:
+                c.fill(x, ry + 4 * k, 3 * k, ROW_H * k - 10 * k, color, radius=1.5 * k)
+            fg = t.on_accent if selected else t.fg
+            if item.label:
+                c.text(x + 7 * k, ry + 6 * k, item.label, s.num, t.on_accent if selected else t.faint)
+            tx = x + (LABEL_W + 10) * k
+            c.text(tx, ry + 2 * k, item.text, s.cand, fg)
+            if item.note:
+                nx = tx + c.measure(item.text, s.cand)[0] + 10 * k
+                note_color = t.on_accent if selected else (color if color is not None else t.muted)
+                c.text(nx, ry + 7 * k, item.note, s.cand_note, note_color)
+            ry += ROW_H * k
+        x += cw + gap
+        if x < x0 + cols_w:
+            c.vline(x - gap / 2, y + 2 * k, y + body_h, t.border, 1)
+    fy = y + body_h + 8 * k
+    c.hline(x0, width - PAD_X * k, fy - 4 * k, t.border, 1)
+    _paint_help(c, s, t, x0, fy, help_items, width - PAD_X * k)
+    return out

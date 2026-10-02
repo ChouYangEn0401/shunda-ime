@@ -58,24 +58,65 @@ class DecodePanel:
 class CandidateItem:
     text: str
     note: str = ""  # category, 學過, 原始按鍵, reading …
-    group: str = ""  # see CandidatePanel.GROUPS
-    label: str = ""  # selection key shown in front ("1".."9"), "" when not on the current page
+    group: str = ""  # see session.GROUP_ORDER
+    label: str = ""  # selection key ("1".."9") in the column the selection is in, else ""
 
 
 @dataclass
 class CandidatePanel:
-    items: list[CandidateItem]
+    items: list[CandidateItem]  # after the filter
     index: int  # selected item (into items)
     page_size: int
-    columns: int = 1  # pages shown side by side (→ opens more, ← at the first closes)
+    columns: int = 1  # pages shown side by side (multi-column mode)
     first_page: int = 0  # leftmost page shown
-    title: str = ""
-    filter: str = ""  # "" = all groups, else one group name
-    filters: list[str] = field(default_factory=list)  # groups present (for the Tab filter chips)
-    help: str = ""
+    pages: int = 1
+    title: str = ""  # what is being chosen (context with ［ ］, or the list's name)
+    chips: list[str] = field(default_factory=list)  # Tab cycles these: groups, or palette categories
+    chip: str = ""  # the active one
+    multi: bool = False
+    palette: bool = False
 
-    # Group names, in display order, with the role the frontend colours.
-    GROUPS = ("我的詞庫", "學過", "詞庫", "其他讀法", "原始按鍵", "符號", "接續", "片語", "顏文字")
+
+def candidate_panel(session) -> CandidatePanel | None:
+    """The candidate window as a panel (grouped, coloured by the frontend)."""
+    cand = session.cand
+    if cand is None:
+        return None
+    shown = cand.shown
+    page = cand.page
+    items = [CandidateItem(c.text, c.annotation if c.annotation != c.group and cand.palette is None else "",
+                           c.group, str(i % cand.page_size + 1) if i // cand.page_size == page else "")
+             for i, c in enumerate(shown)]
+    panel = CandidatePanel(items, cand.index, cand.page_size, cand.columns, cand.first_page, cand.pages,
+                           multi=cand.multi)
+    if cand.palette is not None:
+        from .symbols import CATEGORIES
+
+        panel.palette = True
+        panel.chips = [name for name, _ in CATEGORIES]
+        panel.chip = CATEGORIES[cand.palette % len(CATEGORIES)][0]
+        panel.title = "符號"
+    else:
+        groups = cand.groups()
+        if len(groups) > 1:
+            panel.chips = ["全部"] + groups
+            panel.chip = cand.filter or "全部"
+        panel.title = cand.title or _candidate_title(session)
+    return panel
+
+
+def _candidate_title(session) -> str:
+    """What is being changed: 今天［針］對　ㄓㄣ, or ［mvp］ for a word."""
+    t = session._target_unit()
+    if t is None:
+        return ""
+    a, _, _, seg_idx = session.decoding.units()[t]
+    seg = session.decoding.segments[seg_idx]
+    if seg.kind is Kind.ZH:
+        return f"{session._unit_context(t)}　{seg.readings[seg.bounds.index(a)]}"
+    label = KIND_LABEL.get(seg.kind, "")
+    text = seg.text.replace(" ", "␣")
+    return f"［{text}］{label}"
 
 
 def _display_key(ch: str) -> str:

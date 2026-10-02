@@ -251,7 +251,8 @@ class SmartTextService:
         if v.composition:
             reply["compositionCursor"] = v.cursor
 
-        if v.candidates is not None:
+        panel_kind = self._panel_kind(v)
+        if v.candidates is not None and panel_kind != "candidates":
             notes = v.candidate_notes or [""] * len(v.candidates)
             # Category / 學過 / 原始按鍵 shown after the candidate text.
             reply["candidateList"] = [f"{t}　{n}" if n else t for t, n in zip(v.candidates, notes)]
@@ -278,9 +279,11 @@ class SmartTextService:
             message = ""
         if not v.composition:
             message = ""
-        if self._show_panel(v) and v.correcting and not v.notice and v.candidates is None:
+        if self._show_panel(v, panel_kind) == "decode" and v.correcting and not v.notice:
             # the panel shows everything; the hint box stays as its anchor
             message = "修正模式 · Esc 回到打字"
+        elif panel_kind == "candidates" and not v.notice:
+            message = "符號 · Esc 關閉" if v.candidate_panel.palette else "選字 · Esc 取消"
         # PIME applies showMessage *before* the composition update, and when
         # no composition exists yet it opens a temporary one and ends it at
         # the end of the reply — which commits our first key as raw text.
@@ -300,19 +303,33 @@ class SmartTextService:
 
         self._update_mode_icon(reply)
 
-    def _show_panel(self, v) -> bool:
-        """Show / hide our own panel window for this view. True if shown."""
-        overlay = _panel_window(create=v.panel is not None)
+    def _panel_kind(self, v) -> str:
+        """Which of our panels this view wants: "candidates", "decode" or "".
+        Our panels dock under PIME's hint box, which needs a composition;
+        with nothing composed (symbol panel from idle) PIME's own list is used."""
+        if not v.composition:
+            return ""
+        cfg = self.engine.config
+        if v.candidate_panel is not None and cfg.panel_candidates:
+            return "candidates" if _panel_window(create=True) is not None else ""
+        if v.panel is not None:
+            return "decode"
+        return ""
+
+    def _show_panel(self, v, kind: str) -> str:
+        """Show / hide our own panel window for this view; returns the kind shown."""
+        overlay = _panel_window(create=bool(kind))
         if overlay is None:
-            return False
-        if v.panel is None or not v.composition:
+            return ""
+        if not kind:
             overlay.hide(self)
-            return False
+            return ""
         cfg = self.engine.config
         from ..ui.theme import pick
 
-        overlay.show(self, "decode", v.panel, pick(cfg.panel_theme), cfg.candidate_font_size / 16)
-        return True
+        model = v.candidate_panel if kind == "candidates" else v.panel
+        overlay.show(self, kind, model, pick(cfg.panel_theme), cfg.candidate_font_size / 16)
+        return kind
 
     def _clear_ui(self, reply: dict, composition: bool = True) -> None:
         overlay = _panel_window(create=False)
