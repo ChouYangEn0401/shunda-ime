@@ -281,25 +281,63 @@
   });
 
   // ------------------------------------------------------------ dictionary
-  let dictView = "";
+  // Two areas: 自動收集 (what the IME learned from your choices and fixes,
+  // not sorted yet) and 我的詞庫 (words with a category, yours to keep).
+  // Giving an inbox word a category moves it over. Long lists scroll in a
+  // fixed-height box and load 100 rows at a time.
+  const DICT_PAGE = 100;
+  const DICT_EXPLAIN = {
+    inbox: "輸入法從你的選字、修正和 Tab 接續自動記下來的詞，還沒整理。給它一個分類，就會移到「我的詞庫」；用不到的直接刪掉。",
+    mine: "你自己加的詞，和你分類過的詞。打字時排在最前面，候選窗標上綠色。",
+    blocked: "在候選窗按 Delete 不想再看到的詞。按「還原」就會再出現在候選裡。",
+  };
+  const ORIGIN = { fix: ["修正", "plan"], pick: ["選字", "later"], tab: ["接續", "predict"] };
+  let dictView = "inbox";
+  let dictCat = "";
+  let dictSort = "recent";
   let dictQuery = "";
+  let dictRows = [];
+  let dictTotal = 0;
+  let dictLoading = false;
+  let dictToken = 0;  // ignore answers to requests made before the view changed
+
+  function ago(ts) {
+    if (!ts) return "—";
+    const s = Date.now() / 1000 - ts;
+    if (s < 60) return "剛剛";
+    if (s < 3600) return `${Math.floor(s / 60)} 分鐘前`;
+    if (s < 86400) return `${Math.floor(s / 3600)} 小時前`;
+    if (s < 86400 * 30) return `${Math.floor(s / 86400)} 天前`;
+    const d = new Date(ts * 1000);
+    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+  }
+
   function renderCategories() {
     const chips = document.getElementById("cat-chips");
     const manage = document.getElementById("cat-manage");
     const select = document.getElementById("add-cat");
     const cats = state.categories;
+    const s = state.stats;
+    // the three areas, with their sizes
+    document.querySelectorAll("#dict-tabs [data-dict]").forEach(b => {
+      b.setAttribute("aria-pressed", b.dataset.dict === dictView ? "true" : "false");
+      b.querySelector(".n").textContent = { inbox: s.inbox, mine: s.mine, blocked: s.blocked }[b.dataset.dict] ?? 0;
+    });
+    document.getElementById("dict-explain").textContent = DICT_EXPLAIN[dictView];
+    // categories filter inside 我的詞庫
+    chips.hidden = dictView !== "mine";
     chips.innerHTML = "";
-    const views = [["", "全部"], ...cats.map(c => [c.name, c.name, c.entries]), ["learned", "學到的", state.stats.learned],
-      ["blocked", "已封鎖", state.stats.blocked]];
-    views.forEach(([value, label, n]) => {
+    [["", "全部", s.mine], ...cats.map(c => [c.name, c.name, c.entries])].forEach(([value, label, n]) => {
       const b = document.createElement("button");
       b.className = "chip"; b.type = "button";
       b.textContent = label;
-      if (n !== undefined) { const s = document.createElement("span"); s.className = "n"; s.textContent = n; b.appendChild(s); }
-      b.setAttribute("aria-pressed", value === dictView ? "true" : "false");
-      b.addEventListener("click", () => { dictView = value; renderCategories(); loadEntries(); });
+      if (n !== undefined) { const sp = document.createElement("span"); sp.className = "n"; sp.textContent = n; b.appendChild(sp); }
+      b.setAttribute("aria-pressed", value === dictCat ? "true" : "false");
+      b.addEventListener("click", () => { dictCat = value; renderCategories(); loadEntries(); });
       chips.appendChild(b);
     });
+    document.querySelectorAll("#dict-sort [data-sort]").forEach(b =>
+      b.setAttribute("aria-pressed", b.dataset.sort === dictSort ? "true" : "false"));
     const keep = select.value;
     select.innerHTML = "";
     cats.forEach(c => { const o = document.createElement("option"); o.textContent = c.name; select.appendChild(o); });
@@ -318,19 +356,24 @@
         try {
           await api("DELETE", `/api/categories/${c.id}`);
           toast(`已刪除分類「${c.name}」，裡面的詞保留`);
-          if (dictView === c.name) dictView = "";
+          if (dictCat === c.name) dictCat = "";
           await refreshState();
         } catch (e) { toast(e.message, true); }
       });
       wrap.appendChild(del);
       manage.appendChild(wrap);
     });
-    const s = state.stats;
-    document.getElementById("dict-stats").textContent = `自己加的 ${s.manual} · 學到的 ${s.learned} · 已封鎖 ${s.blocked}`;
+    document.getElementById("dict-stats").textContent = `自動收集 ${s.inbox} · 我的詞庫 ${s.mine} · 已封鎖 ${s.blocked}`;
     const kb = Math.max(1, Math.round((s.bytes || 0) / 1024));
     document.getElementById("memory-size").textContent =
       `自己加的 ${s.manual} 個詞、學到的 ${s.learned} 個、封鎖 ${s.blocked} 個，檔案約 ${kb >= 1024 ? (kb / 1024).toFixed(1) + " MB" : kb + " KB"}。`;
   }
+  document.querySelectorAll("#dict-tabs [data-dict]").forEach(b => b.addEventListener("click", () => {
+    dictView = b.dataset.dict; dictCat = ""; renderCategories(); loadEntries();
+  }));
+  document.querySelectorAll("#dict-sort [data-sort]").forEach(b => b.addEventListener("click", () => {
+    dictSort = b.dataset.sort; renderCategories(); loadEntries();
+  }));
   document.getElementById("tidy-memory").addEventListener("click", async () => {
     try {
       const r = await api("POST", "/api/memory/tidy");
@@ -347,48 +390,96 @@
     await loadEntries();
   }
 
-  async function loadEntries() {
+  const HEADS = {
+    inbox: ["詞", "讀音", "怎麼來的", "用過", "最近", ""],
+    mine: ["詞", "讀音", "分類", "用過", "最近", ""],
+    blocked: ["詞", "讀音", "", "", "", ""],
+  };
+
+  async function loadEntries(more) {
     if (!state) return;
-    const params = new URLSearchParams({ view: dictView, q: dictQuery });
-    let rows;
-    try { rows = await api("GET", "/api/entries?" + params); } catch (e) { toast(e.message, true); return; }
+    if (more && (dictLoading || dictRows.length >= dictTotal)) return;
+    const token = more ? dictToken : ++dictToken;
+    dictLoading = true;
+    const params = new URLSearchParams({ view: dictView, q: dictQuery, sort: dictSort, paged: "1",
+      offset: more ? dictRows.length : 0, limit: DICT_PAGE });
+    if (dictView === "mine" && dictCat) params.set("category", dictCat);
+    let page;
+    try { page = await api("GET", "/api/entries?" + params); }
+    catch (e) { toast(e.message, true); dictLoading = false; return; }
+    dictLoading = false;
+    if (token !== dictToken) return;
     const body = document.getElementById("dict-body");
-    body.innerHTML = "";
-    if (!rows.length) {
-      body.innerHTML = `<tr><td colspan="6" class="note">${dictQuery ? "找不到符合的詞。" :
-        dictView === "blocked" ? "沒有封鎖的詞。在候選窗對不想再看到的詞按 Delete 就會出現在這裡。" :
-        dictView === "learned" ? "還沒有學到的詞。從候選窗選過的詞會出現在這裡。" :
-        "這裡還沒有詞。用上面的表單加入第一個，或打字時按 Ctrl+D。"}</td></tr>`;
-      return;
+    if (!more) {
+      dictRows = [];
+      body.innerHTML = "";
+      const head = document.getElementById("dict-head");
+      head.innerHTML = "";
+      HEADS[dictView].forEach((h, i) => {
+        const th = document.createElement("th"); th.textContent = h;
+        if (i === 3) th.style.textAlign = "right";
+        head.appendChild(th);
+      });
+      document.getElementById("dict-scroll").scrollTop = 0;
     }
-    rows.forEach(r => body.appendChild(entryRow(r)));
+    dictTotal = page.total;
+    dictRows = dictRows.concat(page.rows);
+    page.rows.forEach(r => body.appendChild(entryRow(r)));
+    if (!dictRows.length) {
+      body.innerHTML = `<tr><td colspan="6" class="note empty">${dictQuery ? "找不到符合的詞。" :
+        dictView === "blocked" ? "沒有封鎖的詞。在候選窗對不想再看到的詞按 Delete 就會出現在這裡。" :
+        dictView === "inbox" ? "還沒有自動收集的詞。從候選窗選字、修正錯字或按 Tab 接受接續後，會出現在這裡。" :
+        "這裡還沒有詞。用上面的表單加入第一個，或打字時按 Ctrl+D。"}</td></tr>`;
+    }
+    document.getElementById("dict-count").textContent = dictTotal ? `共 ${dictTotal} 個，顯示 ${dictRows.length} 個` : "";
+    document.getElementById("dict-more").hidden = dictRows.length >= dictTotal;
+  }
+  document.getElementById("dict-scroll").addEventListener("scroll", e => {
+    const el = e.target;
+    if (el.scrollTop + el.clientHeight > el.scrollHeight - 120) loadEntries(true);
+  });
+  document.querySelector("#dict-more button").addEventListener("click", () => loadEntries(true));
+
+  function categorySelect(r, placeholder) {
+    const sel = document.createElement("select"); sel.className = "cat-select"; sel.setAttribute("aria-label", "分類");
+    const none = document.createElement("option"); none.value = ""; none.textContent = placeholder; sel.appendChild(none);
+    state.categories.forEach(c => { const o = document.createElement("option"); o.textContent = c.name; sel.appendChild(o); });
+    sel.value = r.category || "";
+    sel.addEventListener("change", async () => {
+      if (!sel.value) return;
+      try {
+        await api("PATCH", `/api/entries/${r.id}`, { category: sel.value });
+        toast(dictView === "inbox" ? `「${r.phrase}」加入「${sel.value}」，移到我的詞庫` : `「${r.phrase}」移到「${sel.value}」`);
+        await refreshState();
+      } catch (e) { toast(e.message, true); }
+    });
+    return sel;
   }
 
   function entryRow(r) {
     const tr = document.createElement("tr");
-    if (r.blocked) tr.className = "blocked";
-    const tdWord = document.createElement("td"); tdWord.textContent = r.phrase;
-    if (r.blocked) { const b = document.createElement("span"); b.className = "badge warn"; b.textContent = "已封鎖"; b.style.marginLeft = "6px"; tdWord.appendChild(b); }
+    const tdWord = document.createElement("td"); tdWord.className = "word"; tdWord.textContent = r.phrase; tdWord.title = r.phrase;
     const tdRead = document.createElement("td");
     const code = document.createElement("code"); code.textContent = r.kind === "en" ? "英文" : r.readingDisplay; tdRead.appendChild(code);
-    const tdCat = document.createElement("td");
-    if (!r.blocked) {
-      const sel = document.createElement("select"); sel.className = "cat-select"; sel.setAttribute("aria-label", "分類");
-      const none = document.createElement("option"); none.value = ""; none.textContent = "（未分類）"; sel.appendChild(none);
-      state.categories.forEach(c => { const o = document.createElement("option"); o.textContent = c.name; sel.appendChild(o); });
-      sel.value = r.category || "";
-      sel.addEventListener("change", async () => {
-        if (!sel.value) return;
-        try { await api("PATCH", `/api/entries/${r.id}`, { category: sel.value }); toast(`「${r.phrase}」移到「${sel.value}」`); await refreshState(); }
-        catch (e) { toast(e.message, true); }
-      });
-      tdCat.appendChild(sel);
-    }
-    const tdSrc = document.createElement("td"); tdSrc.textContent = r.source === "manual" ? "自己加的" : "學到的";
-    const tdN = document.createElement("td"); tdN.className = "num"; tdN.textContent = r.count;
+    const tdMid = document.createElement("td");
+    const tdN = document.createElement("td"); tdN.className = "num";
+    const tdWhen = document.createElement("td"); tdWhen.className = "when";
     const tdAct = document.createElement("td"); tdAct.className = "actions";
+    if (dictView === "inbox") {
+      const [label, cls] = ORIGIN[r.origin] || ["學到的", "later"];
+      const b = document.createElement("span"); b.className = `badge ${cls}`; b.textContent = label;
+      if (r.origin === "fix") b.title = "你在句子裡修正這個字時，連同前後文記成的詞";
+      tdMid.appendChild(b);
+    } else if (dictView === "mine") {
+      tdMid.appendChild(categorySelect(r, "（未分類）"));
+    }
+    if (dictView !== "blocked") {
+      tdN.textContent = r.count;
+      tdWhen.textContent = ago(r.last_used || r.created);
+    }
+    if (dictView === "inbox") tdAct.appendChild(categorySelect(r, "加到分類…"));
     const btn = document.createElement("button"); btn.type = "button";
-    if (r.blocked) {
+    if (dictView === "blocked") {
       btn.className = "btn small"; btn.textContent = "還原";
       btn.addEventListener("click", async () => {
         try { await api("PATCH", `/api/entries/${r.id}`, { blocked: false }); toast(`「${r.phrase}」會再出現在候選裡`); await refreshState(); }
@@ -402,7 +493,7 @@
       });
     }
     tdAct.appendChild(btn);
-    tr.append(tdWord, tdRead, tdCat, tdSrc, tdN, tdAct);
+    tr.append(tdWord, tdRead, tdMid, tdN, tdWhen, tdAct);
     return tr;
   }
 

@@ -72,6 +72,29 @@ def test_save_config_is_validated_and_written(server):
     assert Config.load(paths.config_path()).start_mode == "chinese"
 
 
+def test_inbox_and_my_words_are_separate_views(server):
+    app = server.app
+    app.user.learn("逗號", "ㄉㄡˋ-ㄏㄠˋ", origin="fix")
+    app.user.learn("我們", "ㄨㄛˇ-ㄇㄣ˙")
+    app.user.learn("我們", "ㄨㄛˇ-ㄇㄣ˙")
+    call(server, "POST", "/api/entries", {"phrase": "陳怡君", "category": "朋友"})
+    status, page = call(server, "GET", "/api/entries?view=inbox&sort=count&paged=1")
+    assert status == 200 and page["total"] == 2
+    assert [r["phrase"] for r in page["rows"]] == ["我們", "逗號"]
+    assert page["rows"][1]["origin"] == "fix"
+    status, page = call(server, "GET", "/api/entries?view=inbox&paged=1&limit=1&offset=1&sort=count")
+    assert [r["phrase"] for r in page["rows"]] == ["逗號"] and page["total"] == 2
+    status, page = call(server, "GET", "/api/entries?view=mine&paged=1")
+    assert [r["phrase"] for r in page["rows"]] == ["陳怡君"]
+    # tagging an inbox word moves it to my words
+    inbox_id = [r for r in call(server, "GET", "/api/entries?view=inbox")[1] if r["phrase"] == "逗號"][0]["id"]
+    assert call(server, "PATCH", f"/api/entries/{inbox_id}", {"category": "常用詞"})[0] == 200
+    assert call(server, "GET", "/api/entries?view=inbox&paged=1")[1]["total"] == 1
+    assert call(server, "GET", "/api/entries?view=mine&category=%E5%B8%B8%E7%94%A8%E8%A9%9E&paged=1")[1]["total"] == 1
+    stats = call(server, "GET", "/api/state")[1]["stats"]
+    assert stats["inbox"] == 1 and stats["mine"] == 2
+
+
 def test_add_list_move_and_delete_entries(server):
     status, r = call(server, "POST", "/api/reading", {"text": "陳怡君"})
     assert status == 200 and r["kind"] == "zh" and len(r["reading"].split()) == 3

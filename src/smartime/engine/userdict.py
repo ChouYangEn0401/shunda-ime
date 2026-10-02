@@ -323,7 +323,8 @@ class UserDict:
         ).fetchone()
         size = sum(p.stat().st_size for p in (self.path, self.path.with_name(self.path.name + "-wal"))
                    if p.exists())
-        return {"manual": r[0] or 0, "learned": r[1] or 0, "blocked": r[2] or 0, "bytes": size}
+        return {"manual": r[0] or 0, "learned": r[1] or 0, "blocked": r[2] or 0, "bytes": size,
+                "inbox": self.count(view="inbox"), "mine": self.count(view="mine")}
 
     def tidy(self, days: int = TIDY_AFTER_DAYS, compact: bool = False) -> int:
         """Forget learned words used once and not since ``days`` ago.

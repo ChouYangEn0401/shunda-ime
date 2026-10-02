@@ -165,23 +165,36 @@ class SettingsApp:
         return cfg.to_dict()
 
     # ---------------------------------------------------------- dictionary
-    def entries(self, query: dict) -> list[dict]:
+    def entries(self, query: dict) -> list[dict] | dict:
+        """view: inbox (自動收集) | mine (我的詞庫, optionally ``category``) |
+        blocked, or the older "", "learned", <category name>. sort: recent |
+        count. With paged=1: {"rows": [...], "total": n} for ``offset``/``limit``."""
         def one(key: str) -> str:
             return (query.get(key) or [""])[0]
 
-        view = one("view")  # "", "learned", "blocked", or a category name
+        view = one("view")
         kwargs: dict = {"query": one("q").strip()}
-        if view == "learned":
+        if view in ("inbox", "mine", "blocked"):
+            kwargs["view"] = view
+            if view == "mine" and one("category"):
+                kwargs["category"] = one("category")
+        elif view == "learned":
             kwargs.update(source="learned", blocked=False)
-        elif view == "blocked":
-            kwargs.update(blocked=True)
         else:
             kwargs.update(blocked=False)
             if view:
                 kwargs["category"] = view
-        rows = self.user.list(**kwargs)
+        try:
+            offset = max(0, int(one("offset") or 0))
+            limit = max(1, min(1000, int(one("limit") or 500)))
+        except ValueError as e:
+            raise ApiError(400, "分頁參數不正確") from e
+        sort = one("sort") or ("recent" if view in ("inbox", "mine", "blocked") else "default")
+        rows = self.user.list(sort=sort, offset=offset, limit=limit, **kwargs)
         for r in rows:
             r["readingDisplay"] = r["reading"].replace("-", " ")
+        if one("paged") == "1":
+            return {"rows": rows, "total": self.user.count(**kwargs)}
         return rows
 
     def suggest_reading(self, text: str) -> dict:

@@ -164,6 +164,30 @@ td.actions { text-align: right; white-space: nowrap; }
 .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cat-select { font-size: 13px; padding: 2px 6px; }
 tr.blocked td { color: var(--muted); }
+.badge.predict { background: color-mix(in srgb, #7c3aed 14%, transparent); color: #7c3aed; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .badge.predict { color: #b79cff; } }
+:root[data-theme="dark"] .badge.predict { color: #b79cff; }
+
+/* 我的詞庫: two areas, a fixed-height list that scrolls (every row the same height) */
+.dict-tabs .n { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; margin-left: 6px; }
+.dict-tabs button[aria-pressed="true"] .n { color: var(--accent); }
+.dict-explain { margin: 8px 0 10px; max-width: 70ch; }
+.dict-tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.dict-tools-right { display: flex; gap: 10px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+.seg.small button { padding: 3px 10px; font-size: 13px; }
+.dict-table { height: 440px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.dict-table table { table-layout: fixed; }
+.dict-table thead th { position: sticky; top: 0; z-index: 1; background: var(--panel); box-shadow: 0 1px 0 var(--line); }
+.dict-table th:nth-child(1) { width: 24%; } .dict-table th:nth-child(2) { width: 22%; }
+.dict-table th:nth-child(3) { width: 16%; } .dict-table th:nth-child(4) { width: 8%; }
+.dict-table th:nth-child(5) { width: 11%; } .dict-table th:nth-child(6) { width: 19%; }
+.dict-table td { height: 44px; padding-block: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dict-table td.word { font-size: 15px; }
+.dict-table td.when { color: var(--muted); font-size: 13px; }
+.dict-table td.actions { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.dict-table td.empty { height: auto; padding: 18px 12px; white-space: normal; }
+.dict-table tbody tr:hover td { background: color-mix(in srgb, var(--accent-soft) 35%, transparent); }
+.dict-more { text-align: center; padding: 10px; }
 
 .addform { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; }
 .charpick { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: 13px; }
@@ -200,6 +224,9 @@ tr.blocked td { color: var(--muted); }
   main.pane { padding: 16px; }
   .mode-cards, .views { grid-template-columns: minmax(0, 1fr); }
   .addform { grid-template-columns: minmax(0, 1fr); }
+  .dict-table { height: 360px; }
+  .dict-table table { table-layout: auto; }
+  .dict-tools-right { margin-left: 0; }
   .row { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

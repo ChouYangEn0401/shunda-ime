@@ -320,7 +320,7 @@
       <!-- ============ 我的詞庫 ============ -->
       <section class="view" id="view-dict" hidden>
         <h2>我的詞庫</h2>
-        <p class="lead">自己加的詞和輸入法學到的詞都在這裡，可以分類、搜尋、刪除。朋友的名字放進「朋友」分類，打注音時會排第一，不用每次找半天。</p>
+        <p class="lead">輸入法自動收集的詞，和你自己整理的詞，分成兩區。自動收集的詞給它一個分類，就成為「我的詞庫」的一員；朋友的名字放進「朋友」分類，打注音時排第一，不用每次找半天。</p>
 
         <div class="group">
           <h3>新增詞</h3>
@@ -339,15 +339,28 @@
 
         <div class="group">
           <h3>詞條 <span class="note" style="letter-spacing:0" id="dict-stats"></span></h3>
-          <div class="row"><div class="full" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
-            <div class="chips" id="cat-chips" role="group" aria-label="分類"></div>
-            <input type="search" id="dict-search" placeholder="搜尋詞或注音" aria-label="搜尋詞庫" style="margin-left:auto">
-          </div></div>
-          <div class="row"><div class="full scroll">
-            <table>
-              <thead><tr><th>詞</th><th>讀音</th><th>分類</th><th>來源</th><th style="text-align:right">用過</th><th></th></tr></thead>
-              <tbody id="dict-body"></tbody>
-            </table>
+          <div class="row"><div class="full">
+            <div class="seg dict-tabs" id="dict-tabs" role="group" aria-label="詞條分區">
+              <button data-dict="inbox">自動收集<span class="n"></span></button><button data-dict="mine">我的詞庫<span class="n"></span></button><button data-dict="blocked">已封鎖<span class="n"></span></button>
+            </div>
+            <p class="note dict-explain" id="dict-explain"></p>
+            <div class="dict-tools">
+              <div class="chips" id="cat-chips" role="group" aria-label="分類" hidden></div>
+              <div class="dict-tools-right">
+                <div class="seg small" id="dict-sort" role="group" aria-label="排序">
+                  <button data-sort="recent">最近使用</button><button data-sort="count">用過次數</button>
+                </div>
+                <input type="search" id="dict-search" placeholder="搜尋詞或注音" aria-label="搜尋詞庫">
+              </div>
+            </div>
+            <div class="dict-table" id="dict-scroll">
+              <table>
+                <thead><tr id="dict-head"></tr></thead>
+                <tbody id="dict-body"></tbody>
+              </table>
+              <div class="dict-more" id="dict-more" hidden><button class="btn small" type="button">載入更多</button></div>
+            </div>
+            <p class="note" id="dict-count" style="margin-bottom:0"></p>
           </div></div>
         </div>
 
