@@ -43,6 +43,7 @@ class _Cycle:
     items: list  # Candidate objects
     index: int
     original: Segment | None  # what was there before cycling
+    original_text: str = ""  # the character(s) on screen before cycling
 
 
 class CorrectionMixin:
@@ -333,7 +334,8 @@ class CorrectionMixin:
                 return
             current = self.decoding.segments[t[3]]
             self._snapshot()
-            self._cycle = _Cycle(t[0], items, 0, current)
+            start = self._current_index(items)  # j/k walk away from what is on screen
+            self._cycle = _Cycle(t[0], items, start, current, t[2])
         c = self._cycle
         c.index = (c.index + step) % len(c.items)
         self._apply_pin(c.items[c.index].pin)
@@ -343,9 +345,12 @@ class CorrectionMixin:
         """The cursor leaves a cycled character: learn the final choice."""
         c = self._cycle
         self._cycle = None
-        if c is None or c.index == 0:
+        if c is None:
             return
-        self._learn(c.items[c.index].pin)
+        pin = c.items[c.index].pin
+        if pin is None or c.items[c.index].text == c.original_text:
+            return  # back where it started: nothing to learn
+        self._learn_choice(pin, c.original_text)
 
     # ------------------------------------------------------------ rendering
     # The composition always holds the real (Chinese) text; the 注音 and 按鍵

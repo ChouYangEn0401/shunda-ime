@@ -1,11 +1,15 @@
 """The user's own dictionary and learned memory (%APPDATA%\\SmartIME\\user.db).
 
 What is stored
-  * entries the user added (朋友名字, 專案術語 …) with a category
-  * phrases learned from explicit choices: picking a candidate, accepting a
-    Tab continuation, or picking single characters that form a new word.
-    Text the decoder guessed and the user left alone is *not* learned, so a
-    wrong guess cannot teach itself (the complaint about Windows' IME).
+  * entries the user added (朋友名字, 專案術語 …) with a category: 我的詞庫
+  * phrases learned from explicit choices, not yet sorted by the user: the
+    自動收集 inbox of the settings page. ``origin`` says how: a candidate
+    picked (pick), a character corrected inside a sentence — remembered
+    together with its neighbour as a word, so the same context comes out
+    right next time (fix), a Tab continuation accepted (tab). Text the
+    decoder guessed and the user left alone is *not* learned, so a wrong
+    guess cannot teach itself (the complaint about Windows' IME). Giving an
+    inbox entry a category moves it to 我的詞庫.
   * blocked phrases: "never suggest this" (Delete key in the candidate window)
 
 Everything is per user and local. The settings app writes to the same
@@ -20,7 +24,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # 2: entries.origin
+ORIGINS = ("pick", "fix", "tab")
 DEFAULT_CATEGORIES = ("常用詞", "朋友", "專案術語", "常用英文")
 
 # Learned words used only once and not again for this long are forgotten
@@ -51,6 +56,8 @@ class Entry:
     count: int
     last_used: float | None
     blocked: bool
+    origin: str = ""  # learned entries: pick | fix | tab
+    created: float | None = None
 
     def score(self, system: float | None) -> float:
         if self.source == "manual":
@@ -99,6 +106,10 @@ class UserDict:
             c.execute("INSERT INTO meta VALUES ('schema', ?)", (str(SCHEMA_VERSION),))
             for i, name in enumerate(DEFAULT_CATEGORIES):
                 c.execute("INSERT OR IGNORE INTO categories (name, sort) VALUES (?, ?)", (name, i))
+        columns = {r[1] for r in c.execute("PRAGMA table_info(entries)")}
+        if "origin" not in columns:  # schema 1 -> 2
+            c.execute("ALTER TABLE entries ADD COLUMN origin TEXT NOT NULL DEFAULT ''")
+            c.execute("UPDATE meta SET value=? WHERE key='schema'", (str(SCHEMA_VERSION),))
 
     # ------------------------------------------------------------ cache
     def _load(self) -> None:
@@ -134,10 +145,10 @@ class UserDict:
 
     def _entries(self, where: str = "", args: tuple = ()) -> list[Entry]:
         rows = self._con.execute(
-            "SELECT e.id, e.phrase, e.reading, e.kind, c.name, e.source, e.count, e.last_used, e.blocked "
-            "FROM entries e LEFT JOIN categories c ON c.id = e.category_id " + where, args
+            "SELECT e.id, e.phrase, e.reading, e.kind, c.name, e.source, e.count, e.last_used, e.blocked, "
+            "e.origin, e.created FROM entries e LEFT JOIN categories c ON c.id = e.category_id " + where, args
         ).fetchall()
-        return [Entry(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], bool(r[8])) for r in rows]
+        return [Entry(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], bool(r[8]), r[9], r[10]) for r in rows]
 
     # ------------------------------------------------------------ lookups (engine)
     def lookup(self, phrase: str, reading: str) -> Entry | None:
@@ -151,17 +162,19 @@ class UserDict:
         return (phrase, reading) in self.blocked
 
     # ------------------------------------------------------------ writes (engine)
-    def learn(self, phrase: str, reading: str = "", kind: str = "zh") -> bool:
+    def learn(self, phrase: str, reading: str = "", kind: str = "zh", origin: str = "pick") -> bool:
         """Count one explicit use. True when the phrase was not in my memory
-        before (the IME tells the user once)."""
+        before (the IME tells the user once). ``origin``: pick | fix | tab;
+        a correction (fix) is the strongest signal and is kept as the origin."""
         now = time.time()
         known = self._con.execute(
             "SELECT 1 FROM entries WHERE phrase=? AND reading=?", (phrase, reading)).fetchone() is not None
         self._con.execute(
-            "INSERT INTO entries (phrase, reading, kind, source, count, last_used, created) "
-            "VALUES (?, ?, ?, 'learned', 1, ?, ?) "
-            "ON CONFLICT (phrase, reading) DO UPDATE SET count = count + 1, last_used = excluded.last_used",
-            (phrase, reading, kind, now, now),
+            "INSERT INTO entries (phrase, reading, kind, source, count, last_used, created, origin) "
+            "VALUES (?, ?, ?, 'learned', 1, ?, ?, ?) "
+            "ON CONFLICT (phrase, reading) DO UPDATE SET count = count + 1, last_used = excluded.last_used, "
+            "origin = CASE WHEN origin = 'fix' THEN origin ELSE excluded.origin END",
+            (phrase, reading, kind, now, now, origin),
         )
         self._load()
         return not known
@@ -257,9 +270,25 @@ class UserDict:
         self._con.execute("DELETE FROM entries WHERE id=?", (entry_id,))
         self._load()
 
-    def list(self, *, category: str | None = None, source: str | None = None, blocked: bool | None = None,
-             query: str = "", limit: int = 500) -> list[dict]:
+    # The settings page's two areas: what the IME collected by itself and
+    # the user has not sorted yet, and the user's own curated words.
+    VIEWS = {
+        "inbox": "e.blocked = 0 AND e.category_id IS NULL AND e.source = 'learned'",
+        "mine": "e.blocked = 0 AND (e.category_id IS NOT NULL OR e.source = 'manual')",
+        "blocked": "e.blocked = 1",
+    }
+    SORTS = {
+        "recent": "coalesce(e.last_used, e.created) DESC, e.id DESC",
+        "count": "e.count DESC, coalesce(e.last_used, e.created) DESC",
+        "phrase": "e.phrase",
+        "default": "e.blocked, e.source = 'learned', e.count DESC, e.created DESC",
+    }
+
+    def _where(self, view: str | None, category: str | None, source: str | None, blocked: bool | None,
+               query: str) -> tuple[str, list]:
         where, args = [], []
+        if view in self.VIEWS:
+            where.append(self.VIEWS[view])
         if category:
             where.append("c.name = ?")
             args.append(category)
@@ -272,10 +301,21 @@ class UserDict:
         if query:
             where.append("(e.phrase LIKE ? OR e.reading LIKE ?)")
             args += [f"%{query}%", f"%{query}%"]
-        sql = ("WHERE " + " AND ".join(where) if where else "") + \
-            " ORDER BY e.blocked, e.source = 'learned', e.count DESC, e.created DESC LIMIT ?"
-        args.append(limit)
-        return [vars(e) for e in self._entries(sql, tuple(args))]
+        return ("WHERE " + " AND ".join(where) if where else ""), args
+
+    def list(self, *, view: str | None = None, category: str | None = None, source: str | None = None,
+             blocked: bool | None = None, query: str = "", sort: str = "default", limit: int = 500,
+             offset: int = 0) -> list[dict]:
+        where, args = self._where(view, category, source, blocked, query)
+        sql = f"{where} ORDER BY {self.SORTS.get(sort, self.SORTS['default'])} LIMIT ? OFFSET ?"
+        return [vars(e) for e in self._entries(sql, tuple(args + [limit, max(0, offset)]))]
+
+    def count(self, *, view: str | None = None, category: str | None = None, source: str | None = None,
+              blocked: bool | None = None, query: str = "") -> int:
+        where, args = self._where(view, category, source, blocked, query)
+        return self._con.execute(
+            "SELECT count(*) FROM entries e LEFT JOIN categories c ON c.id = e.category_id " + where, args
+        ).fetchone()[0]
 
     def stats(self) -> dict:
         r = self._con.execute(
@@ -325,20 +365,25 @@ class UserDict:
             cats = dict(src.execute("SELECT id, name FROM categories").fetchall())
             for name in cats.values():
                 self._con.execute("INSERT OR IGNORE INTO categories (name, sort) VALUES (?, 99)", (name,))
-            for phrase, reading, kind, cat_id, source, count, last_used, created, blocked in src.execute(
-                "SELECT phrase, reading, kind, category_id, source, count, last_used, created, blocked FROM entries"
+            has_origin = "origin" in {r[1] for r in src.execute("PRAGMA table_info(entries)")}
+            origin_col = "origin" if has_origin else "''"
+            for phrase, reading, kind, cat_id, source, count, last_used, created, blocked, origin in src.execute(
+                "SELECT phrase, reading, kind, category_id, source, count, last_used, created, blocked, "
+                f"{origin_col} FROM entries"
             ):
                 my_cat = self._category_id(cats.get(cat_id)) if cat_id in cats else None
                 self._con.execute(
-                    "INSERT INTO entries (phrase, reading, kind, category_id, source, count, last_used, created, blocked) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                    "INSERT INTO entries (phrase, reading, kind, category_id, source, count, last_used, created, "
+                    "blocked, origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                     "ON CONFLICT (phrase, reading) DO UPDATE SET "
                     "count = count + excluded.count, "
                     "source = CASE WHEN excluded.source='manual' THEN 'manual' ELSE source END, "
                     "category_id = coalesce(category_id, excluded.category_id), "
                     "blocked = max(blocked, excluded.blocked), "
+                    "origin = CASE WHEN origin = '' THEN excluded.origin ELSE origin END, "
                     "last_used = max(coalesce(last_used, 0), coalesce(excluded.last_used, 0))",
-                    (phrase, reading, kind, my_cat, source, count, last_used, created or time.time(), blocked),
+                    (phrase, reading, kind, my_cat, source, count, last_used, created or time.time(), blocked,
+                     origin or ""),
                 )
                 n += 1
         finally:

@@ -206,3 +206,78 @@ def test_tidy_forgets_old_one_off_picks_only(tmp_path):
     assert left == {"們", "今天", "陳怡君"}
     assert u.stats()["bytes"] > 0
     u.close()
+
+
+# ------------------------------------------------------------- corrections become words (#2)
+def test_a_corrected_character_is_remembered_with_its_neighbour(mem_session, user):
+    # 打逗號 comes out as 打鬥號 (homophones, word frequency only)
+    _, v = run(mem_session, "2832.4cl4")
+    assert v.composition == "打鬥號"
+    _, v = run(mem_session, "{LEFT}{LEFT}{DOWN}4")  # pick 逗 alone
+    assert v.composition == "打逗號"
+    learned = {(r["phrase"], r["origin"]) for r in user.list(source="learned")}
+    # the real word around the fix, not the lone character (which would
+    # then be preferred everywhere and cause new mistakes)
+    assert learned == {("逗號", "fix")}
+    assert "（修正）" in v.notice
+    mem_session._reset_buffer()
+    _, v = run(mem_session, "2832.4cl4")
+    assert v.composition == "打逗號"
+
+
+def test_picking_a_whole_word_is_remembered_as_it_is(mem_session, user):
+    run(mem_session, "2832.4cl4{LEFT}{LEFT}{DOWN}1")  # 逗號 as one candidate
+    assert {(r["phrase"], r["origin"]) for r in user.list(source="learned")} == {("逗號", "pick")}
+
+
+def test_a_lone_character_is_remembered_alone(mem_session, user):
+    run(mem_session, "2.4{DOWN}")
+    cand = mem_session.cand
+    other = next(i for i, c in enumerate(cand.page_items()) if c.text != "鬥" and len(c.text) == 1)
+    run(mem_session, str(other + 1))
+    rows = user.list(source="learned")
+    assert len(rows) == 1 and len(rows[0]["phrase"]) == 1 and rows[0]["origin"] == "pick"
+
+
+def test_schema_1_database_gets_the_origin_column(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "old.db"
+    con = sqlite3.connect(path)
+    con.executescript(
+        "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);"
+        "INSERT INTO meta VALUES ('schema', '1');"
+        "CREATE TABLE categories (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, sort INTEGER NOT NULL DEFAULT 0);"
+        "CREATE TABLE entries (id INTEGER PRIMARY KEY, phrase TEXT NOT NULL, reading TEXT NOT NULL DEFAULT '',"
+        " kind TEXT NOT NULL DEFAULT 'zh', category_id INTEGER, source TEXT NOT NULL DEFAULT 'learned',"
+        " count INTEGER NOT NULL DEFAULT 0, last_used REAL, created REAL NOT NULL,"
+        " blocked INTEGER NOT NULL DEFAULT 0, UNIQUE (phrase, reading));"
+        "INSERT INTO entries (phrase, reading, count, created) VALUES ('我們', 'ㄨㄛˇ-ㄇㄣ˙', 2, 1);")
+    con.commit()
+    con.close()
+    u = UserDict(path)
+    rows = u.list()
+    assert rows[0]["phrase"] == "我們" and rows[0]["origin"] == ""
+    u.learn("好", "ㄏㄠˇ", origin="fix")
+    assert {r["phrase"]: r["origin"] for r in u.list()}["好"] == "fix"
+    u.close()
+
+
+def test_inbox_and_my_words_views_sort_and_page(user):
+    import time as _time
+
+    user.learn("甲", "ㄐㄧㄚˇ")
+    _time.sleep(0.01)
+    user.learn("乙", "ㄧˇ")
+    user.learn("乙", "ㄧˇ")
+    user.add("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ", "zh", "朋友")
+    inbox = [r["phrase"] for r in user.list(view="inbox", sort="recent")]
+    assert inbox == ["乙", "甲"]  # most recent first (default on the settings page)
+    assert [r["phrase"] for r in user.list(view="inbox", sort="count")] == ["乙", "甲"]
+    assert [r["phrase"] for r in user.list(view="mine")] == ["陳怡君"]
+    assert user.count(view="inbox") == 2 and user.count(view="mine") == 1
+    assert [r["phrase"] for r in user.list(view="inbox", sort="recent", limit=1, offset=1)] == ["甲"]
+    # giving an inbox entry a category moves it to my words
+    entry_id = user.list(view="inbox")[0]["id"]
+    user.update(entry_id, category="常用詞")
+    assert user.count(view="inbox") == 1 and user.count(view="mine") == 2

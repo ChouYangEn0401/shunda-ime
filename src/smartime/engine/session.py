@@ -777,12 +777,8 @@ class Session(CorrectionMixin):
             # start on what is on screen now (your own words are listed
             # first, so the first item is not always the current text):
             # Enter keeps it, ↓ walks to the alternatives
-            units = self.decoding.units()
-            for i, c in enumerate(items):
-                if c.pin is not None and c.text == "".join(u[2] for u in units if c.pin.start <= u[0] < c.pin.end):
-                    self.cand.index = i
-                    self.cand._keep_visible()
-                    break
+            self.cand.index = self._current_index(items)
+            self.cand._keep_visible()
 
     def _candidate_items(self) -> list[Candidate]:
         t = self._target_unit()
@@ -978,38 +974,100 @@ class Session(CorrectionMixin):
             self._accept_suggestion(c.suggestion)
             return
         pin = c.pin
+        replaced = self._text_over(pin.start, pin.end)
         self._checkpoint()
         self.pins = [p for p in self.pins if p.end <= pin.start or p.start >= pin.end]
         self.pins.append(pin)
         self.pins.sort(key=lambda p: p.start)
         self.cand = None
         if self.correcting:
-            self._learn(pin)
             self._redecode()
+            self._learn_choice(pin, replaced)
             self.cursor = pin.start
             self._snap_to_unit()
             return
         if self.cursor < len(self.keys):
             self.cursor = pin.end
-        self._learn(pin)
         self._redecode()
+        self._learn_choice(pin, replaced)
+
+    def _text_over(self, a: int, b: int) -> str:
+        """The characters on screen for the keys [a, b)."""
+        return "".join(ch for s, _, ch, _ in self.decoding.units() if a <= s < b)
+
+    def _current_index(self, items: list[Candidate]) -> int:
+        """Position of the text on screen now among ``items`` (else 0)."""
+        for i, c in enumerate(items):
+            if c.pin is not None and c.text == self._text_over(c.pin.start, c.pin.end):
+                return i
+        return 0
 
     # ============================================================ memory
-    def _learn(self, seg: Segment) -> None:
-        """Remember an explicit choice (candidate picked, Tab accepted)."""
+    def _learn(self, seg: Segment, origin: str = "pick") -> bool:
+        """Remember an explicit choice (candidate picked, Tab accepted).
+        True if the phrase was new to my memory."""
         user = self.engine.user
         if user is None or not self.cfg.learn:
-            return
+            return False
         if seg.kind is Kind.ZH:
-            new = user.learn(seg.text, "-".join(seg.readings), "zh")
+            new = user.learn(seg.text, "-".join(seg.readings), "zh", origin)
         elif seg.kind is Kind.EN:
-            new = user.learn(seg.text.lower(), "", "en")
+            new = user.learn(seg.text.lower(), "", "en", origin)
         else:
-            return
+            return False
         self.engine.lexicon.invalidate()
         if new and self.cfg.learn_notice:
             # once per word: learning is visible, and so is how to undo it
-            self._notice = f"記住了「{seg.text}」· 選字框裡按 Delete 可忘記"
+            how = "（修正）" if origin == "fix" else ""
+            self._notice = f"記住了「{seg.text}」{how}· 選字框裡按 Delete 可忘記"
+        return new
+
+    def _learn_choice(self, pin: Segment, replaced: str) -> None:
+        """A candidate was chosen for ``pin``'s keys, where ``replaced`` was
+        on screen. Picking a word, or keeping what was there, is remembered
+        as it is. Changing one character inside Chinese text is a
+        *correction*: the character alone says little (boosting it
+        everywhere would cause new mistakes), so it is remembered together
+        with its neighbour as a word — the context it belongs to — and the
+        same sentence comes out right next time (user feedback #2)."""
+        if pin.kind is not Kind.ZH or len(pin.readings) != 1 or replaced in ("", pin.text):
+            self._learn(pin)
+            return
+        contexts = self._correction_contexts(pin)
+        if not contexts:
+            self._learn(pin)
+            return
+        for ctx in contexts:
+            self._learn(ctx, origin="fix")
+
+    def _correction_contexts(self, pin: Segment) -> list[Segment]:
+        """Two-character words made of the corrected character and its
+        left or right Chinese neighbour (as now on screen). If one of them is
+        a real word, just that one; otherwise both (one of them is the word
+        the user means — the settings page shows them to sort or delete)."""
+        units = self.decoding.units()
+        segs = self.decoding.segments
+        idx = next((i for i, u in enumerate(units) if u[0] == pin.start), None)
+        if idx is None:
+            return []
+
+        def zh_unit(i):
+            if 0 <= i < len(units) and segs[units[i][3]].kind is Kind.ZH:
+                a, b, ch, si = units[i]
+                return a, b, ch, segs[si].readings[segs[si].bounds.index(a)]
+            return None
+
+        here = zh_unit(idx)
+        out = []
+        for left, right in ((zh_unit(idx - 1), here), (here, zh_unit(idx + 1))):
+            if left is None or right is None:
+                continue
+            readings = (left[3], right[3])
+            text = left[2] + right[2]
+            out.append(Segment(left[0], right[1], text, Kind.ZH, 0.0, readings, (left[0], left[1], right[1]),
+                               pinned=True))
+        real = [s for s in out if self.engine.lexicon.in_system(s.text, "-".join(s.readings))]
+        return real[:1] if real else out
 
     def _forget_candidate(self, c: Candidate) -> None:
         user = self.engine.user
@@ -1253,7 +1311,7 @@ class Session(CorrectionMixin):
         self.pins.append(pin)
         self.cursor = len(self.keys)
         assert pin.end == start + len(sug.keys)
-        self._learn(pin)  # positive feedback: accepted continuations rank higher
+        self._learn(pin, origin="tab")  # positive feedback: accepted continuations rank higher
         self._redecode()
         self._commit_overflow()
 
