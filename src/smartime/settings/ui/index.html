@@ -182,10 +182,10 @@
               <div class="compose"><span class="u">我們今天開</span><span class="cur"></span></div>
               <div class="tip" id="sugg-tip">會 ⇥</div>
             </div>
-            <div class="cand" aria-label="候選窗預覽">
-              <div class="head"><span>mvp␣ 按 ↓</span><span>1/2 →</span></div>
+            <div class="cand" aria-label="候選窗預覽" hidden>
               <ol id="cand-list"></ol>
             </div>
+            <p class="note" style="margin:0; max-width:40ch">黃框是打字時的提示與接續建議；選字時的候選窗見下方「順打面板」。</p>
           </div></div>
         </div>
 
@@ -214,7 +214,7 @@
           <div class="row"><div class="full">
             <picture class="shot">
               <source srcset="img/cand-zh-dark.png" media="(prefers-color-scheme: dark)">
-              <img src="img/cand-zh-light.png" alt="分組上色的候選窗：我的詞庫、學過、詞庫、原始按鍵" width="440">
+              <img src="img/cand-zh-light.png" alt="分組上色的候選窗：我的詞庫、學過、詞庫、原始按鍵" width="300">
             </picture>
             <p class="note" style="margin-bottom:0">候選窗由輸入法自己畫：<b style="color:var(--ok)">綠色</b>是你自己的詞（我的詞庫、學過），一組一組排好；<kbd>Tab</kbd> 只看某一組。黃色提示框還是會在，面板貼在它下面。</p>
           </div></div>
