@@ -80,7 +80,8 @@ def main() -> int:
         cmd = [str(edge), "--headless=new", "--disable-gpu", "--hide-scrollbars", f"--screenshot={shot}",
                f"--window-size={args.width},{args.height}", "--virtual-time-budget=5000",
                f"--user-data-dir={Path(tmp) / 'edge'}", "--enable-logging=stderr", "--v=0",
-               "--no-first-run", "--disable-extensions"]
+               "--no-first-run", "--disable-extensions",
+               "--force-prefers-reduced-motion"]  # no half-finished switch animations in the shot
         if args.dark:
             cmd.append("--force-dark-mode")
             cmd.append("--blink-settings=preferredColorScheme=0")

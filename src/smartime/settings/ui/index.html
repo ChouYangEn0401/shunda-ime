@@ -29,7 +29,7 @@
       <button data-view="punct"><span class="glyph">，</span>標點與符號</button>
       <button data-view="dict"><span class="glyph">詞</span>我的詞庫</button>
       <button data-view="snippets"><span class="glyph">❞</span>片語與顏文字</button>
-      <button data-view="keys"><span class="glyph">⌨</span>快捷鍵一覽</button>
+      <button data-view="keys"><span class="glyph">⌨</span>快捷鍵</button>
       <button data-view="voice"><span class="glyph">◉</span>語音輸入</button>
       <button data-view="data"><span class="glyph">⇅</span>資料與隱私</button>
       <button data-view="about"><span class="glyph">i</span>關於</button>
@@ -39,87 +39,134 @@
       <!-- ============ 一般 ============ -->
       <section class="view" id="view-general">
         <h2>一般</h2>
-        <p class="lead">輸入模式、切換鍵與鍵盤配置。系統匣圖示會跟著模式改變。</p>
+        <p class="lead">每一種打字方式自成一張卡片：右邊的開關決定它在不在 <kbd>Shift</kbd> 的輪流裡，點卡片展開它自己的細部設定。用不到的關掉就好，裡面的設定不用管。</p>
 
-        <div class="group">
-          <h3>開啟時的模式</h3>
-          <div class="row">
-            <div class="full">
-              <div class="mode-cards" role="group" aria-label="開啟時的模式" data-cfg="start_mode">
-                <button class="mode-card" data-value="auto">
-                  <span class="ico auto">自</span>
-                  <b>中英自動</b><small>不用切換，整句判斷哪段是中文、哪段是英文。</small>
-                </button>
-                <button class="mode-card" data-value="chinese">
-                  <span class="ico chinese">中</span>
-                  <b>純注音</b><small>每個鍵都是注音，和傳統注音輸入法一樣；數字用數字鍵盤。</small>
-                </button>
-                <button class="mode-card" data-value="english">
-                  <span class="ico english">英</span>
-                  <b>純英文</b><small>按鍵直接交給程式，例如在 VS Code 用 <kbd>Ctrl</kbd>+<kbd>,</kbd> 開設定。</small>
-                </button>
-                <button class="mode-card" data-value="pinyin">
-                  <span class="ico pinyin">拼</span>
-                  <b>純拼音</b><small>漢語拼音，不用打聲調（women → 我們）。</small>
-                </button>
-                <button class="mode-card" data-value="cangjie">
-                  <span class="ico cangjie">倉</span>
-                  <b>純倉頡</b><small>倉頡五代，打碼後按空白出字。</small>
-                </button>
+        <div class="methods" id="methods">
+          <div class="method" data-mode="auto">
+            <div class="m-head">
+              <button class="m-toggle" type="button" aria-expanded="false" aria-controls="m-auto">
+                <span class="ico auto">自</span>
+                <span class="m-name"><b>中英自動</b><small>不用切換，整句判斷哪段是中文、哪段是英文（推薦）。</small></span>
+                <span class="chev" aria-hidden="true"></span>
+              </button>
+              <button class="m-start" type="button" data-start="auto" title="開啟輸入法時用這個模式">開啟時</button>
+              <label class="switch" title="在 Shift 輪流中"><input type="checkbox" data-cycle="auto" aria-label="中英自動在 Shift 輪流中"><span></span></label>
+            </div>
+            <div class="m-body" id="m-auto" hidden>
+              <div class="row">
+                <div><div class="label">混用哪一種中文</div><div class="desc">一次混用一種中文：同一個字母在注音、拼音、倉頡的意思都不同，一起猜會互相干擾。三種打法學到的詞是共用的。</div></div>
+                <div class="seg" role="group" aria-label="中英自動混用的中文" data-cfg="chinese_scheme">
+                  <button data-value="zhuyin">注音</button><button data-value="pinyin">拼音</button><button data-value="cangjie">倉頡五代</button>
+                </div>
               </div>
-              <p class="note" style="margin-bottom:0">打字時隨時可以切換：單按 Shift，或在系統匣圖示按右鍵選模式。</p>
+              <div class="row">
+                <div><div class="label">單一字母依前後文判斷</div><div class="desc"><code>i am a good guy</code> 維持英文；<code>你想我i␣</code> 變成「你想我喔」。關閉後單一字母一律當英文。</div></div>
+                <label class="switch"><input type="checkbox" data-cfg="single_letter_context" aria-label="單一字母判斷"><span></span></label>
+              </div>
+              <div class="row"><div class="full"><p class="note" style="margin:0">中文後面先打空白再打字母，會當成英文（<code>第 i 項</code>）：空白就是你的分隔記號。注音的鍵盤、容錯設定在下面「注音」卡片，混用注音時一樣適用。</p></div></div>
+            </div>
+          </div>
+
+          <div class="method" data-mode="chinese">
+            <div class="m-head">
+              <button class="m-toggle" type="button" aria-expanded="false" aria-controls="m-chinese">
+                <span class="ico chinese">中</span>
+                <span class="m-name"><b>注音</b><small>每個鍵都是注音，和傳統注音輸入法一樣；數字用數字鍵盤。</small></span>
+                <span class="chev" aria-hidden="true"></span>
+              </button>
+              <button class="m-start" type="button" data-start="chinese" title="開啟輸入法時用這個模式">開啟時</button>
+              <label class="switch" title="在 Shift 輪流中"><input type="checkbox" data-cycle="chinese" aria-label="純注音在 Shift 輪流中"><span></span></label>
+            </div>
+            <div class="m-body" id="m-chinese" hidden>
+              <div class="row">
+                <div><div class="label">注音鍵盤 <span class="badge later">許氏之後支援</span></div><div class="desc">大部分人用大千（Windows 預設）。換鍵盤後下一個按鍵生效。</div></div>
+                <div class="seg" role="group" aria-label="注音鍵盤" data-cfg="layout">
+                  <button data-value="dachen">大千</button><button data-value="eten">倚天</button>
+                </div>
+              </div>
+              <div class="row"><div class="full">
+                <div class="kb" aria-label="注音鍵盤" id="keyboard"></div>
+                <p class="note" style="margin-bottom:0">藍色是聲調鍵。</p>
+              </div></div>
+              <div class="row">
+                <div><div class="label">注音順序容錯</div><div class="desc">同一個字的注音順序打反也認得：<code>k27</code>→的、<code>8a3</code>→碼、<code>ij3</code>→我。解碼面板以琥珀色 ↺ 標出。</div></div>
+                <label class="switch"><input type="checkbox" data-cfg="reorder_tolerance" aria-label="順序容錯"><span></span></label>
+              </div>
+              <div class="row">
+                <div><div class="label">略過多按的雜鍵</div><div class="desc"><code>我e更快</code>→我更快。被略過的鍵在解碼面板以紅色刪除線標出，也可從候選窗「原始按鍵」找回。保守：只略過很明顯多按的鍵。</div></div>
+                <div class="seg" role="group" aria-label="略過雜鍵的程度" data-cfg="drop_stray_keys">
+                  <button data-value="off">關閉</button><button data-value="conservative">保守</button><button data-value="standard">標準</button>
+                </div>
+              </div>
+              <div class="row">
+                <div><div class="label">注音提示</div><div class="desc">還沒打聲調時，旁邊顯示會變成的注音（打 <kbd>k</kbd><kbd>2</kbd> 顯示 ㄉㄜ）。</div></div>
+                <label class="switch"><input type="checkbox" data-cfg="spelling_hint" aria-label="注音提示"><span></span></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="method" data-mode="pinyin">
+            <div class="m-head">
+              <button class="m-toggle" type="button" aria-expanded="false" aria-controls="m-pinyin">
+                <span class="ico pinyin">拼</span>
+                <span class="m-name"><b>拼音</b><small>漢語拼音，不用打聲調（women → 我們）。</small></span>
+                <span class="chev" aria-hidden="true"></span>
+              </button>
+              <button class="m-start" type="button" data-start="pinyin" title="開啟輸入法時用這個模式">開啟時</button>
+              <label class="switch" title="在 Shift 輪流中"><input type="checkbox" data-cycle="pinyin" aria-label="純拼音在 Shift 輪流中"><span></span></label>
+            </div>
+            <div class="m-body" id="m-pinyin" hidden>
+              <div class="row"><div class="full">
+                <p style="margin-top:0">連著打，不用打聲調（<kbd>women</kbd> → 我們）；要指定聲調時在音節後打 <kbd>1</kbd>–<kbd>5</kbd>（<kbd>ma3</kbd> → 馬，5 是輕聲）。ü 打 <kbd>v</kbd>（<kbd>lv</kbd> → 綠），<kbd>'</kbd> 分開音節（<kbd>xi'an</kbd>），空白結束一個詞。</p>
+                <p class="note" style="margin-bottom:0"><kbd>,</kbd> <kbd>.</kbd> <kbd>;</kbd> 在拼音裡是全形標點（，。；），不是字母。</p>
+              </div></div>
+            </div>
+          </div>
+
+          <div class="method" data-mode="cangjie">
+            <div class="m-head">
+              <button class="m-toggle" type="button" aria-expanded="false" aria-controls="m-cangjie">
+                <span class="ico cangjie">倉</span>
+                <span class="m-name"><b>倉頡五代</b><small>打碼後按空白出字，連打時用詞頻挑重碼字。</small></span>
+                <span class="chev" aria-hidden="true"></span>
+              </button>
+              <button class="m-start" type="button" data-start="cangjie" title="開啟輸入法時用這個模式">開啟時</button>
+              <label class="switch" title="在 Shift 輪流中"><input type="checkbox" data-cycle="cangjie" aria-label="純倉頡在 Shift 輪流中"><span></span></label>
+            </div>
+            <div class="m-body" id="m-cangjie" hidden>
+              <div class="row"><div class="full">
+                <p style="margin-top:0">打碼後按空白出字；連打幾個字時會用詞頻挑重碼字（<kbd>hqi</kbd>␣<kbd>oan</kbd>␣ → 我們）。還沒按空白時，提示框顯示字根和會出的字。字根對照：</p>
+                <div class="cj-roots" id="cj-roots" aria-label="倉頡字根"></div>
+                <p class="note" style="margin-bottom:0">碼表來自「倉頡五代補完計劃」（MIT 授權），重碼依台灣常用字排序。</p>
+              </div></div>
+            </div>
+          </div>
+
+          <div class="method" data-mode="english">
+            <div class="m-head">
+              <button class="m-toggle" type="button" aria-expanded="false" aria-controls="m-english">
+                <span class="ico english">英</span>
+                <span class="m-name"><b>英文</b><small>按鍵直接交給程式，例如在 VS Code 用 <kbd>Ctrl</kbd>+<kbd>,</kbd> 開設定。</small></span>
+                <span class="chev" aria-hidden="true"></span>
+              </button>
+              <button class="m-start" type="button" data-start="english" title="開啟輸入法時用這個模式">開啟時</button>
+              <label class="switch" title="在 Shift 輪流中"><input type="checkbox" data-cycle="english" aria-label="純英文在 Shift 輪流中"><span></span></label>
+            </div>
+            <div class="m-body" id="m-english" hidden>
+              <div class="row"><div class="full"><p class="note" style="margin:0">純英文模式不組字，所有按鍵（含 <kbd>Ctrl</kbd>+符號）都直接交給程式。只是偶爾打一個英文詞的話，不必切換：中英自動會自己判斷，或打 <kbd>Caps Lock</kbd> 直接打大寫。</p></div></div>
             </div>
           </div>
         </div>
 
         <div class="group">
-          <h3>中文輸入法</h3>
+          <h3>Shift 輪流</h3>
           <div class="row">
-            <div><div class="label">中英自動混用的中文</div><div class="desc">中英自動一次混用一種中文：同一個字母在注音、拼音、倉頡的意思都不同，一起猜會互相干擾。三種打法學到的詞是共用的。</div></div>
-            <div class="seg" role="group" aria-label="中英自動混用的中文" data-cfg="chinese_scheme">
-              <button data-value="zhuyin">注音</button><button data-value="pinyin">拼音</button><button data-value="cangjie">倉頡五代</button>
-            </div>
-          </div>
-          <div class="row">
-            <div><div class="label">Shift 輪流的模式</div><div class="desc">勾選的模式會依序輪流（「Shift 的切換方式」選三段時）。系統匣右鍵選單永遠列出全部模式。</div></div>
-            <div class="chips" id="mode-cycle" role="group" aria-label="Shift 輪流的模式"></div>
-          </div>
-        </div>
-
-        <div class="group">
-          <h3>切換鍵</h3>
-          <div class="row">
-            <div><div class="label">切換英文的 Shift</div><div class="desc">單按一下 Shift 切換模式。按住 Shift 打大寫不受影響。</div></div>
-            <div class="seg" role="group" aria-label="切換英文的 Shift" data-cfg="toggle_shift">
-              <button data-value="left">左</button><button data-value="right">右</button><button data-value="both">兩邊</button><button data-value="none">關閉</button>
-            </div>
-          </div>
-          <div class="row">
-            <div><div class="label">Shift 的切換方式</div><div class="desc">三段（預設）：上面勾選的模式依序輪流（預設 自動 → 純注音 → 純英文）。兩段：英文 ⇄ 上次用的中文模式，切英文只要按一下。</div></div>
+            <div><div class="label">Shift 的切換方式</div><div class="desc" id="cycle-desc">三段（預設）：上面開著的模式依序輪流。兩段：英文 ⇄ 上次用的中文模式，切英文只要按一下。用左邊還是右邊的 Shift，在「快捷鍵」頁設定。</div></div>
             <div class="seg" role="group" aria-label="Shift 的切換方式" data-cfg="shift_cycle">
               <button data-value="three">三段循環</button><button data-value="two">兩段</button>
             </div>
           </div>
-        </div>
-
-        <div class="group">
-          <h3>鍵盤配置 <span class="badge later">許氏之後支援</span></h3>
-          <div class="row">
-            <div><div class="label">注音鍵盤</div><div class="desc">大部分人用大千（Windows 預設）。換鍵盤後下一個按鍵生效。</div></div>
-            <div class="seg" role="group" aria-label="注音鍵盤" data-cfg="layout">
-              <button data-value="dachen">大千</button><button data-value="eten">倚天</button>
-            </div>
-          </div>
-          <div class="row"><div class="full">
-            <div class="kb" aria-label="大千注音鍵盤" id="keyboard"></div>
-            <p class="note">藍色是聲調鍵。同一個字的注音順序打反（<kbd>k</kbd><kbd>2</kbd><kbd>7</kbd> 打成 ㄜㄉ˙）也會辨識成「的」。</p>
-          </div></div>
-          <div class="row"><div class="full">
-            <p style="margin-top:0"><b>拼音</b>：漢語拼音連著打，不用打聲調（<kbd>women</kbd> → 我們）；要指定聲調時在音節後打 <kbd>1</kbd>–<kbd>5</kbd>（<kbd>ma3</kbd> → 馬，5 是輕聲）。ü 打 <kbd>v</kbd>（<kbd>lv</kbd> → 綠），<kbd>'</kbd> 分開音節（<kbd>xi'an</kbd>），空白結束一個詞。</p>
-            <p><b>倉頡五代</b>：打碼後按空白出字；連打幾個字時會用詞頻挑重碼字（<kbd>hqi</kbd>␣<kbd>oan</kbd>␣ → 我們）。還沒按空白時，提示框顯示字根和會出的字。字根對照：</p>
-            <div class="cj-roots" id="cj-roots" aria-label="倉頡字根"></div>
-            <p class="note" style="margin-bottom:0">碼表來自「倉頡五代補完計劃」（MIT 授權），重碼依台灣常用字排序。</p>
-          </div></div>
+          <div class="row"><div class="full"><p class="note" style="margin:0" id="cycle-order"></p></div></div>
         </div>
       </section>
 
@@ -145,10 +192,6 @@
         <div class="group">
           <h3>提示</h3>
           <div class="row">
-            <div><div class="label">注音提示</div><div class="desc">還沒打聲調時，旁邊顯示會變成的注音（打 <kbd>k</kbd><kbd>2</kbd> 顯示 ㄉㄜ）。</div></div>
-            <label class="switch"><input type="checkbox" data-cfg="spelling_hint" aria-label="注音提示"><span></span></label>
-          </div>
-          <div class="row">
             <div><div class="label">游標往回移時顯示按鍵對照</div><div class="desc">例：<span class="tip" style="margin:0">（略過 e）更 ㄍㄥˋ ⌨ e/4</span>，一眼看出多按了哪個鍵。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="key_hint_on_move" aria-label="按鍵對照"><span></span></label>
           </div>
@@ -163,6 +206,31 @@
           <div class="row" id="row-sugg-count">
             <div><div class="label">一次顯示幾個建議</div><div class="desc"><kbd>Tab</kbd> 帶入第一個；<kbd>Shift</kbd>+<kbd>Tab</kbd> 打開完整接續清單（1–9 選）。</div></div>
             <div style="display:flex; gap:10px; align-items:center"><input type="range" min="1" max="9" data-cfg="suggestion_count" data-type="int" aria-label="建議數量"><b data-out="suggestion_count" style="font-variant-numeric: tabular-nums">3</b></div>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3>順打面板</h3>
+          <div class="row"><div class="full">
+            <picture class="shot">
+              <source srcset="img/cand-zh-dark.png" media="(prefers-color-scheme: dark)">
+              <img src="img/cand-zh-light.png" alt="分組上色的候選窗：我的詞庫、學過、詞庫、原始按鍵" width="440">
+            </picture>
+            <p class="note" style="margin-bottom:0">候選窗由輸入法自己畫：<b style="color:var(--ok)">綠色</b>是你自己的詞（我的詞庫、學過），一組一組排好；<kbd>Tab</kbd> 只看某一組。黃色提示框還是會在，面板貼在它下面。</p>
+          </div></div>
+          <div class="row">
+            <div><div class="label">用順打面板顯示候選</div><div class="desc">關閉後改回 PIME 的純文字候選窗（不分組、沒有顏色）。沒在打字時叫出的符號面板一律用 PIME 的。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="panel_candidates" aria-label="順打面板候選窗"><span></span></label>
+          </div>
+          <div class="row">
+            <div><div class="label">候選窗多欄</div><div class="desc">開啟後 <kbd>→</kbd> 在右邊打開下一欄（一次看更多候選），在第一欄按 <kbd>←</kbd> 收起來；關閉時 <kbd>←</kbd><kbd>→</kbd> 是翻頁。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="candidate_multi_column" aria-label="候選窗多欄"><span></span></label>
+          </div>
+          <div class="row">
+            <div><div class="label">面板顏色</div><div class="desc">跟隨 Windows 的淺色／深色模式，或固定一種。</div></div>
+            <div class="seg" role="group" aria-label="面板顏色" data-cfg="panel_theme">
+              <button data-value="system">跟隨系統</button><button data-value="light">淺色</button><button data-value="dark">深色</button>
+            </div>
           </div>
         </div>
 
@@ -190,25 +258,8 @@
       <!-- ============ 智慧修正 ============ -->
       <section class="view" id="view-fix" hidden>
         <h2>智慧修正</h2>
-        <p class="lead">打快時的錯誤會自動修好；修不好的，用候選窗或修正模式手動改。</p>
-
-        <div class="group">
-          <h3>自動修正</h3>
-          <div class="row">
-            <div><div class="label">注音順序容錯</div><div class="desc"><code>k27</code>→的、<code>8a3</code>→碼、<code>ij3</code>→我。</div></div>
-            <label class="switch"><input type="checkbox" data-cfg="reorder_tolerance" aria-label="順序容錯"><span></span></label>
-          </div>
-          <div class="row">
-            <div><div class="label">略過多按的雜鍵</div><div class="desc"><code>我e更快</code>→我更快。被略過的鍵可在候選窗「原始按鍵」找回。保守：只略過很明顯多按的鍵。</div></div>
-            <div class="seg" role="group" aria-label="略過雜鍵的程度" data-cfg="drop_stray_keys">
-              <button data-value="off">關閉</button><button data-value="conservative">保守</button><button data-value="standard">標準</button>
-            </div>
-          </div>
-          <div class="row">
-            <div><div class="label">單一字母依前後文判斷</div><div class="desc"><code>i am a good guy</code> 維持英文；<code>你想我i␣</code> 變成「你想我喔」。關閉後單一字母一律當英文。</div></div>
-            <label class="switch"><input type="checkbox" data-cfg="single_letter_context" aria-label="單一字母判斷"><span></span></label>
-          </div>
-        </div>
+        <p class="lead">打快時的錯誤會自動修好；修不好的，用候選窗或修正模式手動改，改過的會記成詞。</p>
+        <p class="callout" style="margin-top:0">注音順序容錯、略過多按的雜鍵、單一字母判斷，是各打字方式自己的設定，搬到「一般」裡對應的卡片（注音、中英自動）。</p>
 
         <div class="group">
           <h3>學習</h3>
@@ -226,11 +277,11 @@
           <h3>修正模式（類似 Vim） <span class="badge plan" id="badge-correction">即將推出</span></h3>
           <div class="row"><div class="full">
             <p class="callout" style="margin-top:0">組字中按 <kbd>Esc</kbd> 進入修正模式：旁邊出現琥珀色外框的解碼面板，三列對齊顯示「按鍵 → 注音 → 國字」，被略過的雜鍵、順序被修正的音節都看得到。手不用離開主鍵區就能直接修改；只有 <kbd>i</kbd>／<kbd>Esc</kbd>／<kbd>Enter</kbd>／<kbd>D</kbd><kbd>D</kbd> 這些明確的指令才會離開。</p>
-            <div class="views" style="margin: 12px 0">
-              <div><b>國字（v 切換）</b><span>我更快的打字</span></div>
-              <div><b>注音</b><span>ㄨㄛˇ ㄍㄥˋ ㄎㄨㄞˋ ㄉㄜ˙ ㄉㄚˇ ㄗˋ</span></div>
-              <div><b>按鍵</b><span>ji3 <span class="hl">e</span>e/4 dj94 k27 283 y4</span></div>
-            </div>
+            <picture class="shot" style="margin: 12px 0">
+              <source srcset="img/decode-correcting-dark.png" media="(prefers-color-scheme: dark)">
+              <img src="img/decode-correcting-light.png" alt="修正模式的解碼面板：按鍵、注音、國字三列對齊" width="560">
+            </picture>
+            <p class="note">紅色刪除線＝被當成雜鍵略過的鍵；琥珀色 ↺＝順序打反、已照正確順序讀；藍色底線＝你自己選的字；綠點＝我的詞庫／學過。</p>
             <div class="scroll"><table>
               <thead><tr><th>按鍵</th><th>動作</th></tr></thead>
               <tbody>
@@ -250,6 +301,12 @@
           <div class="row" id="row-correction-toggle" hidden>
             <div><div class="label">使用修正模式</div><div class="desc">關閉後 <kbd>Esc</kbd> 直接清除整段（舊的行為）。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="correction_mode" aria-label="修正模式"><span></span></label>
+          </div>
+          <div class="row">
+            <div><div class="label">解碼面板（按鍵／注音／國字）</div><div class="desc">什麼時候顯示：只在修正模式（預設）、打字時一直顯示（隨時看得到每個鍵被當成什麼），或關閉。</div></div>
+            <div class="seg" role="group" aria-label="解碼面板" data-cfg="panel_decode">
+              <button data-value="correction">修正模式時</button><button data-value="always">一直顯示</button><button data-value="off">關閉</button>
+            </div>
           </div>
         </div>
       </section>
@@ -418,9 +475,38 @@
 
       <!-- ============ 快捷鍵 ============ -->
       <section class="view" id="view-keys" hidden>
-        <h2>快捷鍵一覽</h2>
-        <p class="lead">打字時能用的所有按鍵。</p>
-        <div class="group"><div class="scroll"><table id="keys-table">
+        <h2>快捷鍵</h2>
+        <p class="lead">可以調整的按鍵放在最上面；下面是打字時能用的所有按鍵。</p>
+        <div class="group">
+          <h3>可以調整的按鍵</h3>
+          <div class="row">
+            <div><div class="label">切換模式的 Shift</div><div class="desc">單按一下哪一邊的 Shift 切換模式（像 Windows 注音可以選左右）。按住 Shift 打大寫不受影響。輪流哪些模式在「一般」。</div></div>
+            <div class="seg" role="group" aria-label="切換模式的 Shift" data-cfg="toggle_shift">
+              <button data-value="left">左</button><button data-value="right">右</button><button data-value="both">兩邊</button><button data-value="none">關閉</button>
+            </div>
+          </div>
+          <div class="row">
+            <div><div class="label">符號面板</div><div class="desc">單按一下就打開（再按一次關閉）；按住右 Ctrl 是語音輸入。</div></div>
+            <div class="seg" role="group" aria-label="符號面板的鍵" data-cfg="palette_hotkey">
+              <button data-value="rctrl">右 Ctrl</button><button data-value="ralt">右 Alt</button><button data-value="off">關閉</button>
+            </div>
+          </div>
+          <div class="row">
+            <div><div class="label">修正模式</div><div class="desc">組字中按 <kbd>Esc</kbd> 進入、再按一次回到打字。關閉後 <kbd>Esc</kbd> 直接清除整段。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="correction_mode" aria-label="Esc 修正模式"><span></span></label>
+          </div>
+          <div class="row">
+            <div><div class="label">片語</div><div class="desc">打 <kbd>;</kbd><kbd>;</kbd> 叫出片語清單。</div></div>
+            <div class="seg" role="group" aria-label="片語觸發" data-cfg="snippet_trigger">
+              <button data-value=";;">;;</button><button data-value="">關閉</button>
+            </div>
+          </div>
+          <div class="row">
+            <div><div class="label"><kbd>Ctrl</kbd>+符號打中文標點</div><div class="desc">每個鍵打什麼、要不要交給程式，在<a href="#punct" data-goto="punct">「標點與符號」</a>逐格調整。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="ctrl_punctuation" aria-label="Ctrl 標點"><span></span></label>
+          </div>
+        </div>
+        <div class="group"><h3>全部按鍵</h3><div class="scroll"><table id="keys-table">
           <thead><tr><th>情境</th><th>按鍵</th><th>動作</th><th>狀態</th></tr></thead>
           <tbody></tbody>
         </table></div></div>
@@ -515,13 +601,32 @@
       <section class="view" id="view-about" hidden>
         <h2>關於</h2>
         <p class="lead"><span data-text="product">順打輸入法</span> <span data-text="version"></span>。免切換中英混打的注音輸入法。</p>
-        <div class="group"><div class="scroll"><table>
+        <div class="group">
+          <h3>開發者</h3>
+          <div class="row">
+            <div><div class="label">開發者</div><div class="desc">個人開發的開源專案；打字手感參考華碩智慧輸入法，與華碩無關。</div></div>
+            <a class="btn" href="https://github.com/ChouYangEn0401" target="_blank" rel="noopener">ChouYangEn0401</a>
+          </div>
+          <div class="row">
+            <div><div class="label">專案首頁與原始碼</div><div class="desc">下載新版本、看更新紀錄。</div></div>
+            <a class="btn" href="https://github.com/ChouYangEn0401/shunda-ime" target="_blank" rel="noopener">GitHub</a>
+          </div>
+          <div class="row">
+            <div><div class="label">回報問題、提建議</div><div class="desc">附上你按了哪些鍵、預期和實際的結果；「資料與隱私」的除錯紀錄可以幫忙重現。</div></div>
+            <a class="btn" href="https://github.com/ChouYangEn0401/shunda-ime/issues" target="_blank" rel="noopener">回報</a>
+          </div>
+          <div class="row">
+            <div><div class="label">授權</div><div class="desc">程式碼 Apache License 2.0。使用的資料與元件各有授權，見下表。</div></div>
+          </div>
+        </div>
+        <div class="group"><h3>使用的資料與元件</h3><div class="scroll"><table>
           <thead><tr><th>元件</th><th>用途</th><th>授權</th></tr></thead>
           <tbody>
             <tr><td>小麥注音詞庫（McBopomofo）</td><td>中文詞與詞頻</td><td>MIT</td></tr>
             <tr><td>wordfreq</td><td>英文詞頻</td><td>資料 CC BY-SA 4.0</td></tr>
             <tr><td>PIME</td><td>Windows 輸入法框架</td><td>LGPL 2.1</td></tr>
             <tr><td>Python embeddable</td><td>輸入法引擎執行環境</td><td>PSF</td></tr>
+            <tr><td>倉頡五代補完計劃</td><td>倉頡五代碼表</td><td>MIT</td></tr>
           </tbody>
         </table></div></div>
       </section>

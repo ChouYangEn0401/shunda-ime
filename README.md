@@ -156,6 +156,7 @@ uv run python -m smartime.settings               # 開設定頁（本機網頁�
 src/smartime/engine/    輸入引擎（純標準函式庫）：注音、鍵盤配置、詞庫、使用者詞庫、解碼器、session、修正模式、符號
 src/smartime/pime/      PIME 後端協定（stdin/stdout JSON）與 text service 轉接
 src/smartime/settings/  設定頁：本機 HTTP 伺服器 + 網頁介面（Edge／Chrome App 視窗）
+src/smartime/ui/        輸入法自己畫的面板（解碼面板、分組候選窗、片語預覽）：GDI，貼在 PIME 的提示框下
 src/smartime/voice/     語音輸入：按住右 Ctrl 錄音、本機辨識、打到游標位置（獨立行程）
 src/smartime/devtools/  模擬器與實機測試（EDIT、RichEdit、Edge 打字；語音輸入）
 backend/                PIME 看到的後端資料夾（server.py、settings.py、ime.json、圖示）
@@ -169,7 +170,9 @@ docs/                   調查、架構、授權、設計稿
 
 內部代號是 `smartime`（Python 套件、PIME 後端資料夾、`%APPDATA%\SmartIME`），改名時刻意不動，舊版的設定與記憶都能沿用。
 
-## 授權
+## 開發者與授權
+
+開發者：[ChouYangEn0401](https://github.com/ChouYangEn0401)（個人開源專案）。問題與建議請到 [Issues](https://github.com/ChouYangEn0401/shunda-ime/issues)。
 
 程式碼採 [Apache License 2.0](LICENSE)，Copyright 2026 ChouYangEn0401。
 詞庫來自 McBopomofo（MIT）；英文詞頻表衍生自 wordfreq，以 CC BY-SA 4.0 授權。完整清單見 [NOTICE](NOTICE) 與 [docs/licenses.md](docs/licenses.md)。

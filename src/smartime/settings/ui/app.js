@@ -81,27 +81,61 @@
   }
 
   // Shift cycle: config.mode_cycle is "auto,chinese,english" (kept in this order)
-  const MODES = [["auto", "中英自動"], ["chinese", "純注音"], ["english", "純英文"], ["pinyin", "純拼音"], ["cangjie", "純倉頡"]];
+  const MODES = [["auto", "中英自動"], ["chinese", "注音"], ["english", "英文"], ["pinyin", "拼音"], ["cangjie", "倉頡"]];
+  // 一般: one card per input method. The switch puts it in the Shift cycle,
+  // 「開啟時」 makes it the starting mode, the card opens to its own settings.
   function renderModeCycle() {
-    const box = document.getElementById("mode-cycle");
-    if (!box || config.mode_cycle === undefined) return;
+    if (config.mode_cycle === undefined) return;
     const on = new Set(config.mode_cycle.split(","));
-    box.innerHTML = "";
-    MODES.forEach(([value, label]) => {
-      const lab = document.createElement("label");
-      lab.className = "chip";
-      lab.innerHTML = `<input type="checkbox"> <span></span>`;
-      lab.querySelector("span").textContent = label;
-      const cb = lab.querySelector("input");
-      cb.checked = on.has(value);
-      cb.addEventListener("change", () => {
-        const next = MODES.map(m => m[0]).filter(m => m === value ? cb.checked : on.has(m));
-        if (!next.length) { cb.checked = true; toast("至少要留一個模式", true); return; }
-        save({ mode_cycle: next.join(",") });
-      });
-      box.appendChild(lab);
+    document.querySelectorAll(".method").forEach(m => {
+      const mode = m.dataset.mode;
+      m.querySelector("[data-cycle]").checked = on.has(mode);
+      const start = config.start_mode === mode;
+      m.classList.toggle("off", !on.has(mode) && !start);
+      const st = m.querySelector(".m-start");
+      st.setAttribute("aria-pressed", start ? "true" : "false");
+      st.textContent = start ? "開啟時 ✓" : "開啟時";
     });
+    const names = Object.fromEntries(MODES);
+    const order = MODES.map(m => m[0]).filter(m => on.has(m)).map(m => names[m]);
+    const line = document.getElementById("cycle-order");
+    if (line) line.textContent = config.shift_cycle === "two"
+      ? "兩段：單按 Shift 在英文和上次用的中文模式之間切換。"
+      : `現在單按 Shift 的順序：${order.join(" → ")}${order.length > 1 ? " → " + order[0] + " …" : ""}`;
   }
+  document.querySelectorAll(".method").forEach(m => {
+    const mode = m.dataset.mode;
+    const cb = m.querySelector("[data-cycle]");
+    cb.addEventListener("change", () => {
+      const on = new Set(config.mode_cycle.split(","));
+      if (cb.checked) on.add(mode); else on.delete(mode);
+      const next = MODES.map(x => x[0]).filter(x => on.has(x));
+      if (!next.length) { cb.checked = true; toast("至少要留一個模式", true); return; }
+      save({ mode_cycle: next.join(",") });
+    });
+    m.querySelector(".m-start").addEventListener("click", () => save({ start_mode: mode }));
+    const toggle = m.querySelector(".m-toggle");
+    const body = m.querySelector(".m-body");
+    toggle.addEventListener("click", () => {
+      const open = body.hidden;
+      body.hidden = !open;
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      try {
+        const keep = new Set(JSON.parse(localStorage.getItem("smartime-open-methods") || "[]"));
+        if (open) keep.add(mode); else keep.delete(mode);
+        localStorage.setItem("smartime-open-methods", JSON.stringify([...keep]));
+      } catch (e) { /* storage may be blocked */ }
+    });
+  });
+  (function restoreOpenMethods() {
+    let keep = ["auto"];
+    try { keep = JSON.parse(localStorage.getItem("smartime-open-methods") || '["auto"]'); } catch (e) { /* default */ }
+    document.querySelectorAll(".method").forEach(m => {
+      const open = keep.includes(m.dataset.mode);
+      m.querySelector(".m-body").hidden = !open;
+      m.querySelector(".m-toggle").setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  })();
   const cjRoots = document.getElementById("cj-roots");
   if (cjRoots) {
     "日月金木水火土竹戈十大中一弓人心手口尸廿山女田難卜重".split("").forEach((r, i) => {
@@ -735,21 +769,24 @@
       ["打字", "<kbd>Enter</kbd>", "送出整段", D],
       ["打字", "<kbd>Backspace</kbd>", "刪掉游標前看得到的一個字（還沒打聲調時刪一個鍵），連同緊貼著它被略過的雜鍵；其他字不變", D],
       ["打字", "<kbd>Ctrl</kbd>+<kbd>Z</kbd> <kbd>Ctrl</kbd>+<kbd>Y</kbd>", "組字中復原／重做（打字以一個字為一步）；沒在組字時交給程式", D],
-      ["打字", "<kbd>Ctrl</kbd>+<kbd>V</kbd> 等其他快捷鍵", "組字中按：先把字送出，再交給程式（貼上不會插進組字中間）", D],
+      ["打字", "<kbd>Ctrl</kbd>+<kbd>V</kbd> 等其他快捷鍵、點滑鼠", "組字中：先把字送出，再交給程式（貼上不會插進組字中間）", D],
       ["打字", "<kbd>Tab</kbd>", "帶入接續建議", D],
       ["打字", "<kbd>Shift</kbd>+<kbd>Tab</kbd>", "打開完整接續清單", more],
+      ["打字", "<kbd>;</kbd><kbd>;</kbd>（＋關鍵字）", "叫出片語，先預覽，Enter 打出", D],
       ["打字", "<kbd>Ctrl</kbd>+<kbd>D</kbd>", "把游標前的中文加入我的詞庫", D],
-      ["選字", "<kbd>↓</kbd> <kbd>↑</kbd>", "打開候選窗（游標前／後的字）", D],
-      ["選字", "<kbd>1</kbd>–<kbd>9</kbd>", "直接選候選", D],
-      ["選字", "<kbd>←</kbd> <kbd>→</kbd>", "翻頁；不在候選窗時移動游標", D],
+      ["選字", "<kbd>↓</kbd> <kbd>↑</kbd>", "打開候選窗（游標前／後的字），選取停在目前的字", D],
+      ["選字", "<kbd>1</kbd>–<kbd>9</kbd>", "直接選候選（多欄時選取所在那一欄）", D],
+      ["選字", "<kbd>Tab</kbd> <kbd>Shift</kbd>+<kbd>Tab</kbd>", "只看某一組：我的詞庫、學過、詞庫、原始按鍵…", D],
+      ["選字", "<kbd>←</kbd> <kbd>→</kbd>", "翻頁；多欄時 → 打開下一欄、第一欄按 ← 收起；不在候選窗時移動游標", D],
       ["選字", "<kbd>Ctrl</kbd>+<kbd>D</kbd>", "把選中的候選加入詞庫", D],
-      ["選字", "選字框裡按 <kbd>Delete</kbd>", "（只在選字框開著時）忘記這個詞的使用紀錄；沒學過的就不再建議", D],
+      ["選字", "選字框裡按 <kbd>Delete</kbd>", "忘記這個詞的使用紀錄；沒學過的就不再建議", D],
       ["修正", "<kbd>Esc</kbd>", "進入修正模式（再按一次回到打字；連按 D D 清除整段）", corr],
       ["修正", "<kbd>h</kbd> <kbd>j</kbd> <kbd>k</kbd> <kbd>l</kbd> <kbd>v</kbd> <kbd>x</kbd> <kbd>e</kbd> <kbd>r</kbd> <kbd>a</kbd> <kbd>u</kbd> <kbd>i</kbd>", "修正模式的移動與編輯（見「智慧修正」）", corr],
-      ["模式", "單按 <kbd>Shift</kbd>", "切換英文（設定：左／右／兩邊，兩段或三段）", D],
-      ["模式", "系統匣圖示右鍵", "選 中英自動／純中文／純英文、開啟設定", D],
+      ["模式", "單按 <kbd>Shift</kbd>", "切換模式（上面設定左／右／兩邊；輪流哪些在「一般」）", D],
+      ["模式", "系統匣圖示右鍵", "直接選任何模式、開啟設定", D],
       ["模式", "<kbd>Caps Lock</kbd>", "直接打英文大寫", D],
-      ["標點", '<a href="#punct" data-goto="punct">見「標點與符號」</a>', "Ctrl+符號 全形標點、換寬度、符號面板（單按右 Ctrl）", D],
+      ["標點", '<a href="#punct" data-goto="punct">見「標點與符號」</a>', "單按／Shift 打鍵帽上的符號，Ctrl／Ctrl+Shift 打中文標點", D],
+      ["符號", "單按右 <kbd>Ctrl</kbd>", "符號面板：標點、希臘字母、數學、箭頭、單位、片語、顏文字（<kbd>Tab</kbd> 換分頁）", pal],
       ["語音", "按住右 <kbd>Ctrl</kbd>", "說話，放開後打到游標位置（右 Ctrl＋其他鍵＝一般快捷鍵，不錄音）", D],
     ];
     const tbody = document.querySelector("#keys-table tbody");
@@ -762,7 +799,7 @@
       tr.querySelector(".badge").textContent = label;
       tbody.appendChild(tr);
     });
-    tbody.querySelectorAll("[data-goto]").forEach(a => a.addEventListener("click", e => {
+    document.querySelectorAll("#view-keys [data-goto], #view-snippets [data-goto]").forEach(a => a.addEventListener("click", e => {
       e.preventDefault();
       show(a.dataset.goto);
     }));
