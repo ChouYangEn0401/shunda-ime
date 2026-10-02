@@ -28,6 +28,7 @@
       <button data-view="fix"><span class="glyph">✎</span>智慧修正</button>
       <button data-view="punct"><span class="glyph">，</span>標點與符號</button>
       <button data-view="dict"><span class="glyph">詞</span>我的詞庫</button>
+      <button data-view="snippets"><span class="glyph">❞</span>片語與顏文字</button>
       <button data-view="keys"><span class="glyph">⌨</span>快捷鍵一覽</button>
       <button data-view="voice"><span class="glyph">◉</span>語音輸入</button>
       <button data-view="data"><span class="glyph">⇅</span>資料與隱私</button>
@@ -369,6 +370,48 @@
               <button class="btn" type="submit">新增分類</button>
             </form>
             <p class="note" style="margin-bottom:0">候選窗會在詞旁標上分類，例如「陳怡君　朋友」。刪除分類不會刪除裡面的詞。</p>
+          </div></div>
+        </div>
+      </section>
+
+      <!-- ============ 片語與顏文字 ============ -->
+      <section class="view" id="view-snippets" hidden>
+        <h2>片語與顏文字</h2>
+        <p class="lead">常用的一段話——罐頭訊息、地址、簽名、同一類業務的回覆——存在這裡。打字時打 <kbd>;</kbd><kbd>;</kbd>（可以接著打關鍵字篩選），選中時先在面板預覽全文，按 <kbd>Enter</kbd> 才打出來。也可以單按右 <kbd>Ctrl</kbd> 打開符號面板，在「片語」分頁選。</p>
+
+        <div class="group">
+          <h3>新增片語</h3>
+          <div class="row"><div class="full">
+            <form class="snipform" id="snip-form" autocomplete="off">
+              <input type="text" id="snip-title" placeholder="標題（可省略），例如：我的地址" aria-label="標題">
+              <input type="text" id="snip-key" placeholder="關鍵字，例如：addr" aria-label="關鍵字">
+              <textarea id="snip-body" rows="3" placeholder="內容（可以多行）" aria-label="內容"></textarea>
+              <div class="snip-edit-acts"><button class="btn primary" type="submit">加入</button></div>
+            </form>
+            <p class="note" style="margin-bottom:0">關鍵字用英文字母最快：打 <code>;;addr</code> 就只剩下關鍵字是 addr 開頭的片語。沒有關鍵字也可以，從清單選。</p>
+          </div></div>
+        </div>
+
+        <div class="group">
+          <h3>我的片語 <span class="note" style="letter-spacing:0" id="snip-count"></span></h3>
+          <div class="row"><div class="full"><div class="snip-list" id="snip-list"></div></div></div>
+        </div>
+
+        <div class="group">
+          <h3>叫出方式</h3>
+          <div class="row">
+            <div><div class="label">打字時打 <kbd>;</kbd><kbd>;</kbd> 叫出片語</div><div class="desc"><kbd>;;</kbd> 不是任何注音，英文裡也幾乎不會出現。按 <kbd>Esc</kbd> 關掉清單時會保留打的字，真的要打 <code>;;</code> 也可以。拼音、倉頡模式的 <kbd>;</kbd> 是全形標點，請用符號面板的「片語」分頁。</div></div>
+            <div class="seg" role="group" aria-label="片語觸發" data-cfg="snippet_trigger">
+              <button data-value=";;">開啟</button><button data-value="">關閉</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3>顏文字</h3>
+          <div class="row"><div class="full">
+            <p style="margin-top:0">單按右 <kbd>Ctrl</kbd> 打開符號面板，<kbd>Shift</kbd>+<kbd>Tab</kbd> 就到「顏文字」分頁：依心情分組（開心、喜歡、難過、生氣、驚訝、無奈、害羞、打招呼、謝謝抱歉、加油、睡覺、動物……），最近用過的排在最前面。</p>
+            <div class="kao-sample" id="kao-sample"></div>
           </div></div>
         </div>
       </section>

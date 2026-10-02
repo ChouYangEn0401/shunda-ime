@@ -70,6 +70,9 @@ class Config:
     # code with it). Ctrl+Alt+key is impossible: Windows does not pass keys
     # pressed with Alt to input methods.
     palette_hotkey: str = "rctrl"
+    # 片語: typing this opens the list of saved texts (then a keyword filters
+    # it). Never valid zhuyin, very rare in English; "" turns it off.
+    snippet_trigger: str = ";;"
 
     # Smart correction
     reorder_tolerance: bool = True  # ㄛㄨˇ typed for ㄨㄛˇ still gives 我
@@ -156,6 +159,8 @@ class Config:
             self.voice_engine = "auto"
         if self.drop_stray_keys not in DROP_CHOICES:
             self.drop_stray_keys = "standard"
+        if len(self.snippet_trigger) > 4 or self.snippet_trigger.strip() != self.snippet_trigger:
+            self.snippet_trigger = ";;"
         if self.punct_style not in ("keycap", "fullwidth", "custom"):
             self.punct_style = "keycap"
         self.punct_overrides = {k: v[:4] for k, v in self.punct_overrides.items()

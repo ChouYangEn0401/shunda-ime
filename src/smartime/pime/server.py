@@ -52,8 +52,11 @@ def build_engine() -> Engine:
     layout = get_layout(config.layout)
     decoder = Decoder(lexicon, layout)
     decoder.apply_config(config)
+    from ..engine.symbols import SymbolPanel
+
     engine = Engine(lexicon=lexicon, layout=layout, decoder=decoder, config=config,
-                    config_path=paths.config_path())
+                    config_path=paths.config_path(),
+                    symbols=SymbolPanel(paths.user_dir() / "recent-symbols.json"))
     engine.refresh()  # record the config file's current mtime
     return engine
 

@@ -11,6 +11,8 @@ What is stored
     guess cannot teach itself (the complaint about Windows' IME). Giving an
     inbox entry a category moves it to 我的詞庫.
   * blocked phrases: "never suggest this" (Delete key in the candidate window)
+  * 片語 (snippets): saved texts — canned replies, an address, a signature —
+    typed with ;; and a keyword, or picked from the symbol panel
 
 Everything is per user and local. The settings app writes to the same
 SQLite file; the IME notices through ``PRAGMA data_version`` and reloads.
@@ -100,6 +102,15 @@ class UserDict:
                 blocked INTEGER NOT NULL DEFAULT 0,
                 UNIQUE (phrase, reading));
             CREATE INDEX IF NOT EXISTS entries_reading ON entries(reading);
+            CREATE TABLE IF NOT EXISTS snippets (
+                id INTEGER PRIMARY KEY,
+                title TEXT NOT NULL DEFAULT '',
+                keyword TEXT NOT NULL DEFAULT '',
+                body TEXT NOT NULL,
+                sort INTEGER NOT NULL DEFAULT 0,
+                count INTEGER NOT NULL DEFAULT 0,
+                last_used REAL,
+                created REAL NOT NULL);
             """
         )
         if c.execute("SELECT value FROM meta WHERE key='schema'").fetchone() is None:
@@ -349,6 +360,62 @@ class UserDict:
         self._load()
         return cur.rowcount
 
+    # ------------------------------------------------------------ snippets (片語)
+    def snippets(self, query: str = "") -> list[dict]:
+        """In the user's order. With ``query``: keyword prefix matches
+        first, then title / text matches (case-insensitive)."""
+        rows = [dict(zip(("id", "title", "keyword", "body", "sort", "count", "last_used", "created"), r))
+                for r in self._con.execute(
+                    "SELECT id, title, keyword, body, sort, count, last_used, created FROM snippets "
+                    "ORDER BY sort, id")]
+        q = query.strip().lower()
+        if not q:
+            return rows
+        head = [r for r in rows if r["keyword"].lower().startswith(q)]
+        rest = [r for r in rows if r not in head and (q in r["title"].lower() or q in r["body"].lower()
+                                                       or q in r["keyword"].lower())]
+        return head + rest
+
+    def add_snippet(self, body: str, title: str = "", keyword: str = "") -> int:
+        body = body.strip("\r\n")
+        if not body.strip():
+            raise ValueError("snippet is empty")
+        sort = self._con.execute("SELECT coalesce(max(sort), 0) + 1 FROM snippets").fetchone()[0]
+        cur = self._con.execute(
+            "INSERT INTO snippets (title, keyword, body, sort, created) VALUES (?, ?, ?, ?, ?)",
+            (title.strip(), keyword.strip(), body, sort, time.time()))
+        return int(cur.lastrowid)
+
+    def update_snippet(self, snippet_id: int, **fields) -> None:
+        for key in ("title", "keyword", "body", "sort"):
+            if key in fields and fields[key] is not None:
+                value = fields[key]
+                if key == "body":
+                    value = str(value).strip("\r\n")
+                    if not value.strip():
+                        raise ValueError("snippet is empty")
+                elif key != "sort":
+                    value = str(value).strip()
+                self._con.execute(f"UPDATE snippets SET {key}=? WHERE id=?", (value, snippet_id))
+
+    def move_snippet(self, snippet_id: int, delta: int) -> None:
+        """Move one place up (-1) or down (+1) in the user's order."""
+        ids = [r[0] for r in self._con.execute("SELECT id FROM snippets ORDER BY sort, id")]
+        if snippet_id not in ids:
+            return
+        i = ids.index(snippet_id)
+        j = max(0, min(len(ids) - 1, i + delta))
+        ids.insert(j, ids.pop(i))
+        for n, sid in enumerate(ids):
+            self._con.execute("UPDATE snippets SET sort=? WHERE id=?", (n, sid))
+
+    def delete_snippet(self, snippet_id: int) -> None:
+        self._con.execute("DELETE FROM snippets WHERE id=?", (snippet_id,))
+
+    def used_snippet(self, snippet_id: int) -> None:
+        self._con.execute("UPDATE snippets SET count = count + 1, last_used = ? WHERE id=?",
+                          (time.time(), snippet_id))
+
     # ------------------------------------------------------------ export / import
     def backup_to(self, path: str | Path) -> None:
         dst = sqlite3.connect(path)
@@ -387,6 +454,15 @@ class UserDict:
                      origin or ""),
                 )
                 n += 1
+            has_snippets = src.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='snippets'").fetchone() is not None
+            if has_snippets:
+                mine = {r[0] for r in self._con.execute("SELECT body FROM snippets")}
+                for title, keyword, body in src.execute("SELECT title, keyword, body FROM snippets ORDER BY sort, id"):
+                    if body not in mine:  # same text already here: keep mine
+                        self.add_snippet(body, title, keyword)
+                        mine.add(body)
+                        n += 1
         finally:
             src.close()
         self._load()

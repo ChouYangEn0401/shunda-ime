@@ -305,6 +305,29 @@ CAND_HELP = [("↑↓", "移動"), ("1–9", "選"), ("Tab", "分類"), ("→", 
 CAND_HELP_SINGLE = [("↑↓", "移動"), ("1–9", "選"), ("Tab", "分類"), ("← →", "翻頁"), ("Del", "忘記"),
                     ("Ctrl+D", "加詞")]
 PALETTE_HELP = [("1–9", "選"), ("Tab", "換分類"), ("→", "更多"), ("Esc", "關閉")]
+SNIPPET_HELP = [("字母", "篩選"), ("↑↓", "移動"), ("1–9", "選"), ("Enter", "打出"), ("Esc", "關閉（保留 ;;）")]
+PREVIEW_LINES = 8
+
+
+def wrap(c: Canvas, text: str, font: int, width: float, max_lines: int) -> list[str]:
+    """Break text into lines that fit ``width`` (character by character:
+    Chinese has no spaces), at most ``max_lines`` (the last ends with …)."""
+    lines: list[str] = []
+    for para in text[:600].split("\n"):
+        line = ""
+        for ch in para:
+            if line and c.measure(line + ch, font)[0] > width:
+                lines.append(line)
+                line = ch
+            else:
+                line += ch
+        lines.append(line)
+        if len(lines) > max_lines:
+            break
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        lines[-1] = lines[-1][:-1] + "…"
+    return lines
 
 
 def _group_color(t: Theme, group: str) -> int | None:
@@ -408,7 +431,7 @@ def _paint_chips(c: Canvas, s: Styles, t: Theme, x: float, y: float, chips: list
 
 
 def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, draw: bool = True) -> Painted:
-    if p.palette:
+    if p.palette and p.layout == "grid":
         return paint_palette(c, t, p, size, draw)
     s = Styles(c, t, size)
     k = size
@@ -429,17 +452,22 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
         col_w.append(w)
     gap = 10 * k
     cols_w = sum(col_w) + gap * max(0, len(col_w) - 1)
-    help_items = PALETTE_HELP if p.palette else (CAND_HELP if p.multi else CAND_HELP_SINGLE)
+    help_items = SNIPPET_HELP if p.snippet else PALETTE_HELP if p.palette else (
+        CAND_HELP if p.multi else CAND_HELP_SINGLE)
     title_w = c.measure(p.title, s.help)[0] + 60 * k
     chips_w = sum(c.measure(ch, s.small)[0] + 18 * k for ch in p.chips)
-    width = max(cols_w, _help_width(c, s, help_items), title_w, chips_w) + 2 * PAD_X * k
-    width = min(width, max(cols_w + 2 * PAD_X * k, 420 * k))
+    width = max(cols_w, _help_width(c, s, help_items), title_w, min(chips_w, 560 * k),
+                360 * k if p.preview else 0) + 2 * PAD_X * k
+    width = min(width, max(cols_w + 2 * PAD_X * k, 460 * k if p.preview else 420 * k))
+    chip_lines = _chip_lines(c, s, p.chips, width - 2 * PAD_X * k, k) if p.chips else []
+    preview = wrap(c, p.preview, s.reading, width - 2 * PAD_X * k - 20 * k, PREVIEW_LINES) if p.preview else []
+    preview_h = (len(preview) * 20 * k + 30 * k) if preview else 0
     title_h = 20 * k
-    chips_h = 24 * k if p.chips else 0
+    chips_h = 24 * k * len(chip_lines)
     body_h = max((sum(GROUP_H * k if kind == "group" else ROW_H * k for kind, _ in rows) for rows in col_rows),
                  default=ROW_H * k)
     footer_h = 20 * k
-    height = PAD_Y * k + title_h + chips_h + 4 * k + body_h + 8 * k + footer_h + PAD_Y * k
+    height = PAD_Y * k + title_h + chips_h + 4 * k + body_h + preview_h + 8 * k + footer_h + PAD_Y * k
     out = Painted(width, height)
     if not draw:
         return out
@@ -454,10 +482,10 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
     if p.pages > 1:
         c.text(width - PAD_X * k - pw, y + 1 * k, pages, s.num, t.faint)
     y += title_h
-    # Tab chips: the groups; the active filter filled
-    if p.chips:
-        _paint_chips(c, s, t, x0, y, p.chips, p.chip, k)
-        y += chips_h
+    # Tab chips: the groups (or the symbol panel's tabs); the active one filled
+    for line in chip_lines:
+        _paint_chips(c, s, t, x0, y, line, p.chip, k)
+        y += 24 * k
     c.hline(x0, width - PAD_X * k, y + 1 * k, t.border, 1)
     y += 4 * k
     # columns
@@ -490,7 +518,16 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
         x += cw + gap
         if x < x0 + cols_w:
             c.vline(x - gap / 2, y + 2 * k, y + body_h, t.border, 1)
-    fy = y + body_h + 8 * k
+    if preview:
+        # the selected 片語 as it will be typed
+        py = y + body_h + 6 * k
+        c.fill(x0, py, width - 2 * PAD_X * k, preview_h - 8 * k, t.surface, radius=6 * k)
+        c.text(x0 + 10 * k, py + 4 * k, "預覽 · Enter 打出", s.small, t.faint)
+        ly = py + 22 * k
+        for line in preview:
+            c.text(x0 + 10 * k, ly, line, s.reading, t.fg)
+            ly += 20 * k
+    fy = y + body_h + preview_h + 8 * k
     c.hline(x0, width - PAD_X * k, fy - 4 * k, t.border, 1)
     _paint_help(c, s, t, x0, fy, help_items, width - PAD_X * k)
     return out

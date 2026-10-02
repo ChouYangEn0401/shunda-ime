@@ -1,5 +1,7 @@
-"""Symbol panel (a lone tap of the right Alt key): categories of symbols that
-have no key of their own. The first category, 常用, puts recently used symbols first.
+"""Symbol panel (a lone tap of the right Ctrl key): categories of symbols that
+have no key of their own, then 片語 (the user's saved texts) and 顏文字. The
+first category, 常用, puts recently used symbols first; 顏文字 puts recently
+used faces first.
 """
 
 from __future__ import annotations
@@ -21,7 +23,11 @@ CATEGORIES: list[tuple[str, str]] = [
     ("序號", "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩"),
     ("注音", "ㄅㄆㄇㄈㄉㄊㄋㄌㄍㄎㄏㄐㄑㄒㄓㄔㄕㄖㄗㄘㄙㄧㄨㄩㄚㄛㄜㄝㄞㄟㄠㄡㄢㄣㄤㄥㄦˊˇˋ˙"),
 ]
-RECENT_MAX = 18
+RECENT_MAX = 18  # single symbols in 常用
+RECENT_KAOMOJI = 12
+# Tabs after the symbol categories; shown as lists, not as the symbol grid.
+LIST_TABS = ("片語", "顏文字")
+TABS = [name for name, _ in CATEGORIES] + list(LIST_TABS)
 
 
 class SymbolPanel:
@@ -33,7 +39,7 @@ class SymbolPanel:
         if path is not None:
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
-                self.recent = [s for s in data if isinstance(s, str) and len(s) == 1][:RECENT_MAX]
+                self.recent = [s for s in data if isinstance(s, str) and 0 < len(s) <= 40][:RECENT_MAX + RECENT_KAOMOJI]
             except (OSError, ValueError):
                 pass
 
@@ -41,12 +47,23 @@ class SymbolPanel:
         name, chars = CATEGORIES[index % len(CATEGORIES)]
         symbols = list(chars)
         if index % len(CATEGORIES) == 0:
-            symbols = list(dict.fromkeys(self.recent + symbols))
+            symbols = list(dict.fromkeys([s for s in self.recent if len(s) == 1] + symbols))
         return name, symbols
+
+    def kaomoji(self) -> list[tuple[str, str]]:
+        """[(face, group)], the recently used ones first (group 最近)."""
+        from .kaomoji import flat
+
+        faces = flat()
+        known = {k for k, _ in faces}
+        recent = [s for s in self.recent if s in known][:RECENT_KAOMOJI]
+        return [(k, "最近") for k in recent] + [(k, g) for k, g in faces if k not in recent]
 
     def used(self, symbol: str) -> None:
         self.recent = [symbol] + [s for s in self.recent if s != symbol]
-        del self.recent[RECENT_MAX:]
+        singles = [s for s in self.recent if len(s) == 1][:RECENT_MAX]
+        longer = [s for s in self.recent if len(s) > 1][:RECENT_KAOMOJI]
+        self.recent = [s for s in self.recent if s in singles or s in longer]
         if self.path is None:
             return
         try:

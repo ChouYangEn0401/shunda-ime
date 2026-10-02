@@ -36,7 +36,7 @@ from .userdict import UserDict
 from .correction import CorrectionMixin
 from .panel import CandidatePanel, DecodePanel, candidate_panel, decode_panel
 from .punct import ctrl_output
-from .symbols import CATEGORIES, SymbolPanel
+from .symbols import CATEGORIES, LIST_TABS, TABS, SymbolPanel
 
 VK_D = 0x44
 VK_Y = 0x59
@@ -90,6 +90,8 @@ class Candidate:
     symbol: str = ""  # symbol panel entry
     suggestion: "Suggestion | None" = None  # continuation list entry
     group: str = ""  # see GROUP_ORDER
+    preview: str = ""  # 片語: the whole text, shown under the list before it is typed
+    snippet_id: int | None = None
 
 
 @dataclass
@@ -105,6 +107,8 @@ class CandidateList:
     title: str = ""  # shown in the message window (symbol panel category)
     palette: int | None = None  # symbol panel: current category index
     multi: bool = False  # → opens columns instead of turning pages
+    snippet_at: int | None = None  # opened by ;; : the trigger's first key (letters after it filter)
+    query: str = ""
     filter: str = ""  # "" = every group
     columns: int = 1  # pages shown side by side
     first_page: int = 0  # leftmost page shown
@@ -603,6 +607,9 @@ class Session(CorrectionMixin):
             self._retype_done()
             if self.correcting:
                 return
+        self._check_snippet_trigger()
+        if self.cand is not None:
+            return
         if self.cfg.commit_on_clause_punct and self.cursor == len(self.keys):
             last = self.decoding.segments[-1] if self.decoding.segments else None
             if last is not None and last.kind is Kind.PUNCT and last.text in CLAUSE_PUNCT:
@@ -926,10 +933,13 @@ class Session(CorrectionMixin):
             return True
         if key.ctrl or key.alt:
             return False
+        if cand.snippet_at is not None and self._snippet_key(key):
+            return True
         if vk == VK_TAB and cand.palette is not None:
             self._open_palette(cand.palette + (-1 if key.shift else 1))
             return True
-        if cand.palette is not None and vk in (VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN):
+        if cand.palette is not None and TABS[cand.palette % len(TABS)] not in LIST_TABS and \
+                vk in (VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN):
             # the symbol panel is a grid (a page per row): arrows move by cell / row
             step = {VK_LEFT: -1, VK_RIGHT: +1, VK_UP: -cand.page_size, VK_DOWN: +cand.page_size}[vk]
             if 0 <= cand.index + step < len(cand.shown) or abs(step) == 1:
@@ -968,6 +978,11 @@ class Session(CorrectionMixin):
         return True
 
     def _choose(self, c: Candidate) -> None:
+        if c.pin is None and not c.symbol and c.suggestion is None:
+            return  # a placeholder row (「還沒有片語」)
+        if c.symbol and (len(c.symbol) > 1 or c.snippet_id is not None):
+            self._type_text(c)
+            return
         if c.symbol:
             self._insert_symbol(c.symbol)
             return
@@ -1290,16 +1305,101 @@ class Session(CorrectionMixin):
             self._open_palette(0)
 
     def _open_palette(self, index: int) -> None:
-        index %= len(CATEGORIES)
-        name, symbols = self.engine.symbols.category(index)
-        tabs = " ".join(f"[{n}]" if i == index else n for i, (n, _) in enumerate(CATEGORIES))
-        items = [Candidate(sym, None, symbol=sym, group="符號") for sym in symbols]
-        # the category name rides on the first row, so it is visible even
-        # when nothing is being composed (no message window then)
-        items[0].annotation = f"{name} · Tab 換分類"
+        index %= len(TABS)
+        name = TABS[index]
+        tabs = " ".join(f"[{n}]" if i == index else n for i, n in enumerate(TABS))
+        if name == "片語":
+            items = self._snippet_items("")
+        elif name == "顏文字":
+            items = self._kaomoji_items()
+        else:
+            _, symbols = self.engine.symbols.category(index)
+            items = [Candidate(sym, None, symbol=sym, group="符號") for sym in symbols]
+            # the category name rides on the first row, so it is visible even
+            # when nothing is being composed (no message window then)
+            items[0].annotation = f"{name} · Tab 換分類"
         self.cand = self._new_list(items, title=f"符號 {tabs} · Tab 換分類", palette=index)
         self.cand.multi = True
-        self.cand.columns = min(self.cand.pages, 4)  # rows of the grid shown at once
+        if name in LIST_TABS:
+            self.cand.columns = 1 if name == "片語" else min(self.cand.pages, 2)
+        else:
+            self.cand.columns = min(self.cand.pages, 4)  # rows of the grid shown at once
+
+    # ============================================================ 片語 / 顏文字
+    def _snippet_items(self, query: str) -> list[Candidate]:
+        user = self.engine.user
+        rows = user.snippets(query) if user is not None else []
+        items = []
+        for r in rows:
+            first = r["body"].strip().splitlines()[0] if r["body"].strip() else ""
+            label = r["title"] or (first[:18] + ("…" if len(first) > 18 or "\n" in r["body"].strip() else ""))
+            items.append(Candidate(label, None, r["keyword"], symbol=r["body"], group="片語", preview=r["body"],
+                                   snippet_id=r["id"]))
+        if not items:
+            note = "沒有符合的片語" if query else "還沒有片語：到設定頁「片語」新增"
+            items = [Candidate(f"（{note}）", None, group="片語")]
+        return items
+
+    def _kaomoji_items(self) -> list[Candidate]:
+        return [Candidate(face, None, symbol=face, group=group) for face, group in self.engine.symbols.kaomoji()]
+
+    def _check_snippet_trigger(self) -> None:
+        """Typing the trigger (;;) opens the 片語 list."""
+        trig = self.cfg.snippet_trigger
+        if not trig or self.correcting or self.cand is not None or self.cursor != len(self.keys):
+            return
+        n = len(trig)
+        if len(self.keys) >= n and "".join(k.char for k in self.keys[-n:]) == trig:
+            self.cand = self._new_list(self._snippet_items(""), title="片語")
+            self.cand.snippet_at = len(self.keys) - n
+
+    def _snippet_key(self, key: KeyInput) -> bool:
+        """Keys while the ;; list is open: letters filter it, digits pick,
+        Backspace edits the filter, Esc closes it keeping what was typed."""
+        cand = self.cand
+        vk = key.vk
+        if vk == VK_BACK:
+            if cand.query:
+                self.keys.pop()
+                self.cursor = len(self.keys)
+                self._redecode()
+                self._refilter_snippets(cand.query[:-1])
+            else:
+                self.cand = None
+                self._delete_unit(before=True)  # back to the first ";"
+            return True
+        if vk == VK_ESCAPE:
+            self.cand = None  # what was typed stays (;; can still be typed)
+            return True
+        if key.printable and not key.ctrl and not key.alt and key.char not in SELECTION_DIGITS and key.char != " ":
+            self.keys.append(Key(key.char))
+            self.cursor = len(self.keys)
+            self._redecode()
+            self._refilter_snippets(cand.query + key.char)
+            return True
+        return False
+
+    def _refilter_snippets(self, query: str) -> None:
+        at = self.cand.snippet_at
+        self.cand = self._new_list(self._snippet_items(query), title="片語")
+        self.cand.snippet_at, self.cand.query = at, query
+
+    def _type_text(self, c: Candidate) -> None:
+        """Type a 片語 / 顏文字 as it is. The ;; that opened the list (and
+        its filter) is removed; the text before it is committed first."""
+        at = self.cand.snippet_at if self.cand is not None else None
+        self.cand = None
+        if at is not None:
+            del self.keys[at:]
+            self.cursor = len(self.keys)
+            self.pins = [p for p in self.pins if p.end <= at]
+            self._redecode() if self.keys else self._reset_buffer()
+        self.commit_all()
+        self._commit += c.symbol
+        if c.snippet_id is not None and self.engine.user is not None:
+            self.engine.user.used_snippet(c.snippet_id)
+        else:
+            self.engine.symbols.used(c.symbol)
 
     def _insert_symbol(self, symbol: str) -> None:
         self.cand = None

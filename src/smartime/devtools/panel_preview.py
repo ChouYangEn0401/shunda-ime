@@ -31,6 +31,9 @@ CANDIDATE_SAMPLES = [
     ("cand-multi", "u4{DOWN}{RIGHT}{RIGHT}", True),
     ("cand-filter", "mvp {DOWN}{TAB}{TAB}", False),
     ("palette", "ji3{RCTRL}{TAB}{TAB}{RIGHT}", True),
+    ("kaomoji", "ji3{RCTRL}{S-TAB}{DOWN}", True),
+    ("snippets", "ji3;;", True),
+    ("snippets-filter", "ji3;;ad{DOWN}", True),
 ]
 
 
@@ -90,6 +93,9 @@ def main() -> int:
             engine.lexicon.user.add("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ", "zh", "朋友")
             engine.lexicon.user.add("珍", "ㄓㄣ", "zh", "朋友")
             engine.lexicon.user.learn("真", "ㄓㄣ", "zh")
+            engine.lexicon.user.add_snippet("台北市大安區羅斯福路四段一號\n（請寄到這裡，謝謝）", "我的地址", "addr")
+            engine.lexicon.user.add_snippet("感謝您的來信！我們已經收到，會在兩個工作天內回覆您。", "", "thanks")
+            engine.lexicon.user.add_snippet("這週的進度：\n1. 完成順打面板\n2. 詞庫整理\n3. 測試安裝檔", "週報開頭", "week")
             engine.lexicon.invalidate()
             for name, script, multi in CANDIDATE_SAMPLES:
                 engine.config.candidate_multi_column = multi

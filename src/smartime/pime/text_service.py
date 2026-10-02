@@ -283,7 +283,8 @@ class SmartTextService:
             # the panel shows everything; the hint box stays as its anchor
             message = "修正模式 · Esc 回到打字"
         elif panel_kind == "candidates" and not v.notice:
-            message = "符號 · Esc 關閉" if v.candidate_panel.palette else "選字 · Esc 取消"
+            message = ("符號 · Esc 關閉" if v.candidate_panel.palette else
+                       "片語 · Enter 打出" if v.candidate_panel.snippet else "選字 · Esc 取消")
         # PIME applies showMessage *before* the composition update, and when
         # no composition exists yet it opens a temporary one and ends it at
         # the end of the reply — which commits our first key as raw text.

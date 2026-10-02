@@ -95,6 +95,22 @@ def test_inbox_and_my_words_are_separate_views(server):
     assert stats["inbox"] == 1 and stats["mine"] == 2
 
 
+def test_snippets_add_edit_reorder_delete(server):
+    status, a = call(server, "POST", "/api/snippets", {"title": "我的地址", "keyword": "addr", "body": "台北市\n大安區"})
+    assert status == 200
+    _, b = call(server, "POST", "/api/snippets", {"body": "感謝您的來信"})
+    assert call(server, "POST", "/api/snippets", {"body": "   "})[0] == 400
+    rows = call(server, "GET", "/api/snippets")[1]
+    assert [r["id"] for r in rows] == [a["id"], b["id"]] and rows[0]["body"] == "台北市\n大安區"
+    assert call(server, "PATCH", f"/api/snippets/{b['id']}", {"move": -1})[0] == 200
+    assert [r["id"] for r in call(server, "GET", "/api/snippets")[1]] == [b["id"], a["id"]]
+    assert call(server, "PATCH", f"/api/snippets/{a['id']}", {"keyword": "home"})[0] == 200
+    assert call(server, "PATCH", f"/api/snippets/{a['id']}", {"body": ""})[0] == 400
+    assert server.app.user.snippets("ho")[0]["id"] == a["id"]
+    assert call(server, "DELETE", f"/api/snippets/{b['id']}")[0] == 200
+    assert [r["id"] for r in call(server, "GET", "/api/snippets")[1]] == [a["id"]]
+
+
 def test_add_list_move_and_delete_entries(server):
     status, r = call(server, "POST", "/api/reading", {"text": "陳怡君"})
     assert status == 200 and r["kind"] == "zh" and len(r["reading"].split()) == 3

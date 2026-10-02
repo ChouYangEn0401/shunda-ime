@@ -75,6 +75,9 @@ class CandidatePanel:
     chip: str = ""  # the active one
     multi: bool = False
     palette: bool = False
+    layout: str = "list"  # list | grid (the symbol categories)
+    snippet: bool = False  # the ;; list (letters filter it)
+    preview: str = ""  # the selected 片語's whole text
 
 
 def candidate_panel(session) -> CandidatePanel | None:
@@ -84,18 +87,26 @@ def candidate_panel(session) -> CandidatePanel | None:
         return None
     shown = cand.shown
     page = cand.page
-    items = [CandidateItem(c.text, c.annotation if c.annotation != c.group and cand.palette is None else "",
+    from .symbols import LIST_TABS, TABS
+
+    tab = TABS[cand.palette % len(TABS)] if cand.palette is not None else ""
+    grid = cand.palette is not None and tab not in LIST_TABS
+    items = [CandidateItem(c.text, c.annotation if c.annotation != c.group and not grid else "",
                            c.group, str(i % cand.page_size + 1) if i // cand.page_size == page else "")
              for i, c in enumerate(shown)]
     panel = CandidatePanel(items, cand.index, cand.page_size, cand.columns, cand.first_page, cand.pages,
                            multi=cand.multi)
+    if shown:
+        panel.preview = cand.current.preview
     if cand.palette is not None:
-        from .symbols import CATEGORIES
-
         panel.palette = True
-        panel.chips = [name for name, _ in CATEGORIES]
-        panel.chip = CATEGORIES[cand.palette % len(CATEGORIES)][0]
+        panel.layout = "grid" if grid else "list"
+        panel.chips = list(TABS)
+        panel.chip = tab
         panel.title = "符號"
+    elif cand.snippet_at is not None:
+        panel.snippet = True
+        panel.title = f"片語 · 關鍵字：{cand.query}" if cand.query else "片語 · 打關鍵字篩選"
     else:
         groups = cand.groups()
         if len(groups) > 1:

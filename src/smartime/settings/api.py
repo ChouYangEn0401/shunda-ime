@@ -287,6 +287,34 @@ class SettingsApp:
         self.user.delete_category(cat_id)
         return {"ok": True}
 
+    # ---------------------------------------------------------- snippets (片語)
+    def snippets(self) -> list[dict]:
+        return self.user.snippets()
+
+    def add_snippet(self, body: dict) -> dict:
+        text = str(body.get("body", ""))
+        if not text.strip():
+            raise ApiError(400, "請輸入片語的內容")
+        if len(text) > 4000:
+            raise ApiError(400, "片語太長（最多 4000 字）")
+        return {"id": self.user.add_snippet(text, str(body.get("title", ""))[:40], str(body.get("keyword", ""))[:20])}
+
+    def update_snippet(self, snippet_id: int, body: dict) -> dict:
+        if "move" in body:
+            self.user.move_snippet(snippet_id, -1 if int(body["move"]) < 0 else 1)
+        fields = {k: body[k] for k in ("title", "keyword", "body") if k in body}
+        if "body" in fields and not str(fields["body"]).strip():
+            raise ApiError(400, "片語的內容不能是空的")
+        try:
+            self.user.update_snippet(snippet_id, **fields)
+        except ValueError as e:
+            raise ApiError(400, str(e)) from e
+        return {"ok": True}
+
+    def delete_snippet(self, snippet_id: int) -> dict:
+        self.user.delete_snippet(snippet_id)
+        return {"ok": True}
+
     def clear_learned(self) -> dict:
         return {"removed": self.user.clear_learned()}
 
@@ -442,10 +470,15 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(500, {"error": f"發生錯誤：{e}"})
 
     def _route(self, app: SettingsApp, method: str, path: str, query: dict):
-        m = re.fullmatch(r"/api/(entries|categories)/(\d+)", path)
+        m = re.fullmatch(r"/api/(entries|categories|snippets)/(\d+)", path)
         if m:
             kind, ident = m.group(1), int(m.group(2))
-            if kind == "entries":
+            if kind == "snippets":
+                if method == "PATCH":
+                    return app.update_snippet(ident, self._json_body())
+                if method == "DELETE":
+                    return app.delete_snippet(ident)
+            elif kind == "entries":
                 if method == "PATCH":
                     return app.update_entry(ident, self._json_body())
                 if method == "DELETE":
@@ -465,6 +498,8 @@ class _Handler(BaseHTTPRequestHandler):
             ("POST", "/api/entries"): lambda: app.add_entry(self._json_body()),
             ("POST", "/api/reading"): lambda: app.suggest_reading(str(self._json_body().get("text", ""))),
             ("POST", "/api/categories"): lambda: app.add_category(self._json_body()),
+            ("GET", "/api/snippets"): app.snippets,
+            ("POST", "/api/snippets"): lambda: app.add_snippet(self._json_body()),
             ("POST", "/api/clear-learned"): app.clear_learned,
             ("POST", "/api/memory/tidy"): app.tidy_memory,
             ("POST", "/api/open-folder"): app.open_folder,

@@ -21,7 +21,9 @@ def test_palette_inserts_into_the_composition(session):
 
 def test_shift_tab_goes_back_and_hotkey_again_closes(session):
     _, v = run(session, "{RCTRL}{S-TAB}")
-    assert v.candidate_notes[0].startswith(CATEGORIES[-1][0])
+    from smartime.engine.symbols import TABS
+
+    assert session.cand.palette == len(TABS) - 1 and TABS[-1] == "顏文字"  # wraps to the last tab
     _, v = run(session, "{RCTRL}")
     assert v.candidates is None
 

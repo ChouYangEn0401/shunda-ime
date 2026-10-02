@@ -46,6 +46,7 @@
     try { localStorage.setItem("smartime-view", id); } catch (e) { /* storage may be blocked */ }
     if (id === "dict") loadEntries();
     if (id === "voice") loadVoice();
+    if (id === "snippets") loadSnippets();
   }
   rail.forEach(b => b.addEventListener("click", () => show(b.dataset.view)));
 
@@ -227,6 +228,10 @@
     tip.textContent = config.autocomplete === false ? "（接續建議已關閉）"
       : sugg.slice(0, k).map((s, i) => (i === 0 ? `${s} ⇥` : s)).join(" · ");
   }
+  const kao = document.getElementById("kao-sample");
+  ["(＾▽＾)", "(｡♥‿♥｡)", "(╥﹏╥)", "(╯°□°）╯︵ ┻━┻", "¯\\_(ツ)_/¯", "m(_ _)m", "ʕ•ᴥ•ʔ", "(ง •̀_•́)ง"].forEach(k => {
+    const s = document.createElement("span"); s.textContent = k; kao.appendChild(s);
+  });
   const pg = document.getElementById("palette-grid");
   [..."，。、；：？！…—「」『』（）《》“”αβγΔπΣ±×÷≠≤≥∞√→←↑↓℃㎡％"].slice(0, 27).forEach(c => {
     const s = document.createElement("span"); s.textContent = c; pg.appendChild(s);
@@ -632,6 +637,91 @@
     if (!name) return;
     try { await api("POST", "/api/categories", { name }); input.value = ""; toast(`已新增分類「${name}」`); await refreshState(); }
     catch (err) { toast(err.message, true); }
+  });
+
+  // ------------------------------------------------------------ 片語 (snippets)
+  // Saved texts typed with ;; + keyword, or from the symbol panel's 片語 tab.
+  async function loadSnippets() {
+    let rows;
+    try { rows = await api("GET", "/api/snippets"); } catch (e) { toast(e.message, true); return; }
+    const list = document.getElementById("snip-list");
+    document.getElementById("snip-count").textContent = rows.length ? `${rows.length} 個` : "";
+    list.innerHTML = "";
+    if (!rows.length) {
+      list.innerHTML = '<p class="note" style="margin:0">還沒有片語。上面加入第一個，例如常用的回覆、地址或簽名；之後打字時打 <kbd>;</kbd><kbd>;</kbd> 就能叫出來。</p>';
+      return;
+    }
+    rows.forEach((r, i) => list.appendChild(snippetCard(r, i, rows.length)));
+  }
+
+  function snippetCard(r, i, n) {
+    const card = document.createElement("div");
+    card.className = "snip";
+    const head = document.createElement("div"); head.className = "snip-head";
+    const title = document.createElement("b"); title.textContent = r.title || r.body.split("\n")[0].slice(0, 30);
+    head.appendChild(title);
+    if (r.keyword) {
+      const kw = document.createElement("code"); kw.className = "snip-key"; kw.textContent = `;;${r.keyword}`;
+      kw.title = "打字時打這個就會叫出來"; head.appendChild(kw);
+    }
+    if (r.count) { const u = document.createElement("span"); u.className = "note"; u.textContent = `用過 ${r.count} 次`; head.appendChild(u); }
+    const acts = document.createElement("span"); acts.className = "snip-acts";
+    const mk = (label, cls, fn, disabled) => {
+      const b = document.createElement("button"); b.type = "button"; b.className = "btn small" + (cls ? " " + cls : "");
+      b.textContent = label; b.disabled = !!disabled; b.addEventListener("click", fn); acts.appendChild(b);
+    };
+    mk("↑", "", () => moveSnippet(r.id, -1), i === 0);
+    mk("↓", "", () => moveSnippet(r.id, 1), i === n - 1);
+    mk("編輯", "", () => card.replaceWith(snippetEditor(r)));
+    mk("刪除", "danger", async () => {
+      try { await api("DELETE", `/api/snippets/${r.id}`); toast("已刪除片語"); loadSnippets(); }
+      catch (e) { toast(e.message, true); }
+    });
+    head.appendChild(acts);
+    const body = document.createElement("div"); body.className = "snip-body"; body.textContent = r.body;
+    card.append(head, body);
+    return card;
+  }
+
+  function snippetEditor(r) {
+    const form = document.createElement("form");
+    form.className = "snip snipform editing";
+    form.innerHTML = `<input type="text" aria-label="標題" placeholder="標題（可省略）">
+      <input type="text" aria-label="關鍵字" placeholder="關鍵字">
+      <textarea rows="3" aria-label="內容"></textarea>
+      <div class="snip-edit-acts"><button class="btn primary small" type="submit">儲存</button>
+      <button class="btn small" type="button">取消</button></div>`;
+    const [t, k] = form.querySelectorAll("input");
+    const body = form.querySelector("textarea");
+    t.value = r.title; k.value = r.keyword; body.value = r.body;
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      try {
+        await api("PATCH", `/api/snippets/${r.id}`, { title: t.value, keyword: k.value, body: body.value });
+        toast("已儲存片語"); loadSnippets();
+      } catch (err) { toast(err.message, true); }
+    });
+    form.querySelector("button[type=button]").addEventListener("click", loadSnippets);
+    setTimeout(() => body.focus(), 0);
+    return form;
+  }
+
+  async function moveSnippet(id, delta) {
+    try { await api("PATCH", `/api/snippets/${id}`, { move: delta }); loadSnippets(); }
+    catch (e) { toast(e.message, true); }
+  }
+
+  document.getElementById("snip-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const title = document.getElementById("snip-title");
+    const key = document.getElementById("snip-key");
+    const body = document.getElementById("snip-body");
+    try {
+      await api("POST", "/api/snippets", { title: title.value, keyword: key.value, body: body.value });
+      toast("已加入片語");
+      title.value = ""; key.value = ""; body.value = "";
+      loadSnippets();
+    } catch (err) { toast(err.message, true); }
   });
 
   // ------------------------------------------------------------ shortcuts
