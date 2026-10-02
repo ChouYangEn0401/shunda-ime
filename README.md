@@ -132,6 +132,7 @@ uv run python -m smartime.devtools.simulate --steps "ji3ap7{DOWN}"   # 不安裝
 powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -Dev      # 開發模式安裝（PIME 直接連到這個 repo）
 powershell -ExecutionPolicy Bypass -File scripts\dev-reload.ps1 [-Rebuild]   # 讓開發模式的輸入法載入新程式／新詞庫
 uv run python tools/build_installer.py           # 產生 dist\ShundaIME-Setup-<版本>.exe（需要 Inno Setup 6）
+uv run python tools/set_version.py [0.4.0]       # 看／改版本號（一次改好所有地方）
 uv run python -m smartime.settings               # 開設定頁（本機網頁）
 ```
 

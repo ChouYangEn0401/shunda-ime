@@ -190,6 +190,9 @@
 
 ## 9. 開發流程
 
+- **版本號**：唯一來源是 `src/smartime/__init__.py` 的 `__version__`（安裝檔、設定頁、匯出檔都讀它）。
+  要改版本用 `uv run python tools/set_version.py 0.4.0`，它會一起改 `pyproject.toml`、`ime.json`（PIME 要字面值）、
+  `uv.lock`；不帶參數則列出各處版本並檢查一致。`tests/test_backend_files.py` 會擋下不一致。CHANGELOG 手寫。
 - `install.ps1 -Dev`：`<PIME>\smartime` 變成指向 `repo\backend` 的 junction；改完 Python 程式後，在系統匣 PIME 圖示選「Restart PIME」重啟後端即可。
 - 改 `ime.json`（名稱、GUID、圖示）後需重新執行安裝（會重新登錄 TSF 語言設定檔）。
 - 不安裝也能測：`python -m smartime.devtools.simulate --steps "<按鍵>"`；測試使用同一套模擬器。
