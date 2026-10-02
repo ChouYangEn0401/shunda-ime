@@ -248,3 +248,32 @@ def test_mode_icon_reloads_after_another_window_deactivates(engine):
     assert "changeButton" not in r[("a", 4)]
     third = r[("a", 5)]["changeButton"][0]["icon"]
     assert third == first  # alternates, so the cache key always changes
+
+
+def _shift_msgs(seq, side):
+    """A lone Shift tap as PIME sends it: scanCode 0, the side only in keyStates."""
+    from smartime.engine.keys import VK_LSHIFT, VK_RSHIFT, VK_SHIFT
+
+    down = key_msg(seq, "filterKeyDown", vk=VK_SHIFT)
+    down["keyStates"][VK_SHIFT] = 0x80
+    down["keyStates"][VK_RSHIFT if side == "right" else VK_LSHIFT] = 0x80
+    up = key_msg(seq + 1, "filterKeyUp", vk=VK_SHIFT)
+    on_up = key_msg(seq + 2, "onKeyUp", vk=VK_SHIFT)
+    return [down, up, on_up]
+
+
+def test_toggle_shift_tells_left_from_right(engine):
+    # Regression: PIME sends scanCode 0, so "right Shift only" used to
+    # react to the left Shift too.
+    engine.config.toggle_shift = "right"
+    msgs = [
+        {"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True},
+        *_shift_msgs(10, "left"),
+        *_shift_msgs(20, "right"),
+    ]
+    r = {x["seqNum"]: x for x in exchange(engine, msgs)}
+    assert r[11]["return"] is False  # left Shift: not a mode toggle
+    assert r[21]["return"] is True and r[22]["changeButton"][0]["icon"].endswith("chinese.ico")
+    engine.config.toggle_shift = "left"
+    r = {x["seqNum"]: x for x in exchange(engine, msgs)}
+    assert r[11]["return"] is True and r[21]["return"] is False

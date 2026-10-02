@@ -15,7 +15,8 @@ import time
 from pathlib import Path
 
 from ..engine.keys import (
-    MODIFIER_VKS, VK_CAPITAL, VK_CONTROL, VK_LMENU, VK_MENU, VK_RMENU, VK_SHIFT, KeyInput,
+    MODIFIER_VKS, SCAN_LSHIFT, SCAN_RSHIFT, VK_CAPITAL, VK_CONTROL, VK_LMENU, VK_LSHIFT, VK_MENU, VK_RMENU,
+    VK_RSHIFT, VK_SHIFT, KeyInput,
 )
 from .. import PRODUCT_NAME
 from ..engine.session import Engine, Mode, Session
@@ -42,14 +43,21 @@ def key_from_msg(msg: dict) -> KeyInput:
         return (states[vk] & 0x80) != 0
 
     char_code = msg.get("charCode", 0)
+    vk = msg.get("keyCode", 0)
+    scan = msg.get("scanCode", 0)
+    if vk == VK_SHIFT and not scan:
+        # PIME always sends scanCode 0, so tell the left and right Shift
+        # apart by which one the key state says is down (needed for the
+        # "toggle with the right/left Shift" setting).
+        scan = SCAN_RSHIFT if down(VK_RSHIFT) else SCAN_LSHIFT if down(VK_LSHIFT) else 0
     return KeyInput(
-        vk=msg.get("keyCode", 0),
+        vk=vk,
         char=chr(char_code) if char_code else "",
         shift=down(VK_SHIFT),
         ctrl=down(VK_CONTROL),
         alt=down(VK_MENU) or down(VK_LMENU) or down(VK_RMENU),
         caps=(states[VK_CAPITAL] & 0x01) != 0,
-        scan=msg.get("scanCode", 0),
+        scan=scan,
         extended=bool(msg.get("isExtended", False)),
     )
 
