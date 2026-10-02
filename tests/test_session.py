@@ -268,4 +268,35 @@ def test_text_typed_by_programs_passes_through(session):
 
     assert not session.filter_key_down(KeyInput(vk=VK_PACKET, char="我"))
     run(session, "ji3")
-    assert not session.filter_key_down(KeyInput(vk=VK_PACKET, char="a"))
+    # while composing it is taken only to commit the composition first, then
+    # passed on (so dictated text lands after it, not inside it)
+    packet = KeyInput(vk=VK_PACKET, char="a")
+    assert session.filter_key_down(packet)
+    assert session.key_down(packet) is False
+    v = session.view()
+    assert v.commit == "我" and v.composition == ""
+
+
+def test_keys_for_the_app_commit_the_composition_first(session):
+    # Regression (#5): Ctrl+V while text was still composing pasted into the
+    # middle of the composition / left odd formatting. Every key we do not
+    # handle that acts on the document commits first, then reaches the app.
+    from smartime.devtools.simulate import press
+    from smartime.engine.keys import KeyInput
+
+    for key in (KeyInput(vk=ord("V"), ctrl=True), KeyInput(vk=ord("S"), ctrl=True),
+                KeyInput(vk=0x0D, ctrl=True),  # Ctrl+Enter (send in chat apps)
+                KeyInput(vk=0x74),  # F5
+                KeyInput(vk=0x2D, shift=True)):  # Shift+Insert (paste)
+        run(session, "ji3ap7")
+        handled, v = press(session, key)
+        assert handled is False, key
+        assert v.commit == "我們" and v.composition == "", key
+
+
+def test_media_keys_do_not_commit(session):
+    from smartime.engine.keys import KeyInput
+
+    run(session, "ji3")
+    assert not session.filter_key_down(KeyInput(vk=0xAF))  # volume up
+    assert session.composing

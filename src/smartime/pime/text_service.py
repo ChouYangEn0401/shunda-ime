@@ -89,6 +89,7 @@ class SmartTextService:
         self._icon_epoch = SmartTextService._icons_cleared
         self._icon_variant = 0  # which spelling of the icon path was sent last
         self._composing = False  # a composition existed after our previous reply
+        self._clicked_while_composing = False
         self._passthrough_at = 0.0
         self._composing_app = ""
 
@@ -120,14 +121,28 @@ class SmartTextService:
             SmartTextService.icons_invalidated()
         elif method == "filterKeyDown":
             key = key_from_msg(msg)
+            # (reading also forgets clicks before this key, e.g. the one that focused the field)
+            if mouse_clicked() and s.composing and self._composing:
+                self._clicked_while_composing = True
             ret = self.keyboard_open and s.filter_key_down(key)
-            mouse_clicked()  # forget clicks before this key (e.g. the one that focused the field)
             if not ret and key.vk not in MODIFIER_VKS:
                 # a key that goes to the app (Ctrl+Enter, Ctrl+A, ...): if the
                 # composition ends right after, the user caused it
                 self._passthrough_at = time.monotonic()
         elif method == "onKeyDown":
+            if self._clicked_while_composing:
+                # The mouse was clicked while text was still composing (the
+                # caret may be somewhere else now, and some apps keep the
+                # composition open): commit it where it is, then this key
+                # starts afresh at the caret.
+                self._clicked_while_composing = False
+                if s.composing and self._composing:
+                    log.info("mouse clicked while composing: committing %d chars", len(s.decoding.text))
+                    s.commit_all()
+                    self._composing = False  # this reply starts a new composition
             ret = self.keyboard_open and s.key_down(key_from_msg(msg))
+            if not ret:
+                self._passthrough_at = time.monotonic()  # committed, then sent on to the app
             self._render(reply)
         elif method == "filterKeyUp":
             ret = self.keyboard_open and s.filter_key_up(key_from_msg(msg))

@@ -396,7 +396,12 @@ CASES = [
     ("ao6u.3{S-TAB}3{ENTER}", None),  # Shift+Tab: all continuations
     # > 30 characters: automatic partial commit mid-sentence (broke in VS Code)
     ("b06c.4283tj x96k27y4b/6b06j6z83fm4u/ jp6k27jp4wu6ru.4cjo4y94vscodexu3ua04yjo4284k27t8 u4{ENTER}", None),
+    # Ctrl+V while composing: commit first, then the app pastes after the text
+    # (the clipboard holds PASTE_TEXT during these cases)
+    ("ji3ap7{C-v}", "我們XYZ"),
+    ("ji3{C-v}ap7{ENTER}", "我XYZ們"),
 ]
+PASTE_TEXT = "XYZ"
 
 
 def expected_text(script: str) -> str:
@@ -491,6 +496,73 @@ class MemoryGuard:
         self.tmp.cleanup()
 
 
+class ClipboardGuard:
+    """Paste cases need known clipboard text. Only used when the clipboard
+    holds nothing or plain text (which is put back afterwards); with an
+    image or files on it, the paste cases are skipped instead."""
+
+    CF_TEXT, CF_OEMTEXT, CF_UNICODETEXT, CF_LOCALE = 1, 7, 13, 16
+
+    def __init__(self) -> None:
+        self.k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.u32 = ctypes.WinDLL("user32", use_last_error=True)
+        self.k32.GlobalAlloc.restype = ctypes.c_void_p
+        self.k32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
+        self.k32.GlobalLock.restype = ctypes.c_void_p
+        self.k32.GlobalLock.argtypes = [ctypes.c_void_p]
+        self.k32.GlobalUnlock.argtypes = [ctypes.c_void_p]
+        self.u32.GetClipboardData.restype = ctypes.c_void_p
+        self.u32.SetClipboardData.restype = ctypes.c_void_p
+        self.u32.SetClipboardData.argtypes = [wintypes.UINT, ctypes.c_void_p]
+        self.u32.EnumClipboardFormats.argtypes = [wintypes.UINT]
+        self.usable = False
+        self.saved: str | None = None
+        if not self._open():
+            return
+        try:
+            fmts, f = [], 0
+            while True:
+                f = self.u32.EnumClipboardFormats(f)
+                if not f:
+                    break
+                fmts.append(f)
+            if all(x in (self.CF_TEXT, self.CF_OEMTEXT, self.CF_UNICODETEXT, self.CF_LOCALE) for x in fmts):
+                self.usable = True
+                h = self.u32.GetClipboardData(self.CF_UNICODETEXT)
+                if h:
+                    ptr = self.k32.GlobalLock(h)
+                    self.saved = ctypes.wstring_at(ptr)
+                    self.k32.GlobalUnlock(h)
+        finally:
+            self.u32.CloseClipboard()
+
+    def _open(self) -> bool:
+        for _ in range(10):
+            if self.u32.OpenClipboard(None):
+                return True
+            time.sleep(0.05)
+        return False
+
+    def set(self, text: str | None) -> None:
+        if not self._open():
+            return
+        try:
+            self.u32.EmptyClipboard()
+            if text is not None:
+                data = text.encode("utf-16-le") + b"\0\0"
+                h = self.k32.GlobalAlloc(0x0002, len(data))  # GMEM_MOVEABLE
+                ptr = self.k32.GlobalLock(h)
+                ctypes.memmove(ptr, data, len(data))
+                self.k32.GlobalUnlock(h)
+                self.u32.SetClipboardData(self.CF_UNICODETEXT, h)
+        finally:
+            self.u32.CloseClipboard()
+
+    def restore(self) -> None:
+        if self.usable:
+            self.set(self.saved)
+
+
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -502,6 +574,7 @@ def main() -> int:
         print("ABORT: the computer is in use; try again later (no keys were sent)")
         return 2
     memory = MemoryGuard()
+    clipboard = ClipboardGuard()
     ole32.CoInitializeEx(None, 0x2)  # COINIT_APARTMENTTHREADED
     mgr = ProfileMgr()
     previous = mgr.active()
@@ -520,6 +593,11 @@ def main() -> int:
             return 1
         pump(0.8)  # let TSF load PIMETextService.dll and connect to the launcher
         for n, (script, expected) in enumerate(cases, 1):
+            if "{C-v}" in script:
+                if not clipboard.usable:
+                    print(f"SKIP  {script!r:36} (the clipboard holds an image/files; not touched)")
+                    continue
+                clipboard.set(PASTE_TEXT)
             memory.rewind()
             win.set_caption(f"  順打輸入法自動測試 {n}/{len(cases)}（碰鍵盤或滑鼠會立即停止）\r\n"
                             f"  按鍵：{script}\r\n  預期：{expected}")
@@ -542,6 +620,7 @@ def main() -> int:
         win.destroy()
         GUARD.close()
         memory.restore()
+        clipboard.restore()
         pump(0.1)
 
 

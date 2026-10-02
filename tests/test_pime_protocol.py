@@ -165,18 +165,24 @@ def test_user_caused_end_in_a_browser_still_resets(engine, monkeypatch):
         *typing(60, "u"),
     ]
     assert {r["seqNum"]: r for r in exchange(engine, msgs)}[61]["compositionString"] == "u"
-    # a key sent to the app just before (Ctrl+Enter to send a message)
+    # a key sent to the app just before (Ctrl+Enter to send a message): the
+    # composition is committed first, then Ctrl+Enter reaches the app
     _fake_desktop(monkeypatch, "msedge.exe")
     ctrl_enter = key_msg(40, "filterKeyDown", vk=VK_RETURN)
     ctrl_enter["keyStates"][0x11] = 0x80
+    ctrl_enter_on = dict(ctrl_enter, method="onKeyDown", seqNum=41)
     msgs = [
         {"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True},
         *typing(10, "ji3"),
         ctrl_enter,
+        ctrl_enter_on,
         {"method": "onCompositionTerminated", "seqNum": 50, "forced": True},
         *typing(60, "u"),
     ]
-    assert {r["seqNum"]: r for r in exchange(engine, msgs)}[61]["compositionString"] == "u"
+    r = {r["seqNum"]: r for r in exchange(engine, msgs)}
+    assert r[40]["return"] is True
+    assert r[41]["return"] is False and r[41]["commitString"] == "我"
+    assert r[61]["compositionString"] == "u"
 
 
 def test_unknown_method_and_bad_json_do_not_crash(engine):
@@ -277,3 +283,23 @@ def test_toggle_shift_tells_left_from_right(engine):
     engine.config.toggle_shift = "left"
     r = {x["seqNum"]: x for x in exchange(engine, msgs)}
     assert r[11]["return"] is True and r[21]["return"] is False
+
+
+def test_click_while_composing_commits_before_the_next_key(engine, monkeypatch):
+    # #5: the mouse moved the caret while text was composing (some apps keep
+    # the composition open): the next key commits the old text where it was
+    # and starts a new composition at the caret.
+    import smartime.pime.text_service as ts
+
+    clicks = iter([False, False, False, False, False, False, True])
+    monkeypatch.setattr(ts, "mouse_clicked", lambda: next(clicks, False))
+    monkeypatch.setattr(ts, "foreground_app", lambda: "notepad.exe")
+    msgs = [
+        {"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True},
+        *typing(10, "ji3ap7"),  # 6 filterKeyDown calls without a click
+        *typing(60, "j"),  # clicked before this key
+    ]
+    r = {x["seqNum"]: x for x in exchange(engine, msgs)}
+    assert r[61]["commitString"] == "我們"
+    assert r[61]["compositionString"] == "j"
+    assert "showMessage" not in r[61]  # this reply starts a new composition

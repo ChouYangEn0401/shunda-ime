@@ -57,6 +57,9 @@ _COMPOSING_NAV = frozenset(
     {VK_BACK, VK_DELETE, VK_RETURN, VK_ESCAPE, VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN,
      VK_HOME, VK_END, VK_TAB}
 )
+# Volume / media / browser keys: they do not touch the document, so they may
+# reach the app without ending the composition.
+_MEDIA_VKS = frozenset(range(0xA6, 0xB8))
 
 
 class Mode(str, Enum):
@@ -257,7 +260,25 @@ class Session(CorrectionMixin):
             if self._correction_key(key):
                 return True
             self.exit_correction()  # e.g. Ctrl+symbol: back to typing
+        if self._for_the_app(key):
+            # Ctrl+V, Ctrl+S, Ctrl+Enter, F5, text from another program …:
+            # the composition is committed first, then the key goes on to
+            # the app (returning False after a commit lets it through), so
+            # a paste lands after the text instead of inside the composition.
+            self.commit_all()
+            return False
         return self._edit_key(key)
+
+    def _for_the_app(self, key: KeyInput) -> bool:
+        """A key we do not handle that would act on the document while a
+        composition is open."""
+        if not self.composing or key.vk in MODIFIER_VKS or key.vk in _MEDIA_VKS:
+            return False
+        if key.vk == VK_PACKET:
+            return True
+        if key.ctrl or key.alt:
+            return self._ctrl_punct(key) is None and not (key.ctrl and key.vk == VK_D)
+        return not key.printable and key.vk not in _COMPOSING_NAV
 
     def filter_key_up(self, key: KeyInput) -> bool:
         return self._is_shift_tap(key) or self._is_palette_tap(key)
@@ -344,16 +365,20 @@ class Session(CorrectionMixin):
         return CTRL_PUNCT.get((key.vk, key.shift))
 
     def _wants(self, key: KeyInput) -> bool:
-        if key.vk in MODIFIER_VKS or key.vk == VK_PACKET:
-            # VK_PACKET: text typed by a program (our voice input, password
-            # managers); it is already final, never zhuyin
+        if key.vk in MODIFIER_VKS:
             return False
+        if key.vk == VK_PACKET:
+            # text typed by a program (our voice input, password managers):
+            # already final, never zhuyin. Only taken to commit first.
+            return self.composing
         if self.cand is not None:
             return True
         if self._ctrl_punct(key) is not None:
             return True
         if self.composing and key.ctrl and not key.alt and key.vk == VK_D:
             return True  # add the composition to my dictionary
+        if self._for_the_app(key):
+            return True  # commit, then pass it on (key_down returns False)
         if key.ctrl or key.alt:
             return False
         if self.mode is Mode.ENGLISH:
