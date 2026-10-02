@@ -59,7 +59,7 @@ PM_REMOVE = 1
 
 NAMED_VK = {"ENTER": VK_RETURN, "BS": 0x08, "TAB": 0x09, "ESC": 0x1B, "LEFT": 0x25, "UP": 0x26,
             "RIGHT": 0x27, "DOWN": 0x28, "RSHIFT": 0xA1, "HOME": 0x24, "END": 0x23, "DEL": 0x2E,
-            "RALT": 0xA5}
+            "RALT": 0xA5, "RCTRL": 0xA3}
 OEM_VK = {" ": 0x20, ",": 0xBC, ".": 0xBE, "/": 0xBF, ";": 0xBA, "-": 0xBD, "'": 0xDE, "[": 0xDB, "]": 0xDD}
 SHIFTED = {"<": ",", ">": ".", "?": "/", ":": ";", '"': "'", "{": "[", "}": "]"}
 
@@ -357,7 +357,7 @@ def type_script(tap, script: str) -> None:
                 tap(0x09, True, False)
             else:
                 tap(NAMED_VK[name], False, False)
-                if name in ("RSHIFT", "RALT"):
+                if name in ("RSHIFT", "RALT", "RCTRL"):
                     pump(0.1)
             i += len(name) + 2
             continue
@@ -392,8 +392,8 @@ CASES = [
     ("ji3a87{ESC}j{ENTER}", "我嘛"),  # correction mode: j swaps the candidate in place
     ("mvp {ESC}e{ENTER}", "勳"),  # correction mode: e turns raw keys into Chinese
     ("ji3ee/4dj94{ESC}vv{HOME}lllxv{ENTER}", "我更快"),  # 按鍵 view: delete one stray key
-    ("ji3{RALT}{TAB}{TAB}1{ENTER}", "我α"),  # symbol panel: a lone right-Alt tap
-    ("{RALT}{TAB}{TAB}2", "β"),  # symbol panel with nothing composed: typed directly
+    ("ji3{RCTRL}{TAB}{TAB}1{ENTER}", "我α"),  # symbol panel: a lone right-Ctrl tap
+    ("{RCTRL}{TAB}{TAB}2", "β"),  # symbol panel with nothing composed: typed directly
     ("ao6u.3{S-TAB}3{ENTER}", None),  # Shift+Tab: all continuations
     # > 30 characters: automatic partial commit mid-sentence (broke in VS Code)
     ("b06c.4283tj x96k27y4b/6b06j6z83fm4u/ jp6k27jp4wu6ru.4cjo4y94vscodexu3ua04yjo4284k27t8 u4{ENTER}", None),

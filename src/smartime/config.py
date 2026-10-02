@@ -56,10 +56,12 @@ class Config:
     # double quote, which the user expects to be " (not ；, which is Ctrl+;).
     # The other form is always one ↓ away in the candidate window.
     halfwidth_symbols: str = '"'
-    # Symbol panel: "ralt" = a lone tap of the right Alt key (default), or "off".
-    # ` is left alone (users fence code with it). Ctrl+Alt+key is impossible:
-    # Windows does not pass keys pressed with Alt to input methods.
-    palette_hotkey: str = "ralt"
+    # Symbol panel: "rctrl" = a lone tap of the right Ctrl key (default; holding
+    # it is voice input), "ralt" = a lone tap of the right Alt key (some apps
+    # also open their menu bar on it), or "off". ` is left alone (users fence
+    # code with it). Ctrl+Alt+key is impossible: Windows does not pass keys
+    # pressed with Alt to input methods.
+    palette_hotkey: str = "rctrl"
 
     # Smart correction
     reorder_tolerance: bool = True  # ㄛㄨˇ typed for ㄨㄛˇ still gives 我
@@ -134,8 +136,8 @@ class Config:
         wanted = {m.strip() for m in self.mode_cycle.split(",")}
         cycle = [m for m in MODE_CHOICES if m in wanted]
         self.mode_cycle = ",".join(cycle or ["auto", "chinese", "english"])
-        if self.palette_hotkey not in ("ralt", "off"):
-            self.palette_hotkey = "ralt"
+        if self.palette_hotkey not in ("rctrl", "ralt", "off"):
+            self.palette_hotkey = "rctrl"
         if self.layout not in ("dachen", "eten"):
             self.layout = "dachen"
         if self.voice_engine not in ("auto", "breeze", "sensevoice"):

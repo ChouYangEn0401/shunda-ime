@@ -79,7 +79,7 @@ def test_multi_column_opens_and_folds_columns(session):
 
 
 def test_palette_is_a_grid(session):
-    run(session, "ji3{RALT}{TAB}{TAB}")  # 希臘字母
+    run(session, "ji3{RCTRL}{TAB}{TAB}")  # 希臘字母
     cand = session.cand
     assert cand.columns > 1  # several rows at once
     run(session, "{DOWN}{RIGHT}")

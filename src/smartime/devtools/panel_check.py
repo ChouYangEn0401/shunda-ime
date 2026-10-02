@@ -26,7 +26,7 @@ CASES = [
     ("long", "b06c.4283tj x96k27y4b/6b06j6z83fm4u/ jp6k27jp4{ESC}hhh"),
     ("candidates", "ji35p {DOWN}"),
     ("candidates-filter", "mvp {DOWN}{TAB}"),
-    ("palette", "ji3{RALT}{TAB}{TAB}"),
+    ("palette", "ji3{RCTRL}{TAB}{TAB}"),
 ]
 
 user32 = t.user32

@@ -28,7 +28,8 @@ from ..config import Config
 from . import asr, text, win
 
 log = logging.getLogger("smartime.voice")
-MIN_SECONDS = 0.35  # shorter = an accidental tap
+MIN_SECONDS = 0.35  # shorter = an accidental tap — or a tap that opens the IME's symbol panel
+TIMER_CONFIG, TIMER_HELD = 1, 2
 MAX_SECONDS = 120
 RESULT = win.WM_APP + 10
 STATUS = win.WM_APP + 11
@@ -99,6 +100,7 @@ class VoiceService:
         self.results: queue.Queue = queue.Queue()
         self.recorder = recorder or Recorder()
         self.recording = False
+        self.press_error = ""  # microphone problem, shown only if the key is really held
         self.mic = microphone()
         self.mic_checked = time.monotonic()
         self.msg = win.MessageWindow({
@@ -108,12 +110,12 @@ class VoiceService:
             RESULT: lambda w, l: self.on_result(),
             STATUS: lambda w, l: self.on_status(),
             HIDE: lambda w, l: self.indicator.hide(),
-            win.WM_TIMER: lambda w, l: self.on_timer(),
+            win.WM_TIMER: lambda w, l: self.on_timer(w),
         })
         self.indicator = win.Indicator()
         self.hook = win.PushToTalkHook(self.msg, accept_injected)
         self.status_text = ""
-        win.user32.SetTimer(self.msg.hwnd, 1, 3000, None)
+        win.user32.SetTimer(self.msg.hwnd, TIMER_CONFIG, 3000, None)
         threading.Thread(target=self.worker, daemon=True).start()
 
     # ------------------------------------------------------------ worker thread
@@ -186,29 +188,46 @@ class VoiceService:
 
     # ------------------------------------------------------------ main thread
     def on_press(self) -> None:
+        """Right Ctrl down. Recording starts at once (no word is cut off),
+        but nothing is shown until the key has been held MIN_SECONDS: a
+        quick tap of right Ctrl opens the IME's symbol panel and must not
+        flash "錄音中" or a microphone error."""
         if self.recording:
             return
+        self.press_error = ""
+        win.user32.SetTimer(self.msg.hwnd, TIMER_HELD, int(MIN_SECONDS * 1000), None)
         try:
             self.recorder.start()
         except RuntimeError as e:  # no microphone: a plain message, no traceback
             log.warning("%s", e)
-            self.flash(str(e), seconds=5)
+            self.press_error = str(e)
             return
         except Exception as e:  # noqa: BLE001
             log.exception("cannot open the microphone")
-            self.flash(f"無法開啟麥克風：{e}")
+            self.press_error = f"無法開啟麥克風：{e}"
             return
         self.recording = True
-        name = self.engine.name if self.engine else "模型載入中"
-        self.indicator.show(f"● 錄音中（{name}）… 放開右 Ctrl 結束")
+
+    def on_held(self) -> None:
+        """MIN_SECONDS after the press: really push-to-talk, not a tap."""
+        win.user32.KillTimer(self.msg.hwnd, TIMER_HELD)
+        if not self.hook.down:
+            return  # released (or became a shortcut) in time: it was a tap
+        if self.press_error:
+            self.flash(self.press_error, seconds=5)
+        elif self.recording:
+            name = self.engine.name if self.engine else "模型載入中"
+            self.indicator.show(f"● 錄音中（{name}）… 放開右 Ctrl 結束")
 
     def on_cancel(self) -> None:
+        win.user32.KillTimer(self.msg.hwnd, TIMER_HELD)
         if self.recording:
             self.recorder.stop()
             self.recording = False
         self.indicator.hide()
 
     def on_release(self) -> None:
+        win.user32.KillTimer(self.msg.hwnd, TIMER_HELD)
         if not self.recording:
             return
         self.recording = False
@@ -237,8 +256,11 @@ class VoiceService:
         self.indicator.show(message)
         threading.Timer(seconds, lambda: self.msg.post(HIDE)).start()
 
-    def on_timer(self) -> None:
+    def on_timer(self, which: int = TIMER_CONFIG) -> None:
         """Every few seconds: follow settings changes; exit when turned off."""
+        if which == TIMER_HELD:
+            self.on_held()
+            return
         cfg = Config.load(self.config_path)
         if not cfg.voice_enabled:
             log.info("voice input turned off; exiting")

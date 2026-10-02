@@ -39,7 +39,7 @@
 | `session.py` | 每個輸入情境的狀態機：插入/刪除/游標/候選/Tab/送出/中英模式/符號面板/學習時機 |
 | `correction.py` | Vim 式修正模式（`CorrectionMixin`，混入 Session） |
 | `symbols.py` | 符號面板的分類與最近使用（`recent-symbols.json`） |
-| `keys.py` | 與平台無關的按鍵事件（數值沿用 Windows VK code；`extended` 區分左右 Alt） |
+| `keys.py` | 與平台無關的按鍵事件（數值沿用 Windows VK code；`extended` 區分左右 Alt／Ctrl） |
 
 設定（`smartime/config.py`）是一個 dataclass：`from_dict()` 只接受認得的欄位並修正不合法的值，
 所以舊版或手改壞的 `config.json` 不會讓輸入法起不來。
@@ -83,7 +83,9 @@
 - `view()` 回傳前端需要的一切（組字字串、游標、送出字串、候選、提示、Tab 建議、模式）；**呼叫後會清空待送出字串**，每個事件只呼叫一次。
 - 修正模式（`correction.py`）：`Esc` 進入，按鍵變指令；國字／注音／按鍵三種檢視畫在提示框（組字區永遠是國字，
   避免 App 看到注音字串）。`j/k` 循環換字只在游標離開時學最後停下的那個。
-- 符號面板：單按右 Alt（`KeyInput.extended`）開關，`Tab` 換分類；用 PIME 的候選窗顯示。
+- 符號面板：單按右 Ctrl（預設，`KeyInput.extended`；0.3 秒內放開才算，比語音輸入的 0.35 秒短）或右 Alt 開關，`Tab` 換分類。
+  右 Ctrl 的放開事件照樣交給程式（只有 Alt 的要吃掉，否則程式會打開選單列）。語音服務按下就開始錄音，
+  但按住滿 0.35 秒才顯示「錄音中」或麥克風錯誤，所以單按開面板不會閃出語音提示。
   **PIME 不會把「按住 Alt 時的其他按鍵」交給輸入法**（只收到 Alt 本身），所以不能用 `Ctrl+Alt+,` 之類的組合鍵。
 - `VK_PACKET`（其他程式用 SendInput 的 Unicode 模式送出的字，例如語音輸入、密碼管理器）一律放行，不進解碼器。
 

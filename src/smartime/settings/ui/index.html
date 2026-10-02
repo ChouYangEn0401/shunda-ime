@@ -297,14 +297,14 @@
               <div class="grid" id="palette-grid"></div>
             </div>
             <div style="max-width: 46ch; min-width: 0">
-              <p style="margin-top:0">單按一下<b>右邊的 <kbd>Alt</kbd></b> 打開面板，再按一次關閉（<kbd>`</kbd> 保留給你框程式碼）。<kbd>Tab</kbd> 換分類、<kbd>Shift</kbd>+<kbd>Tab</kbd> 上一類、<kbd>1</kbd>–<kbd>9</kbd> 或方向鍵選。沒在打字時選的符號會直接打出來。</p>
+              <p style="margin-top:0">單按一下<b>右邊的 <kbd>Ctrl</kbd></b> 打開面板，再按一次關閉（按住右 <kbd>Ctrl</kbd> 仍是語音輸入；<kbd>`</kbd> 保留給你框程式碼）。<kbd>Tab</kbd> 換分類、<kbd>Shift</kbd>+<kbd>Tab</kbd> 上一類、<kbd>1</kbd>–<kbd>9</kbd> 或方向鍵選。沒在打字時選的符號會直接打出來。</p>
               <p class="note">希臘字母、數學符號、箭頭、單位（℃、㎡、％）都在這裡，不用記快捷鍵。常用的符號會自動排前面。</p>
             </div>
           </div></div>
           <div class="row">
-            <div><div class="label">打開符號面板的鍵</div><div class="desc">只有「單獨按一下」右 Alt 才算；Alt+Tab、AltGr 組合鍵不受影響，也不會讓程式跳到選單列。</div></div>
+            <div><div class="label">打開符號面板的鍵</div><div class="desc">只有「單獨按一下」才算：右 Ctrl 和其他鍵一起按（右 Ctrl+C）是一般快捷鍵，按住超過 0.35 秒是語音輸入。右 Alt 在部分程式會順便打開選單列，所以預設改用右 Ctrl。</div></div>
             <div class="seg" role="group" aria-label="打開符號面板的鍵" data-cfg="palette_hotkey">
-              <button data-value="ralt">單按右 Alt</button><button data-value="off">關閉</button>
+              <button data-value="rctrl">單按右 Ctrl</button><button data-value="ralt">單按右 Alt</button><button data-value="off">關閉</button>
             </div>
           </div>
         </div>
@@ -312,7 +312,7 @@
         <div class="group">
           <h3>為什麼不是 Ctrl+Alt+符號？</h3>
           <div class="row"><div class="full">
-            <p class="callout warn" style="margin:0">Windows 不會把「按住 Alt 時按的鍵」交給輸入法，所以 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>,</kbd> 這類組合在這個輸入法收不到。<kbd>Alt</kbd> 單獨按一下則收得到，因此只用「單按右 Alt」開符號面板。全形／半形用上面的設定或候選窗 <kbd>↓</kbd> 切換。</p>
+            <p class="callout warn" style="margin:0">Windows 不會把「按住 Alt 時按的鍵」交給輸入法，所以 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>,</kbd> 這類組合在這個輸入法收不到。<kbd>Alt</kbd>、<kbd>Ctrl</kbd> 單獨按一下則收得到，因此用「單按右 Ctrl」（或右 Alt）開符號面板。全形／半形用上面的設定或候選窗 <kbd>↓</kbd> 切換。</p>
           </div></div>
         </div>
       </section>

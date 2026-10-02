@@ -28,7 +28,7 @@ from .keys import (
     MODIFIER_VKS, SCAN_LSHIFT, SCAN_RSHIFT, VK_BACK, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE,
     VK_HOME, VK_LEFT, VK_NEXT, VK_OEM_1, VK_OEM_2, VK_OEM_4, VK_OEM_6, VK_OEM_7, VK_OEM_COMMA,
     VK_OEM_MINUS, VK_OEM_PERIOD, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SHIFT, VK_SPACE, VK_TAB,
-    VK_UP, VK_MENU, VK_PACKET, KeyInput,
+    VK_UP, VK_MENU, VK_PACKET, VK_CONTROL, KeyInput,
 )
 from .layouts import Layout
 from .lexicon import Lexicon
@@ -41,6 +41,9 @@ VK_D = 0x44
 VK_Y = 0x59
 VK_Z = 0x5A
 SHIFT_TAP_SECONDS = 0.5
+# A right-Ctrl tap must stay shorter than voice input's shortest hold (0.35 s),
+# so the two never both happen.
+CTRL_TAP_SECONDS = 0.3
 SELECTION_DIGITS = "123456789"
 SINGLE_CHAR_SUGGEST_MARGIN = 1.5  # stricter autocomplete threshold for 1-char context
 
@@ -262,7 +265,7 @@ class Session(CorrectionMixin):
         self._commit = ""
         self._notice = ""
         self._shift_down_at: float | None = None
-        self._ralt_down_at: float | None = None
+        self._palette_down_at: float | None = None  # the symbol-panel key went down (alone) at
         self._shift_scan = 0
         # Undo inside the composition (Ctrl+Z / Ctrl+Y, and u in correction
         # mode): (keys, pins, cursor) before each edit.
@@ -320,13 +323,18 @@ class Session(CorrectionMixin):
     def filter_key_down(self, key: KeyInput) -> bool:
         if key.vk == VK_SHIFT:
             self._shift_down_at = time.monotonic()
-            self._ralt_down_at = None
+            self._palette_down_at = None
             self._shift_scan = key.scan
         else:
             self._shift_down_at = None
-            # a lone right-Alt tap opens the symbol panel; any other key
-            # in between (Alt+Tab, AltGr+key) cancels it
-            self._ralt_down_at = time.monotonic() if (key.vk == VK_MENU and key.extended) else None
+            # a lone tap of the symbol-panel key opens it; any other key in
+            # between (Ctrl+C, Alt+Tab, AltGr+key) makes it a shortcut instead.
+            # Held keys repeat their key-down: keep the first time.
+            if self._is_palette_key(key):
+                if self._palette_down_at is None:
+                    self._palette_down_at = time.monotonic()
+            else:
+                self._palette_down_at = None
         return self._wants(key)
 
     def key_down(self, key: KeyInput) -> bool:
@@ -361,13 +369,17 @@ class Session(CorrectionMixin):
         return not key.printable and key.vk not in _COMPOSING_NAV
 
     def filter_key_up(self, key: KeyInput) -> bool:
+        if self._is_palette_key(key) and not self._is_palette_tap(key):
+            self._palette_down_at = None  # held (voice input) or a shortcut: the next press starts afresh
         return self._is_shift_tap(key) or self._is_palette_tap(key)
 
     def key_up(self, key: KeyInput) -> bool:
         if self._is_palette_tap(key):
-            self._ralt_down_at = None
+            self._palette_down_at = None
             self.toggle_palette()
-            return True
+            # Alt's key-up is taken (or the app would open its menu bar);
+            # Ctrl's goes on, so the app sees Ctrl released
+            return self.cfg.palette_hotkey != "rctrl"
         if not self._is_shift_tap(key):
             return False
         self._shift_down_at = None
@@ -1262,13 +1274,24 @@ class Session(CorrectionMixin):
         self.cand = self._new_list(items, title="接續")
 
     # ============================================================ symbol panel
+    def _is_palette_key(self, key: KeyInput) -> bool:
+        hotkey = self.cfg.palette_hotkey
+        if hotkey == "rctrl":
+            return key.vk == VK_CONTROL and key.extended
+        if hotkey == "ralt":
+            return key.vk == VK_MENU and key.extended
+        return False
+
     def _is_palette_tap(self, key: KeyInput) -> bool:
-        """A lone tap of the right Alt key. (Keys pressed *with* Alt never
-        reach an input method in Windows/PIME, so Ctrl+Alt+, cannot work.)
-        Taking the key-up also stops the app from activating its menu bar."""
-        if self.cfg.palette_hotkey != "ralt" or key.vk != VK_MENU or self._ralt_down_at is None:
+        """A lone tap of the symbol-panel key: right Ctrl (default) or
+        right Alt. (Keys pressed *with* Alt never reach an input method in
+        Windows/PIME, so Ctrl+Alt+, cannot work.) Right Ctrl held longer is
+        voice input; right Alt makes some apps open their menu bar, which is
+        why right Ctrl is the default (user feedback #8)."""
+        if self._palette_down_at is None or not self._is_palette_key(key):
             return False
-        return time.monotonic() - self._ralt_down_at <= SHIFT_TAP_SECONDS
+        limit = CTRL_TAP_SECONDS if self.cfg.palette_hotkey == "rctrl" else SHIFT_TAP_SECONDS
+        return time.monotonic() - self._palette_down_at <= limit
 
     def toggle_palette(self) -> None:
         if self.cand is not None and self.cand.palette is not None:
