@@ -41,9 +41,9 @@ def render(panel, theme, scale: float, path: Path, kind: str = "decode") -> None
     from PIL import Image
 
     from ..ui.canvas import Canvas, Fonts, Surface
-    from ..ui.panels import paint_candidates, paint_decode
+    from ..ui.panels import paint_candidates, paint_decode, paint_smart
 
-    paint = paint_candidates if kind == "candidates" else paint_decode
+    paint = {"candidates": paint_candidates, "smart": paint_smart}.get(kind, paint_decode)
     fonts = Fonts(scale)
     probe = Surface(4, 4)
     size = paint(Canvas(probe.hdc, scale, fonts), theme, panel, draw=False)
@@ -110,6 +110,21 @@ def main() -> int:
                 for theme in themes:
                     path = out / f"{name}-{'dark' if theme.dark else 'light'}.png"
                     render(panel, theme, args.scale, path, "candidates")
+                    print(path)
+            # 超智慧推薦 (experimental)
+            from ..engine.panel import smart_panel
+
+            engine.config.smart_suggest = True
+            for name, script in (("smart", "rup wu0 "), ("smart-fix", "2832.4cl4")):
+                session = Session(engine)
+                run(session, script)
+                panel = smart_panel(session)
+                if panel is None:
+                    print("no smart suggestions for", script)
+                    continue
+                for theme in themes:
+                    path = out / f"{name}-{'dark' if theme.dark else 'light'}.png"
+                    render(panel, theme, args.scale, path, "smart")
                     print(path)
         engine.lexicon.user.close()
         engine.lexicon.close()

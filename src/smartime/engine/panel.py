@@ -80,6 +80,30 @@ class CandidatePanel:
     preview: str = ""  # the selected 片語's whole text
 
 
+@dataclass
+class SmartPanel:
+    """超智慧推薦 (experimental): [(number in the Shift+Tab list, text)]."""
+
+    chains: list[tuple[str, str]]
+    fixes: list[tuple[str, str, str]]  # (number, what is there now, the other word)
+    stale: bool = False
+
+
+def smart_panel(session) -> SmartPanel | None:
+    smart = session.smart
+    if smart is None or (not smart.chains and not smart.fixes):
+        return None
+    n = 0
+    chains, fixes = [], []
+    for s in smart.chains:
+        n += 1
+        chains.append(("" if smart.stale else str(n), s.text))
+    for f in smart.fixes:
+        n += 1
+        fixes.append(("" if smart.stale else str(n), f.annotation, f.text))
+    return SmartPanel(chains, fixes, smart.stale)
+
+
 def candidate_panel(session) -> CandidatePanel | None:
     """The candidate window as a panel (grouped, coloured by the frontend)."""
     cand = session.cand
