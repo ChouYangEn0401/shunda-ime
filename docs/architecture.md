@@ -1,6 +1,6 @@
 # 架構與交接說明
 
-> 讀者：接手或參與開發的工程師。最後更新：0.3.0。產品名稱「順打輸入法 Shunda IME」，內部代號 `smartime`。
+> 讀者：接手或參與開發的工程師。最後更新：0.3.0 之後（開發中，見 CHANGELOG 的「未發布」）。產品名稱「順打輸入法 Shunda IME」，內部代號 `smartime`。
 
 ## 1. 全貌
 
@@ -38,7 +38,10 @@
 | `decoder.py` | **核心**：把原始按鍵緩衝區解成中英混合的最佳分段（lattice + Viterbi） |
 | `session.py` | 每個輸入情境的狀態機：插入/刪除/游標/候選/Tab/送出/中英模式/符號面板/學習時機 |
 | `correction.py` | Vim 式修正模式（`CorrectionMixin`，混入 Session） |
-| `symbols.py` | 符號面板的分類與最近使用（`recent-symbols.json`） |
+| `panel.py` | 面板的資料模型（平台無關）：解碼面板 `DecodePanel`（每字一欄：按鍵／注音／國字）、候選面板 `CandidatePanel` |
+| `punct.py` | 符號鍵四層（單按／Shift／Ctrl／Ctrl+Shift）：風格、Ctrl 預設與逐格覆寫、設定頁對照表 |
+| `symbols.py` | 符號面板的分類、片語／顏文字分頁與最近使用（`recent-symbols.json`） |
+| `kaomoji.py` | 顏文字（依心情分組） |
 | `keys.py` | 與平台無關的按鍵事件（數值沿用 Windows VK code；`extended` 區分左右 Alt／Ctrl） |
 
 設定（`smartime/config.py`）是一個 dataclass：`from_dict()` 只接受認得的欄位並修正不合法的值，
@@ -79,10 +82,23 @@
 - 顯示用的每個字元（unit）都對應一段按鍵；中文一字 = 一個音節的按鍵，其他種類一字 = 一鍵。游標永遠停在 unit 邊界。
 - 送出時機：`Enter`、全形子句標點（，。？！：；，含 `Ctrl+符號` 打出的）、超過 `max_buffer_chars`
   時送出最舊的部分（尚在打的音節期間不觸發；觸發時送到上限以下 10 字，減少部分送出次數）、切換模式。
-- `Ctrl(+Shift)+符號` → 全形標點（`session.CTRL_PUNCT`，微軟新注音慣例），只在中文側模式（自動／純中文）攔截。
+- 符號鍵（`engine/punct.py`）：預設風格 `keycap`——單按／Shift 打鍵帽上的符號，`Ctrl(+Shift)+符號` 打中文標點，
+  同一個鍵四種按法不重複；`Ctrl` 組合只在中文側模式攔截，逐格可改（`punct_overrides`，空字串＝交給程式）。
+- **組字中交給程式的鍵**（`Session._for_the_app`）：Ctrl/Alt 組合、F 鍵、Shift+Insert、`VK_PACKET`……先 `commit_all()`
+  再讓 `key_down` 回傳 False。libIME 的 `OnKeyDown` 以 `onKeyDown` 的回傳值當 `pfEaten`，所以同一個按鍵內就能
+  「先送出、再放行」。組字中點過滑鼠（`text_service._clicked_while_composing`）：下一鍵先把舊組字送出在原處。
+- **Backspace／Delete**（`_delete_unit` → `_delete_range`）：只刪看得到的一個字，連同緊貼著它的被略過雜鍵；
+  刪完若其他字的判讀改變，就把舊的判讀釘住（只釘有變的段落，`_parts_outside`）。未完成的注音不釘。
+- **復原**：`_checkpoint()` 在每個編輯前存 (keys, pins, cursor)；打字以一個字為一步（聲調鍵、空白、標點結束一步）。
+  `Ctrl+Z`／`Ctrl+Y` 與修正模式的 `u` 共用；自動送出後作廢。
 - `view()` 回傳前端需要的一切（組字字串、游標、送出字串、候選、提示、Tab 建議、模式）；**呼叫後會清空待送出字串**，每個事件只呼叫一次。
-- 修正模式（`correction.py`）：`Esc` 進入，按鍵變指令；國字／注音／按鍵三種檢視畫在提示框（組字區永遠是國字，
-  避免 App 看到注音字串）。`j/k` 循環換字只在游標離開時學最後停下的那個。
+- 修正模式（`correction.py`）：`Esc` 進入、再按 `Esc`（或 `i`）回到打字；清除整段要 `D` 連按兩次；`r` 重打一個字，
+  打完自動回來。其他鍵不會打字，`Ctrl+標點` 也不會離開。組字區永遠是國字（避免 App 看到注音字串），
+  三列對照畫在解碼面板（§2.5）；面板不可用時退回提示框文字。`j/k` 從畫面上目前的字開始循環，游標離開時才學。
+- 候選窗（`CandidateList`）：分組排序 `GROUP_ORDER`（我的詞庫 → 學過 → 詞庫 → 英文／數字／標點 → 其他讀法 → 原始按鍵），
+  打開時選取停在畫面上目前的字；`Tab` 篩選一組；`candidate_multi_column` 時 → 打開下一欄、第一欄按 ← 收回。
+- 片語：打 `snippet_trigger`（`;;`）→ `CandidateList.snippet_at`，之後的字母是篩選字；選中時打出整段
+  （`_type_text`：先送出 `;;` 之前的字，再送出片語）。多字元的符號（顏文字）同樣整段送出，不放進組字區。
 - 符號面板：單按右 Ctrl（預設，`KeyInput.extended`；0.3 秒內放開才算，比語音輸入的 0.35 秒短）或右 Alt 開關，`Tab` 換分類。
   右 Ctrl 的放開事件照樣交給程式（只有 Alt 的要吃掉，否則程式會打開選單列）。語音服務按下就開始錄音，
   但按住滿 0.35 秒才顯示「錄音中」或麥克風錯誤，所以單按開面板不會閃出語音提示。
@@ -91,9 +107,13 @@
 
 ### 2.3 我的詞庫與學習（`userdict.py`）
 
-- 一個 SQLite 檔 `%APPDATA%\SmartIME\user.db`（WAL）：`entries(phrase, reading, kind, category, source, count, blocked …)`，`UNIQUE(phrase, reading)`。
+- 一個 SQLite 檔 `%APPDATA%\SmartIME\user.db`（WAL）：`entries(phrase, reading, kind, category, source, count, blocked, origin …)`，
+  `UNIQUE(phrase, reading)`；`snippets`（片語）。schema 2（`origin`）由舊檔自動升級。
 - **只從明確的選擇學習**：候選窗選字、Tab 接受、單字選出新詞、修正模式最後停下的字。解碼器猜的、使用者沒動的字不學，
   所以猜錯不會自我強化（使用者對 Windows 輸入法的主要抱怨）。
+- **修正記成詞**（`Session._learn_choice`）：在中文句子裡只換掉一個字＝修正，記的是它和左／右鄰字組成的兩字詞
+  （其中一個是系統詞庫的詞就只記那個），`origin=fix`；單字本身不加分（到處加分會造成新錯字）。選詞／選回原字＝`pick`，Tab＝`tab`。
+- 設定頁兩區：**自動收集**（`view=inbox`：學到的、還沒分類）與**我的詞庫**（`view=mine`：有分類或自己加的）；給分類就移過去。
 - 分數與系統詞庫同為 log10：手動新增的詞至少 -3.0（相當常用詞）；使用次數加分 `0.9 + 0.6·log2(count)`，上限 +3。
 - `Delete`（候選窗）：學來的 → 忘記；手動加的 → 刪除；系統詞庫的 → 封鎖（不再建議）。
 - 設定頁與輸入法是不同行程：輸入法每個按鍵前比對 `PRAGMA data_version`，有變動才重新載入。
@@ -115,6 +135,21 @@
 - 詞庫是 schema 2（`tools/build_data.py` 產生 `zh.plain` 與 `cangjie`）；舊詞庫時 `Lexicon.has_pinyin`／`has_cangjie`
   為假，這兩個模式自動隱藏。
 
+### 2.5 自己畫的面板（`src/smartime/ui`）
+
+- PIME 的候選窗與提示框只能顯示純文字，所以解碼面板、分組上色的候選窗、片語預覽由後端自己畫：
+  `overlay.py` 開一條 UI 執行緒（自己的訊息迴圈、Per-Monitor V2 DPI），一個 `WS_EX_NOACTIVATE` 置頂視窗，
+  `MA_NOACTIVATE` 不搶焦點。`show()`／`hide()` 只投遞訊息，不會卡住打字。
+- **位置**：組字位置只有 App 行程知道（TSF `GetTextExt`），但 PIME 已經用它把黃色提示框（類別 `LibImeWindow`）放在游標下，
+  所以面板貼在「前景 App 裡可見的 LibImeWindow」下面；找不到時用系統游標（`GetGUIThreadInfo`）；都沒有就隱藏。
+  PIME 在我們回覆後才移動它的視窗，所以顯示期間每 40ms 跟一次；錨點消失 0.6 秒就自己隱藏。
+  面板顯示時黃框維持一行短字（「修正模式 · Esc 回到打字」）當錨點。沒有組字時（閒置叫出符號面板）照舊用 PIME 的清單。
+- 模型在 `engine/panel.py`（可測試）；`ui/panels.py` 先量尺寸再畫（GDI，`ui/canvas.py`），同一套程式也畫進離屏點陣圖
+  （`devtools/panel_preview` 輸出 PNG、設定頁的示意圖）。缺字的符號（␣ ↺ ⇄）用 Segoe UI Symbol 並以基線對齊。
+- 顏色只代表五種意思（`ui/theme.py`）：藍＝游標／選中、琥珀＝輸入法幫你改的（↺、修正模式外框）、紅＝略過的鍵、
+  綠＝我的詞庫／學過、紫＝建議／片語。設定：`panel_decode`（correction／always／off）、`panel_candidates`、`panel_theme`。
+- 測試與模擬器設 `SMARTIME_NO_PANEL=1`，不開真的視窗。實機驗證：`python -m smartime.devtools.panel_check`。
+
 ## 3. PIME 協定重點（`src/smartime/pime`）
 
 - 請求：`<client_id>|<json>`；回覆：`PIME_MSG|<client_id>|<json>`。stdout 只能輸出協定訊息，紀錄寫到 `%APPDATA%\SmartIME\logs\backend.log`。
@@ -133,6 +168,10 @@
   1.5 秒內沒有按鍵交給 App、滑鼠沒有按下（含「按過」位元）時，保留緩衝區，下一鍵把整段重新送出。
   設定 `keep_on_app_interrupt` 可關掉；紀錄檔的 `kept=` 欄位記下每次判斷（只記 App 名稱與長度）。
 - Launcher 以**小寫** GUID 對應後端（`init` 的 `id` 必須是小寫）；找不到後端時**不會回覆**，客戶端會卡住。
+- **圖示快取陷阱**：PIME 的 LangBarButton 有「整個 App 行程共用」的圖示快取，任何一個輸入情境停用或關閉時
+  （`onDeactivate`、`close`）會 `DestroyIcon` 全部；同一個 App 其他視窗的模式按鈕就拿著死掉的 handle（圖示消失或變成別的圖）。
+  PIME 只在路徑字串改變時重新載入，所以後端在那之後的下一個回覆用同一檔案的另一種寫法重送（`icons\auto.ico` ⇄ `icons\.\auto.ico`）。
+- PIME 送來的 `scanCode` 一律是 0：左右 Shift 由 `keyStates[VK_LSHIFT/VK_RSHIFT]` 判斷（`key_from_msg`）。
 - PIME 讀 `ime.json` / `backends.json` 用 jsoncpp：必須是合法 JSON、不可有 BOM（`tests/test_backend_files.py` 檢查）。
 
 ## 4. 系統詞庫（`tools/build_data.py`）
@@ -213,13 +252,15 @@
   是分析實機問題的最佳資料（配對 SEND/RECV 的 seqNum 即可重建每個 session）；也因此含有使用者打過的字，除錯完應建議關閉。
 - 用 bash heredoc 產生含反斜線的檔案時，`\\` 可能被吃成 `\`（ime.json 事故）；這類檔案請用編輯器／Write 工具寫，並驗證。
 
-## 10. 已知限制（0.3.0）
+## 10. 已知限制
 
 - 鍵盤：大千、倚天；許氏（一鍵多義）尚未支援。拼音、倉頡五代在開發版（見 §2.4）。容錯有「順序錯」與「多按雜鍵」，少按/相鄰鍵尚未做。
 - 詞庫缺台灣口語讀音（例：欸 只有 ㄞˇ/ㄟˋ，沒有 ㄟ），需要口語讀音補充表。
 - 語言模型只有詞頻（unigram）：同音字靠詞頻選（例：「打逗號」可能成「打鬥號」），需要學習或 bigram。
 - Chromium 系的自動化實機測試只有 Edge；VS Code、LINE 等 Electron App 靠同一套 `KEEP_APPS` 規則，尚未逐一實測。
-- 提示與 Tab 建議共用一個 message window，樣式為 PIME 預設（非藍色）。
+- 提示與 Tab 建議共用 PIME 的 message window（黃框，樣式無法改）；其餘面板自己畫（§2.5）。
+- 自己畫的面板在 UWP／沉浸式 App（開始功能表搜尋等）可能被蓋住（不同的視窗層級），此時只剩黃框文字。
+- 拼音、倉頡模式的 `;` 是全形標點並會立即送出，所以 `;;` 片語觸發只在注音／中英自動有效（符號面板的片語分頁都可用）。
 - 語音輸入的快速鍵固定為右 Ctrl；還不會串流顯示（放開後才辨識整段）。
 - `-Dev` 模式下圖示放在使用者資料夾內，部分 UWP（AppContainer）App 可能讀不到圖示；一般安裝無此問題。
 - PIME 1.3.0 為 2023 版；主線（2026）有修正但無正式發行，之後評估自行建置。
