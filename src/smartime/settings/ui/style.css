@@ -189,6 +189,26 @@ tr.blocked td { color: var(--muted); }
 .dict-table tbody tr:hover td { background: color-mix(in srgb, var(--accent-soft) 35%, transparent); }
 .dict-more { text-align: center; padding: 10px; }
 
+/* punctuation: one table, four ways to press each symbol key */
+.punct-grid-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.punct-grid { min-width: 560px; }
+.punct-grid th { text-align: center; }
+.punct-grid th:first-child { text-align: left; }
+.punct-grid td { text-align: center; padding: 6px 8px; }
+.punct-grid td.pk-key { text-align: left; white-space: nowrap; }
+.punct-grid tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--bg) 45%, transparent); }
+.pk-upper { color: var(--muted); font-family: var(--font-key); font-size: 12.5px; margin-left: 6px; }
+.pk-out { display: inline-block; min-width: 1.6em; font-size: 17px; border-radius: 5px; padding: 0 3px; }
+.pk-out.dup, .pk-input.dup { background: var(--plan-soft); color: var(--plan); }
+.pk-zy { color: var(--muted); font-size: 13px; }
+.pk-alt { color: var(--muted); font-size: 11.5px; margin-left: 6px; }
+.pk-toggle, .pk-reset { all: unset; cursor: pointer; font-size: 11.5px; margin-left: 6px; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--accent); }
+.pk-toggle:focus-visible, .pk-reset:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pk-input { width: 3em; text-align: center; font-size: 16px; padding: 2px 4px; }
+.pk-input::placeholder { color: var(--muted); }
+.pk-legend { margin: 10px 0 0; padding-left: 18px; }
+.pk-legend li { margin: 3px 0; }
+
 .addform { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; }
 .charpick { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: 13px; }
 .charpick .ch { display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; }

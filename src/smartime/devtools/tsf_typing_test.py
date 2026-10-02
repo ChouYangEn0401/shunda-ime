@@ -373,7 +373,8 @@ def type_script(tap, script: str) -> None:
 # simulation (this is what catches TSF/PIME integration bugs).
 CASES = [
     ("ji3ap7{ENTER}", "我們"),  # first syllable must convert too (regression)
-    ("su3cl3<", "你好，"),  # clause punctuation commits
+    ("su3cl3{C-.}", "你好。"),  # clause punctuation commits
+    ("su3cl3<{ENTER}", "你好<"),  # Shift+, types what is on the key (punct_style "keycap")
     ("mvp {ENTER}", "mvp "),
     ("ji3m/4python vu,3{ENTER}", "我用python 寫"),
     ("ji3ap7{BS}{ENTER}", "我"),  # backspace removes a whole syllable

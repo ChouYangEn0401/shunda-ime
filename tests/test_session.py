@@ -43,7 +43,7 @@ def test_clause_punctuation_commits(session):
 def test_punctuation_variants_in_candidates(session):
     # the other width and related symbols are one ↓ away
     _, v = run(session, '"{DOWN}')
-    assert v.candidates[:3] == ['"', "；", "“"]
+    assert v.candidates[:3] == ['"', "＂", "“"] and "；" in v.candidates
     assert "「" in v.candidates
 
 

@@ -104,14 +104,14 @@ class Weights:
 
 # Shifted / non-layout punctuation -> full-width Chinese punctuation.
 FULLWIDTH_PUNCT = {
-    "<": "，", ">": "。", "?": "？", "!": "！", ":": "：", '"': "；",
+    "<": "，", ">": "。", "?": "？", "!": "！", ":": "：", '"': "＂",  # ； is Ctrl+;
     "'": "、", "[": "「", "]": "」", "{": "『", "}": "』",
     "(": "（", ")": "）", "~": "～", "\\": "＼",
 }
 # Other symbols a punctuation key can stand for, offered in the candidate
 # window after the full-width and half-width forms.
 PUNCT_VARIANTS = {
-    '"': "“”「」", "'": "‘’", "<": "《〈", ">": "》〉", "[": "【〔", "]": "】〕",
+    '"': "“”「」；", "'": "‘’", "<": "《〈", ">": "》〉", "[": "【〔", "]": "】〕",
     "{": "｛", "}": "｝", "?": "", "!": "", ":": "", "(": "", ")": "", "~": "", "\\": "",
 }
 # Keys that may be dropped as accidental: lowercase letters plus the layout's
@@ -182,7 +182,9 @@ class Decoder:
 
     def apply_config(self, cfg) -> None:
         """Settings that change decoding (from config.Config)."""
-        self.halfwidth_symbols = frozenset(cfg.halfwidth_symbols)
+        from .punct import halfwidth_set
+
+        self.halfwidth_symbols = halfwidth_set(cfg)
         if cfg.layout != self.layout.name:
             from .layouts import get_layout
 

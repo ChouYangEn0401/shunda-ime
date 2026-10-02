@@ -35,6 +35,7 @@ from .lexicon import Lexicon
 from .userdict import UserDict
 from .correction import CorrectionMixin
 from .panel import CandidatePanel, DecodePanel, candidate_panel, decode_panel
+from .punct import ctrl_output
 from .symbols import CATEGORIES, SymbolPanel
 
 VK_D = 0x44
@@ -46,17 +47,6 @@ SHIFT_TAP_SECONDS = 0.5
 CTRL_TAP_SECONDS = 0.3
 SELECTION_DIGITS = "123456789"
 SINGLE_CHAR_SUGGEST_MARGIN = 1.5  # stricter autocomplete threshold for 1-char context
-
-# Ctrl(+Shift)+key -> full-width punctuation, following 微軟新注音 (華碩 uses
-# the same convention). Key: (virtual key, shift held).
-CTRL_PUNCT = {
-    (VK_OEM_COMMA, False): "，", (VK_OEM_PERIOD, False): "。", (VK_OEM_1, False): "；",
-    (VK_OEM_7, False): "、", (VK_OEM_2, False): "…", (VK_OEM_MINUS, False): "—",
-    (VK_OEM_4, False): "「", (VK_OEM_6, False): "」",
-    (VK_OEM_COMMA, True): "《", (VK_OEM_PERIOD, True): "》", (VK_OEM_1, True): "：",
-    (VK_OEM_7, True): "＂", (VK_OEM_2, True): "？", (0x31, True): "！",
-    (VK_OEM_4, True): "『", (VK_OEM_6, True): "』", (0x39, True): "（", (0x30, True): "）",
-}
 
 # Keys we consume while composing even though they produce no character.
 _COMPOSING_NAV = frozenset(
@@ -454,7 +444,7 @@ class Session(CorrectionMixin):
     def _ctrl_punct(self, key: KeyInput) -> str | None:
         if not (key.ctrl and not key.alt and self.cfg.ctrl_punctuation and self.mode is not Mode.ENGLISH):
             return None
-        return CTRL_PUNCT.get((key.vk, key.shift))
+        return ctrl_output(self.cfg, key.vk, key.shift)
 
     def _wants(self, key: KeyInput) -> bool:
         if key.vk in MODIFIER_VKS:

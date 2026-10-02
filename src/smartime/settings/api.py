@@ -84,6 +84,20 @@ class SettingsApp:
             "stats": self.user.stats(),
             "userDir": str(paths.user_dir()),
             "debugLog": self.debug_log_state(),
+            "punct": self.punct_info(),
+        }
+
+    @staticmethod
+    def punct_info() -> dict:
+        """What the punctuation table needs: the symbol keys, their
+        full-width forms and the default Ctrl / Ctrl+Shift outputs."""
+        from ..engine import punct
+        from ..engine.decoder import FULLWIDTH_PUNCT
+
+        return {
+            "keycaps": [[lower, upper] for _, lower, upper in punct.KEYCAPS],
+            "fullwidth": FULLWIDTH_PUNCT,
+            "ctrl": {punct.combo_name(lower, shift): out for (lower, shift), out in punct.CTRL_PUNCT.items()},
         }
 
     # ---------------------------------------------------------- config

@@ -233,52 +233,115 @@
   });
 
   // ------------------------------------------------------------ punctuation
-  const punctRows = [
-    ["Shift + '", '"', "；", '"', "“ ” 「 」"], ["Shift + ,", "<", "，", "<", "《 〈"], ["Shift + .", ">", "。", ">", "》 〉"],
-    ["Shift + /", "?", "？", "?", ""], ["Shift + 1", "!", "！", "!", ""], ["Shift + ;", ":", "：", ":", ""],
-    ["Shift + 9 / 0", "()", "（ ）", "( )", ""], ["[ ]", "[]", "「 」", "[ ]", "【 】 〔 〕"],
-    ["Shift + [ ]", "{}", "『 』", "{ }", "｛ ｝"], ["'", "'", "、", "'", "‘ ’"], ["Shift + `", "~", "～", "~", ""],
-    ["\\", "\\", "＼", "\\", ""],
-  ];
-  const allSymbols = punctRows.map(r => r[1]).join("");
-  function halfSet() { return new Set([...(config.halfwidth_symbols || "")]); }
+  // One table: every symbol key and what it types alone, with Shift, with
+  // Ctrl and with Ctrl+Shift (engine/punct.py). Style "keycap": alone/Shift
+  // type what is printed on the key, Ctrl/Ctrl+Shift the Chinese
+  // punctuation, so no two combinations type the same thing. Ctrl cells
+  // can be changed one by one; cells typing the same as another cell of the
+  // key are tinted, so duplicates are easy to spot.
+  const STYLE_DESC = {
+    keycap: "單按、Shift 打鍵帽上印的符號（Shift+, 是 <）；中文標點用 Ctrl（Ctrl+, 是 ，）。同一個鍵四種按法都不重複。",
+    fullwidth: "以前的打法：Shift+, 也打 ，（和 Ctrl+, 一樣），鍵帽上的 < 要按 ↓ 換。",
+    custom: "每個符號自己決定單按／Shift 打全形還是半形：點表格裡的「全／半」切換。",
+  };
+  function punctHalf() {
+    const p = state.punct;
+    if (config.punct_style === "keycap") return new Set(Object.keys(p.fullwidth));
+    if (config.punct_style === "fullwidth") return new Set(['"']);
+    return new Set([...(config.halfwidth_symbols || "")]);
+  }
+  function zhuyinOf(key) {
+    const rows = KB[KB[config.layout] ? config.layout : "dachen"];
+    for (const r of rows) for (const [k, z] of r) if (k === key) return z;
+    if (key === " ") return "一聲";
+    return "";
+  }
   function renderPunct() {
-    const tbody = document.querySelector("#punct-table tbody");
-    const half = halfSet();
+    if (!state || !state.punct) return;
+    const tbody = document.querySelector("#punct-grid tbody");
+    const p = state.punct;
+    const half = punctHalf();
+    const custom = config.punct_style === "custom";
+    const overrides = config.punct_overrides || {};
+    document.getElementById("punct-style-desc").textContent = STYLE_DESC[config.punct_style] || "";
     tbody.innerHTML = "";
-    punctRows.forEach(([label, chars, full, ascii, more], idx) => {
-      const isHalf = [...chars].every(c => half.has(c));
+    p.keycaps.forEach(([lower, upper]) => {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td><kbd></kbd></td>
-        <td><label><input type="radio" name="p${idx}"> <span></span></label></td>
-        <td><label><input type="radio" name="p${idx}"> <code></code></label></td>
-        <td></td>`;
-      tr.querySelector("kbd").textContent = label;
-      tr.querySelector("td:nth-child(2) span").textContent = full;
-      tr.querySelector("td:nth-child(3) code").textContent = ascii;
-      tr.querySelector("td:nth-child(4)").innerHTML = more ? "" : '<span class="note">—</span>';
-      if (more) tr.querySelector("td:nth-child(4)").textContent = more;
-      const [rFull, rHalf] = tr.querySelectorAll("input");
-      rFull.checked = !isHalf; rHalf.checked = isHalf;
-      rFull.addEventListener("change", () => setHalf(chars, false));
-      rHalf.addEventListener("change", () => setHalf(chars, true));
+      const tdKey = document.createElement("td"); tdKey.className = "pk-key";
+      const k = document.createElement("kbd"); k.textContent = lower === " " ? "␣" : lower;
+      const up = document.createElement("span"); up.className = "pk-upper"; up.textContent = upper;
+      tdKey.append(k, up);
+      const outOf = ch => (ch in p.fullwidth && !half.has(ch)) ? p.fullwidth[ch] : ch;
+      const zy = zhuyinOf(lower);
+      const alone = zy ? "" : outOf(lower);
+      const shift = outOf(upper);
+      const ctrl = (`C+${lower}` in overrides) ? overrides[`C+${lower}`] : (p.ctrl[`C+${lower}`] || "");
+      const ctrlS = (`CS+${lower}` in overrides) ? overrides[`CS+${lower}`] : (p.ctrl[`CS+${lower}`] || "");
+      const outs = [alone, shift, ctrl, ctrlS];
+      const dup = v => v && outs.filter(x => x === v).length > 1;
+
+      function symbolCell(ch, out) {
+        const td = document.createElement("td");
+        const span = document.createElement("span"); span.className = "pk-out" + (dup(out) ? " dup" : "");
+        span.textContent = out;
+        td.appendChild(span);
+        if (ch in p.fullwidth) {
+          const alt = out === ch ? p.fullwidth[ch] : ch;
+          if (custom) {
+            const b = document.createElement("button"); b.type = "button"; b.className = "pk-toggle";
+            b.textContent = out === ch ? "半" : "全";
+            b.title = `改成 ${alt}`;
+            b.addEventListener("click", () => {
+              const h = new Set([...(config.halfwidth_symbols || "")]);
+              if (h.has(ch)) h.delete(ch); else h.add(ch);
+              save({ halfwidth_symbols: [...h].join("") });
+            });
+            td.appendChild(b);
+          } else {
+            const a = document.createElement("span"); a.className = "pk-alt"; a.textContent = `↓ ${alt}`;
+            a.title = "選字框裡的另一種寬度";
+            td.appendChild(a);
+          }
+        }
+        return td;
+      }
+      function ctrlCell(combo, out) {
+        const td = document.createElement("td");
+        const inp = document.createElement("input"); inp.type = "text"; inp.maxLength = 2;
+        inp.className = "pk-input" + (dup(out) ? " dup" : "");
+        inp.value = out; inp.placeholder = "—";
+        inp.setAttribute("aria-label", combo.replace("CS+", "Ctrl+Shift+").replace("C+", "Ctrl+"));
+        inp.addEventListener("change", () => {
+          const next = Object.assign({}, config.punct_overrides || {});
+          const v = inp.value.trim();
+          if (v === (p.ctrl[combo] || "")) delete next[combo]; else next[combo] = v;
+          save({ punct_overrides: next });
+        });
+        td.appendChild(inp);
+        if (combo in overrides) {
+          const r = document.createElement("button"); r.type = "button"; r.className = "pk-reset"; r.textContent = "↺";
+          r.title = `恢復預設（${p.ctrl[combo] || "交給程式"}）`;
+          r.addEventListener("click", () => {
+            const next = Object.assign({}, config.punct_overrides || {});
+            delete next[combo];
+            save({ punct_overrides: next });
+          });
+          td.appendChild(r);
+        }
+        return td;
+      }
+      let tdAlone;
+      if (zy) {
+        tdAlone = document.createElement("td");
+        tdAlone.innerHTML = '<span class="pk-zy"></span>';
+        tdAlone.firstChild.textContent = `注音 ${zy}`;
+      } else {
+        tdAlone = symbolCell(lower, alone);
+      }
+      tr.append(tdKey, tdAlone, symbolCell(upper, shift), ctrlCell(`C+${lower}`, ctrl), ctrlCell(`CS+${lower}`, ctrlS));
       tbody.appendChild(tr);
     });
-    const h = config.halfwidth_symbols || "";
-    const preset = h === "" ? "full" : [...allSymbols].every(c => h.includes(c)) ? "half" : "custom";
-    document.querySelectorAll("#punct-preset button").forEach(b =>
-      b.setAttribute("aria-pressed", b.dataset.preset === preset ? "true" : "false"));
   }
-  function setHalf(chars, on) {
-    const half = halfSet();
-    [...chars].forEach(c => (on ? half.add(c) : half.delete(c)));
-    save({ halfwidth_symbols: [...half].join("") });
-  }
-  document.getElementById("punct-preset").addEventListener("click", e => {
-    const b = e.target.closest("button"); if (!b) return;
-    if (b.dataset.preset === "full") save({ halfwidth_symbols: "" });
-    if (b.dataset.preset === "half") save({ halfwidth_symbols: allSymbols });
-  });
 
   // ------------------------------------------------------------ dictionary
   // Two areas: 自動收集 (what the IME learned from your choices and fixes,
@@ -599,30 +662,6 @@
       ["標點", '<a href="#punct" data-goto="punct">見「標點與符號」</a>', "Ctrl+符號 全形標點、換寬度、符號面板（單按右 Ctrl）", D],
       ["語音", "按住右 <kbd>Ctrl</kbd>", "說話，放開後打到游標位置（右 Ctrl＋其他鍵＝一般快捷鍵，不錄音）", D],
     ];
-    const punctKeys = [
-      ["<kbd>Ctrl</kbd>+<kbd>,</kbd>　或　<kbd>Shift</kbd>+<kbd>,</kbd>", "，"],
-      ["<kbd>Ctrl</kbd>+<kbd>.</kbd>　或　<kbd>Shift</kbd>+<kbd>.</kbd>", "。"],
-      ["<kbd>Ctrl</kbd>+<kbd>;</kbd>", "；"],
-      ["<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>;</kbd>　或　<kbd>Shift</kbd>+<kbd>;</kbd>", "："],
-      ["<kbd>Ctrl</kbd>+<kbd>'</kbd>　或　<kbd>'</kbd>", "、"],
-      ["<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>/</kbd>　或　<kbd>Shift</kbd>+<kbd>/</kbd>", "？"],
-      ["<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd>　或　<kbd>Shift</kbd>+<kbd>1</kbd>", "！"],
-      ["<kbd>Ctrl</kbd>+<kbd>[</kbd> <kbd>]</kbd>　或　<kbd>[</kbd> <kbd>]</kbd>", "「 」"],
-      ["<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>[</kbd> <kbd>]</kbd>", "『 』"],
-      ["<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>,</kbd> <kbd>.</kbd>", "《 》"],
-      ["<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>9</kbd> <kbd>0</kbd>", "（ ）"],
-      ["<kbd>Ctrl</kbd>+<kbd>/</kbd>", "…"],
-      ["<kbd>Ctrl</kbd>+<kbd>-</kbd>", "—"],
-      ["單按右 <kbd>Alt</kbd>", "符號面板：希臘字母、數學、箭頭、單位…（<kbd>Tab</kbd> 換分類）"],
-    ];
-    const pbody = document.querySelector("#punct-keys tbody");
-    pbody.innerHTML = "";
-    punctKeys.forEach(([keys, out]) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${keys}</td><td></td>`;
-      tr.children[1].textContent = out;
-      pbody.appendChild(tr);
-    });
     const tbody = document.querySelector("#keys-table tbody");
     tbody.innerHTML = "";
     rows.forEach(([ctx, keys, what, [cls, label]]) => {

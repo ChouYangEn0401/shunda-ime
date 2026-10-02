@@ -36,7 +36,7 @@ def test_halfwidth_symbols_setting(lexicon):
     from smartime.engine.layouts import DACHEN
 
     d = Decoder(lexicon, DACHEN, halfwidth_symbols="")  # everything full-width
-    assert decode(d, '"').text == "；"
+    assert decode(d, '"').text == "＂"
     d = Decoder(lexicon, DACHEN, halfwidth_symbols='<>?!:"')
     assert decode(d, "su3cl3<").text == "你好<"
 

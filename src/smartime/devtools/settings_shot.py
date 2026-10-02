@@ -44,6 +44,8 @@ def main() -> int:
     ap.add_argument("--dark", action="store_true")
     ap.add_argument("--width", type=int, default=1280)
     ap.add_argument("--height", type=int, default=1100)
+    ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
+                    help="a setting for the screenshot (JSON value), e.g. --set punct_style=\"fullwidth\"")
     args = ap.parse_args()
     edge = next((p for p in EDGE if p.exists()), None)
     if edge is None:
@@ -57,6 +59,17 @@ def main() -> int:
 
         app = SettingsApp()
         sample_data(app)
+        if args.set:
+            import json
+
+            patch = {}
+            for item in args.set:
+                key, _, value = item.partition("=")
+                try:
+                    patch[key] = json.loads(value)
+                except ValueError:
+                    patch[key] = value
+            app.save_config(patch)
         token = secrets.token_urlsafe(16)
         srv = SettingsServer(app, token)
         threading.Thread(target=srv.serve_forever, daemon=True).start()

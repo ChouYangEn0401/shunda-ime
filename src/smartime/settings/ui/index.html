@@ -256,35 +256,31 @@
       <!-- ============ 標點與符號 ============ -->
       <section class="view" id="view-punct" hidden>
         <h2>標點與符號</h2>
-        <p class="lead">標點怎麼打、要全形還是半形，都在這一頁。</p>
+        <p class="lead">鍵盤上每個符號鍵，單按、Shift、Ctrl、Ctrl+Shift 各打出什麼，都在下面這張表。看得到的符號都打得出來，同一個鍵的四種按法不會重複。</p>
 
         <div class="group">
-          <h3>標點快捷鍵</h3>
-          <div class="row"><div class="full scroll">
-            <table id="punct-keys">
-              <thead><tr><th>按鍵</th><th>打出</th></tr></thead>
-              <tbody></tbody>
-            </table>
-            <p class="note" style="margin-bottom:0">打錯寬度時，游標停在標點後面按 <kbd>↓</kbd>，全形、半形和相關符號都在選字框裡。<b>例外：</b>，。？！：； 預設會立刻把整段送出，送出後就不能再按 <kbd>↓</kbd> 換了——想換的話，到「打字」頁關掉「句讀標點自動送出」（之後要按 <kbd>Enter</kbd> 才送出）。</p>
-          </div></div>
-        </div>
-
-        <div class="group">
-          <h3>符號鍵輸出</h3>
+          <h3>符號鍵的四種按法</h3>
           <div class="row">
-            <div><div class="label">快速設定</div></div>
-            <div class="seg" role="group" aria-label="符號鍵快速設定" id="punct-preset">
-              <button data-preset="full">全部全形</button><button data-preset="half">全部半形</button><button data-preset="custom">自訂</button>
+            <div><div class="label">風格</div><div class="desc" id="punct-style-desc"></div></div>
+            <div class="seg" role="group" aria-label="符號鍵風格" data-cfg="punct_style">
+              <button data-value="keycap">鍵帽上的符號（建議）</button><button data-value="fullwidth">微軟相容</button><button data-value="custom">自訂</button>
             </div>
           </div>
-          <div class="row"><div class="full scroll">
-            <table id="punct-table">
-              <thead><tr><th>按鍵</th><th>全形</th><th>半形</th><th>候選窗裡的其他符號</th></tr></thead>
-              <tbody></tbody>
-            </table>
+          <div class="row"><div class="full">
+            <div class="punct-grid-wrap">
+              <table class="punct-grid" id="punct-grid">
+                <thead><tr><th>鍵</th><th>單按</th><th>Shift</th><th>Ctrl</th><th>Ctrl+Shift</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <ul class="pk-legend note">
+              <li><b>Ctrl</b>、<b>Ctrl+Shift</b> 兩欄可以直接改（每格一個字）；清空＝這個組合交給程式（例如 VS Code 的 <kbd>Ctrl</kbd>+<kbd>\</kbd> 分割編輯器），<b>↺</b> 恢復預設。只在中文模式有效，純英文模式的 Ctrl 組合鍵一律交給程式。</li>
+              <li><span class="pk-out dup">黃底</span>＝同一個鍵有兩種按法打出一樣的字（可以改掉，多放一種符號）。</li>
+              <li>打錯寬度時，游標停在標點後按 <kbd>↓</kbd>，全形、半形和相關符號都在選字框裡（表中「↓ ，」）。<b>例外：</b>，。？！：； 預設會立刻把整段送出，之後就不能再按 <kbd>↓</kbd> 換——可到「打字與選字」關掉「句讀標點自動送出」。</li>
+            </ul>
           </div></div>
           <div class="row">
-            <div><div class="label"><kbd>Ctrl</kbd>+符號 打全形標點</div><div class="desc">微軟新注音／華碩的習慣：<kbd>Ctrl</kbd>+<kbd>,</kbd> ，、<kbd>Ctrl</kbd>+<kbd>;</kbd> ；、<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>/</kbd> ？。純英文模式時交給程式。</div></div>
+            <div><div class="label"><kbd>Ctrl</kbd>+符號 打中文標點</div><div class="desc">關掉後 Ctrl 欄全部交給程式。純英文模式時本來就交給程式。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="ctrl_punctuation" aria-label="Ctrl 標點"><span></span></label>
           </div>
         </div>

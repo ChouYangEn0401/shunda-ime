@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import asdict, dataclass, fields
+import re
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -51,11 +52,18 @@ class Config:
     # Ctrl+symbol -> full-width punctuation (微軟新注音 / 華碩 convention),
     # in the Chinese-side modes only so Ctrl+, / Ctrl+. still reach apps in English mode.
     ctrl_punctuation: bool = True
-    # Symbol keys normally give full-width punctuation (Shift+1 -> ！,
-    # Shift+; -> ：). Symbols listed here stay half-width instead. Default: the
-    # double quote, which the user expects to be " (not ；, which is Ctrl+;).
-    # The other form is always one ↓ away in the candidate window.
+    # What symbol keys type alone / with Shift (see engine/punct.py):
+    # "keycap" = what is printed on the key (Shift+, -> <), Chinese
+    # punctuation comes from Ctrl (default; no two combinations type the same);
+    # "fullwidth" = Shift+, -> ，like Ctrl+, (older, Microsoft-like);
+    # "custom" = per symbol, from halfwidth_symbols.
+    punct_style: str = "keycap"
+    # "custom" style: symbols listed here type half-width, the others
+    # full-width. The other form is always one ↓ away in the candidate window.
     halfwidth_symbols: str = '"'
+    # Ctrl / Ctrl+Shift cells changed by the user: "C+," / "CS+/" -> text
+    # ("" = leave that combination to the app).
+    punct_overrides: dict = field(default_factory=dict)
     # Symbol panel: "rctrl" = a lone tap of the right Ctrl key (default; holding
     # it is voice input), "ralt" = a lone tap of the right Alt key (some apps
     # also open their menu bar on it), or "off". ` is left alone (users fence
@@ -113,6 +121,10 @@ class Config:
             if key not in known:
                 continue
             default = getattr(cfg, key)
+            if isinstance(default, dict):
+                if isinstance(value, dict):
+                    setattr(cfg, key, {str(k): str(v) for k, v in value.items() if isinstance(v, str)})
+                continue
             if isinstance(default, bool) != isinstance(value, bool):
                 continue
             if isinstance(default, (int, float)) and not isinstance(value, (int, float)):
@@ -144,6 +156,10 @@ class Config:
             self.voice_engine = "auto"
         if self.drop_stray_keys not in DROP_CHOICES:
             self.drop_stray_keys = "standard"
+        if self.punct_style not in ("keycap", "fullwidth", "custom"):
+            self.punct_style = "keycap"
+        self.punct_overrides = {k: v[:4] for k, v in self.punct_overrides.items()
+                                if re.fullmatch(r"CS?\+.", k) and len(v) <= 4}
         if self.panel_decode not in ("off", "correction", "always"):
             self.panel_decode = "correction"
         if self.panel_theme not in ("system", "light", "dark"):
