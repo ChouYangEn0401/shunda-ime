@@ -185,6 +185,32 @@ def test_user_caused_end_in_a_browser_still_resets(engine, monkeypatch):
     assert r[61]["compositionString"] == "u"
 
 
+def test_key_for_the_app_is_typed_again_after_the_commit(engine, monkeypatch):
+    # Apps on the IMM32 compatibility layer (classic EDIT, Scintilla, Qt)
+    # lose a key the IME claimed, so it is committed, taken, and typed again.
+    import smartime.pime.text_service as ts
+
+    sent = []
+    monkeypatch.setattr(ts, "send_key_again", lambda *a: sent.append(a) or True)
+    monkeypatch.setattr(ts, "foreground_elevated", lambda: False)
+    ctrl_v = key_msg(40, "filterKeyDown", vk=ord("V"))
+    ctrl_v["keyStates"][0x11] = 0x80
+    msgs = [
+        {"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True},
+        *typing(10, "ji3"),
+        ctrl_v,
+        dict(ctrl_v, method="onKeyDown", seqNum=41),
+    ]
+    r = {x["seqNum"]: x for x in exchange(engine, msgs)}
+    assert r[41]["commitString"] == "我" and r[41]["return"] is True  # the original is taken
+    assert sent == [(ord("V"), "", True, False, False)]
+    # an elevated window would block our input: let the original through instead
+    sent.clear()
+    monkeypatch.setattr(ts, "foreground_elevated", lambda: True)
+    r = {x["seqNum"]: x for x in exchange(engine, msgs)}
+    assert r[41]["return"] is False and sent == []
+
+
 def test_unknown_method_and_bad_json_do_not_crash(engine):
     stdin = io.BytesIO(b'c|{"method": "bogus", "seqNum": 7}\nc|not json\n')
     stdout = io.BytesIO()

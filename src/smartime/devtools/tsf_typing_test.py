@@ -423,21 +423,34 @@ PASTE_TEXT = "XYZ"
 
 
 def expected_text(script: str) -> str:
-    """What the engine produces for ``script`` with default settings and an
-    empty memory (computed in a throwaway user folder, so it never touches
-    the real one)."""
+    """What the engine produces for ``script`` with the settings the real IME
+    uses during the test (defaults, learning off) and a *copy* of the user's
+    memory — the real IME ranks with it too (it once typed 的字 where an
+    empty memory gives 的自). Computed in a throwaway folder, so the real one
+    is never touched."""
     import os
+    import sqlite3
     import tempfile
 
+    from .. import paths
     from ..engine.session import Session
     from ..pime.server import build_engine
     from .simulate import run
 
+    real_db = paths.user_db_path()
     old = os.environ.get("SMARTIME_USER_DIR")
     with tempfile.TemporaryDirectory() as tmp:
+        if real_db.exists():
+            src = sqlite3.connect(f"file:{real_db.as_posix()}?mode=ro", uri=True)
+            dst = sqlite3.connect(Path(tmp) / "user.db")
+            with dst:
+                src.backup(dst)
+            src.close()
+            dst.close()
         os.environ["SMARTIME_USER_DIR"] = tmp
         try:
             engine = build_engine()
+            engine.config.learn = False
             out, view = run(Session(engine), script.replace("{RSHIFT}", "{SHIFT}"))
             engine.lexicon.user.close()
             engine.lexicon.close()

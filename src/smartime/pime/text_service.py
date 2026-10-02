@@ -20,7 +20,7 @@ from ..engine.keys import (
 )
 from .. import PRODUCT_NAME
 from ..engine.session import Engine, Mode, Session
-from .winapp import KEEP_APPS, foreground_app, mouse_clicked
+from .winapp import KEEP_APPS, foreground_app, foreground_elevated, mouse_clicked, send_key_again
 
 log = logging.getLogger(__name__)
 
@@ -149,8 +149,16 @@ class SmartTextService:
                     log.info("mouse clicked while composing: committing %d chars", len(s.decoding.text))
                     s.commit_all()
                     self._composing = False  # this reply starts a new composition
-            ret = self.keyboard_open and s.key_down(key_from_msg(msg))
-            if not ret:
+            key = key_from_msg(msg)
+            ret = self.keyboard_open and s.key_down(key)
+            back = s.take_hand_back()
+            if back is not None and self._send_again(back):
+                # committed, and the key typed again for the app: the original
+                # is taken (apps on the IMM32 compatibility layer have already
+                # lost it once the IME claimed it), the copy arrives after
+                # the commit and passes straight through
+                ret = True
+            if not ret or back is not None:
                 self._passthrough_at = time.monotonic()  # committed, then sent on to the app
             self._render(reply)
         elif method == "filterKeyUp":
@@ -346,6 +354,16 @@ class SmartTextService:
         if self._message:
             reply["hideMessage"] = True
             self._message = ""
+
+    def _send_again(self, key: KeyInput) -> bool:
+        """Type ``key`` again for the app (False: let the original through)."""
+        if foreground_elevated():
+            return False  # Windows blocks our input there; TSF passes the original
+        try:
+            return send_key_again(key.vk, key.char, key.ctrl, key.shift, key.extended)
+        except Exception:  # noqa: BLE001 - never break typing
+            log.exception("cannot send the key again")
+            return False
 
     def _spontaneous_end(self, app: str) -> bool:
         """The composition ended without the user doing anything: no mouse

@@ -267,6 +267,7 @@ class Session(CorrectionMixin):
         self._history: list[tuple[list[Key], list[Segment], int]] = []
         self._redo: list[tuple[list[Key], list[Segment], int]] = []
         self._typing_run = False  # the last step is a run of typing that may still grow
+        self.hand_back: KeyInput | None = None  # see key_down / take_hand_back
         self._init_correction()
 
     # ================================================================ API
@@ -346,11 +347,20 @@ class Session(CorrectionMixin):
         if self._for_the_app(key):
             # Ctrl+V, Ctrl+S, Ctrl+Enter, F5, text from another program …:
             # the composition is committed first, then the key goes on to
-            # the app (returning False after a commit lets it through), so
-            # a paste lands after the text instead of inside the composition.
+            # the app, so a paste lands after the text instead of inside the
+            # composition. Returning False lets the key through in TSF apps;
+            # apps on the IMM32 compatibility layer (classic EDIT, Scintilla,
+            # Qt …) have already lost it by then, so the frontend may take
+            # ``hand_back`` and send the key again itself.
             self.commit_all()
+            self.hand_back = key
             return False
         return self._edit_key(key)
+
+    def take_hand_back(self) -> KeyInput | None:
+        """The key the last key_down committed for and meant for the app."""
+        key, self.hand_back = self.hand_back, None
+        return key
 
     def _for_the_app(self, key: KeyInput) -> bool:
         """A key we do not handle that would act on the document while a

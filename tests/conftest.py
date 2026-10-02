@@ -12,8 +12,9 @@ from smartime.engine.session import Engine, Session
 def isolated_user_dir(tmp_path, monkeypatch):
     """Never touch the real %APPDATA%\\SmartIME from tests."""
     monkeypatch.setenv("SMARTIME_USER_DIR", str(tmp_path / "user"))
-    # and never open real panel windows on the desktop
+    # and never open real panel windows on the desktop, or type into it
     monkeypatch.setenv("SMARTIME_NO_PANEL", "1")
+    monkeypatch.setenv("SMARTIME_NO_SENDINPUT", "1")
 
 
 @pytest.fixture(scope="session")
