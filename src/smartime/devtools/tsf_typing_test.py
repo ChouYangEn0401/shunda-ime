@@ -379,7 +379,8 @@ CASES = [
     ("ji3ap7{BS}{ENTER}", "我"),  # backspace removes a whole syllable
     ("ji3a87{LEFT}{UP}2{ENTER}", "我嘛"),  # candidate for the char after the cursor
     ("ao6u.3{TAB}{ENTER}", "沒有用"),  # Tab completion
-    ("{RSHIFT}abc{RSHIFT}ji3{ENTER}", "abc我"),  # lone right Shift toggles English
+    # lone right Shift taps cycle 自動 -> 純注音 -> 純英文 -> 自動 (the default)
+    ("{RSHIFT}{RSHIFT}abc{RSHIFT}ji3{ENTER}", "abc我"),
     ("k27{ENTER}", "的"),  # keys out of order (fast typing)
     ("2; ji3rup wu0 t;6g4283{ENTER}", "當我今天嘗試打"),  # 283 is 打, not a number
     ("su3cl3{C-,}", "你好，"),  # Ctrl+, full-width comma
@@ -400,6 +401,11 @@ CASES = [
     # (the clipboard holds PASTE_TEXT during these cases)
     ("ji3ap7{C-v}", "我們XYZ"),
     ("ji3{C-v}ap7{ENTER}", "我XYZ們"),
+    # other keys for the app, same rule (no clipboard needed): Ctrl+A selects
+    # everything after 我 is committed, so 們 replaces it; Ctrl+← moves the
+    # caret to the start after the commit
+    ("ji3{C-a}ap7{ENTER}", "們"),
+    ("ji3{C-LEFT}ap7{ENTER}", "們我"),
 ]
 PASTE_TEXT = "XYZ"
 
@@ -606,6 +612,14 @@ def main() -> int:
             type_script(win.tap, script)
             pump(0.3)
             got = win.text()
+            if "SHIFT}" in script:
+                # the mode lives on in the IME: start the next case afresh
+                mgr.activate(previous.dwProfileType, previous.langid, previous.clsid, previous.guidProfile,
+                             previous.hkl, TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE)
+                pump(0.3)
+                mgr.activate(TF_PROFILETYPE_INPUTPROCESSOR, 0x0404, guid(PIME_CLSID), guid(PROFILE_GUID), None,
+                             TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE)
+                pump(0.8)
             ok = got == expected
             failures += not ok
             label = script if len(script) <= 34 else script[:31] + "..."
