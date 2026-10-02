@@ -238,6 +238,17 @@ def wait_until_idle(seconds: float = 5.0, timeout: float = 180.0) -> bool:
 
 
 GUARD: UserGuard | None = None
+PATIENCE = 30  # times a case is retried after the user touched the computer
+
+
+def release_modifiers() -> None:
+    """A stop between a modifier's down and up would leave it held for the
+    user: send the key-ups (harmless if they are already up)."""
+    for vk in (VK_SHIFT, VK_CONTROL, VK_MENU, 0xA1, 0xA3, 0xA5):
+        inp = INPUT(type=INPUT_KEYBOARD)
+        flags = KEYEVENTF_KEYUP | (KEYEVENTF_EXTENDEDKEY if vk in (0xA3, 0xA5) else 0)
+        inp.u.ki = KEYBDINPUT(wVk=vk, wScan=user32.MapVirtualKeyW(vk, 0), dwFlags=flags, dwExtraInfo=INJECTED_TAG)
+        user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
 
 
 class TestWindow:
@@ -439,68 +450,32 @@ def expected_text(script: str) -> str:
 
 
 class MemoryGuard:
-    """The real IME learns while we type test sentences. Back up the user's
-    memory, settings and recent symbols, use default settings during the
-    test, and put everything back afterwards (also when the test aborts)."""
+    """The real IME would learn from the test sentences. While the test runs
+    it uses default settings with learning turned off, so the user's memory
+    is never touched (it used to be rewound to a backup, which also threw
+    away whatever the user taught it while the test was waiting for them).
+    Settings and recent symbols are put back afterwards (also on abort)."""
 
     def __init__(self) -> None:
-        import sqlite3
-        import tempfile
-
         from .. import paths
         from ..config import Config
 
-        self.paths = paths
-        self.tmp = tempfile.TemporaryDirectory()
-        self.db = paths.user_db_path()
-        self.backup = Path(self.tmp.name) / "user.db"
-        if self.db.exists():
-            src = sqlite3.connect(self.db)
-            dst = sqlite3.connect(self.backup)
-            with dst:
-                src.backup(dst)
-            src.close()
-            dst.close()
         self.files = {}
         for f in (paths.config_path(), paths.user_dir() / "recent-symbols.json"):
             self.files[f] = f.read_bytes() if f.exists() else None
-        Config().save(paths.config_path())  # defaults while testing
+        cfg = Config()
+        cfg.learn = False
+        cfg.save(paths.config_path())  # defaults, no learning, while testing
 
     def rewind(self) -> None:
-        """Put the memory back to its state before the test (between cases,
-        so that what one case teaches cannot change the next one)."""
-        import sqlite3
-
-        if self.backup.exists():
-            con = sqlite3.connect(self.db)
-            con.execute("ATTACH DATABASE ? AS bak", (str(self.backup),))
-            with con:
-                con.execute("DELETE FROM main.entries")
-                con.execute("DELETE FROM main.categories")
-                con.execute("INSERT INTO main.categories SELECT * FROM bak.categories")
-                con.execute("INSERT INTO main.entries SELECT * FROM bak.entries")
-            con.execute("DETACH DATABASE bak")
-            con.close()
+        """Between cases: nothing to undo (learning is off)."""
 
     def restore(self) -> None:
-        import sqlite3
-
-        if self.backup.exists():
-            con = sqlite3.connect(self.db)
-            con.execute("ATTACH DATABASE ? AS bak", (str(self.backup),))
-            with con:
-                con.execute("DELETE FROM main.entries")
-                con.execute("DELETE FROM main.categories")
-                con.execute("INSERT INTO main.categories SELECT * FROM bak.categories")
-                con.execute("INSERT INTO main.entries SELECT * FROM bak.entries")
-            con.execute("DETACH DATABASE bak")
-            con.close()
         for f, data in self.files.items():
             if data is None:
                 f.unlink(missing_ok=True)
             else:
                 f.write_bytes(data)
-        self.tmp.cleanup()
 
 
 class ClipboardGuard:
@@ -605,28 +580,48 @@ def main() -> int:
                     print(f"SKIP  {script!r:36} (the clipboard holds an image/files; not touched)")
                     continue
                 clipboard.set(PASTE_TEXT)
-            memory.rewind()
-            win.set_caption(f"  順打輸入法自動測試 {n}/{len(cases)}（碰鍵盤或滑鼠會立即停止）\r\n"
-                            f"  按鍵：{script}\r\n  預期：{expected}")
-            win.clear()
-            pump(0.1)
-            type_script(win.tap, script)
-            pump(0.3)
-            got = win.text()
-            if "SHIFT}" in script:
-                # the mode lives on in the IME: start the next case afresh
+            def restart_ime() -> None:
+                # the mode and any composition live on in the IME: start afresh
                 mgr.activate(previous.dwProfileType, previous.langid, previous.clsid, previous.guidProfile,
                              previous.hkl, TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE)
                 pump(0.3)
                 mgr.activate(TF_PROFILETYPE_INPUTPROCESSOR, 0x0404, guid(PIME_CLSID), guid(PROFILE_GUID), None,
                              TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE)
                 pump(0.8)
+
+            for attempt in range(PATIENCE + 1):
+                try:
+                    memory.rewind()
+                    win.set_caption(f"  順打輸入法自動測試 {n}/{len(cases)}（碰鍵盤或滑鼠會立即停止）\r\n"
+                                    f"  按鍵：{script}\r\n  預期：{expected}")
+                    win.clear()
+                    pump(0.1)
+                    type_script(win.tap, script)
+                    pump(0.3)
+                    got = win.text()
+                    break
+                except Aborted as e:
+                    # Someone used the computer: let go of everything, wait
+                    # until they stop, and try this case again from scratch.
+                    release_modifiers()
+                    if attempt == PATIENCE:
+                        raise
+                    print(f"PAUSE ({e}); waiting until the computer is idle again ...")
+                    if not wait_until_idle(timeout=900):
+                        raise
+                    GUARD.user_input = False
+                    if not win.focus():
+                        raise Aborted("could not bring the test window back to the foreground") from e
+                    restart_ime()
+            if "SHIFT}" in script:
+                restart_ime()
             ok = got == expected
             failures += not ok
             label = script if len(script) <= 34 else script[:31] + "..."
             print(f"{'PASS' if ok else 'FAIL'}  {label!r:36} -> {got!r}" + ("" if ok else f"  (expected {expected!r})"))
         return 1 if failures else 0
     except Aborted as e:
+        release_modifiers()
         print("ABORT:", e)
         return 2
     finally:
