@@ -99,7 +99,8 @@ def center_mixed(c: Canvas, x: float, y: float, width: float, text: str, font: i
 # ======================================================================== decode
 def _column_width(c: Canvas, s: Styles, col: Column) -> float:
     widths = [measure_mixed(c, col.keys, s.keys, s.keys_symbol),
-              measure_mixed(c, col.reading + ("↺" if col.reordered else ""), s.reading, s.symbol),
+              measure_mixed(c, col.reading + ("↺" if col.reordered else "") + ("…" if col.abbreviated else ""),
+                            s.reading, s.symbol),
               c.measure(col.text, s.text)[0]]
     return max(max(widths) + 10, 24)
 
@@ -254,10 +255,12 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
         elif col.role == "pending":
             c.text_center(cx, y_read + 2 * k, cw, col.reading, s.reading_bold, t.accent)
         elif col.role == "zh":
-            # ↺: the keys were typed out of order and read in the right order
-            label = col.reading + ("↺" if col.reordered else "")
+            # ↺: the keys were typed out of order and read in the right order;
+            # …: 瘋狂模式 guessed the rest of the syllable
+            label = col.reading + ("↺" if col.reordered else "") + ("…" if col.abbreviated else "")
             font = s.reading_bold if focused and p.layer == "zhuyin" else s.reading
-            center_mixed(c, cx, y_read + 2 * k, cw, label, font, s.symbol, t.fix if col.reordered else t.muted)
+            center_mixed(c, cx, y_read + 2 * k, cw, label, font, s.symbol,
+                         t.fix if (col.reordered or col.abbreviated) else t.muted)
         else:
             c.text_center(cx, y_read + 3 * k, cw, col.reading, s.small, t.faint)
         # --- text row

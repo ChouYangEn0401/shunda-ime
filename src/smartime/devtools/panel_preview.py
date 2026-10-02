@@ -114,6 +114,17 @@ def main() -> int:
             # 超智慧推薦 (experimental)
             from ..engine.panel import smart_panel
 
+            # 瘋狂模式 (experimental): the decode panel marks guessed syllables
+            engine.config.crazy_mode = True
+            engine.decoder.apply_config(engine.config)
+            session = Session(engine)
+            run(session, "jarwuji3")
+            for theme in themes:
+                path = out / f"decode-crazy-{'dark' if theme.dark else 'light'}.png"
+                render(decode_panel(session), theme, args.scale, path)
+                print(path)
+            engine.config.crazy_mode = False
+            engine.decoder.apply_config(engine.config)
             engine.config.smart_suggest = True
             for name, script in (("smart", "rup wu0 "), ("smart-fix", "2832.4cl4")):
                 session = Session(engine)

@@ -116,6 +116,10 @@ class Config:
     # Experimental (off by default): 超智慧推薦 — a second panel with longer
     # chains of what may come next and homophones of the word just typed.
     smart_suggest: bool = False
+    # Experimental (off by default): 瘋狂模式 — type only the start of each
+    # character's zhuyin (initial, or the first symbols; no tone) and keep
+    # going: ㄨㄇ -> 我們. The decode panel then shows keys / zhuyin / text all the time.
+    crazy_mode: bool = False
     autocomplete_min_score: float = -5.5
 
     @classmethod

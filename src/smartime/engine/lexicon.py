@@ -27,6 +27,11 @@ def plain(reading: str) -> str:
 _MAX_CHAR = "\U0010ffff"
 
 
+def abbr_key(reading: str) -> str:
+    """ㄨㄛˇ-ㄇㄣ˙ -> ㄨㄇ (the first symbol of each syllable)."""
+    return "".join((bopomofo.components(s) or [s[:1]])[0] for s in reading.split("-"))
+
+
 class Lexicon:
     def __init__(self, db_path: str | Path, user: UserDict | None = None):
         self.path = Path(db_path)
@@ -58,6 +63,7 @@ class Lexicon:
         self.has_pinyin = "plain" in columns
         self.has_cangjie = "cangjie" in tables
         self._pinyin: PinyinTable | None = None
+        self._abbr: dict[str, list[tuple[str, str]]] | None = None  # 瘋狂模式, built on first use
         self._make_caches()
 
     def _make_caches(self) -> None:
@@ -71,15 +77,18 @@ class Lexicon:
         self.cangjie_chars = lru_cache(maxsize=16384)(self._cangjie_chars)
         self.cangjie_code = lru_cache(maxsize=16384)(self._cangjie_code)
         self.text_info = lru_cache(maxsize=65536)(self._text_info)
+        self.abbreviations = lru_cache(maxsize=16384)(self._abbreviations)
         self.max_phrase_syllables = max(self._system_max_syllables, self.user.max_syllables if self.user else 0)
         # my own phrases by toneless reading and by text (pinyin, Cangjie)
         self._user_plain: dict[str, list[str]] = {}
         self._user_text: dict[str, list[str]] = {}
+        self._user_abbr: dict[str, list[tuple[str, str]]] = {}
         if self.user is not None:
             for reading, by_phrase in self.user.zh.items():
                 self._user_plain.setdefault(plain(reading), []).append(reading)
                 for phrase in by_phrase:
                     self._user_text.setdefault(phrase, []).append(reading)
+                    self._user_abbr.setdefault(abbr_key(reading), []).append((phrase, reading))
 
     def refresh(self) -> bool:
         """Call before decoding; cheap. True if the user dictionary changed."""
@@ -94,6 +103,29 @@ class Lexicon:
 
     def close(self) -> None:
         self._con.close()
+
+    # -- 瘋狂模式 (abbreviated zhuyin) ------------------------------------
+    def _build_abbr(self) -> dict[str, list[tuple[str, str]]]:
+        """Common phrases by the first symbol of each syllable (我們 -> ㄨㄇ),
+        the best 24 per key. About half a second, once."""
+        index: dict[str, list[tuple[float, str, str]]] = {}
+        for reading, phrase, score in self._con.execute(
+                "SELECT reading, phrase, max(score) FROM zh WHERE score > -7 GROUP BY reading, phrase"):
+            index.setdefault(abbr_key(reading), []).append((score, phrase, reading))
+        return {k: [(p, r) for _, p, r in sorted(v, reverse=True)[:24]] for k, v in index.items()}
+
+    def _abbreviations(self, key: str) -> tuple[tuple[str, str, float], ...]:
+        """Phrases whose syllables start with these symbols (one symbol per
+        syllable), best first, my memory applied: ㄨㄇ -> 我們 …"""
+        if self._abbr is None:
+            self._abbr = self._build_abbr()
+        out: dict[tuple[str, str], float] = {}
+        for phrase, reading in self._abbr.get(key, []) + self._user_abbr.get(key, []):
+            for p, s in self.phrases(reading):
+                if p == phrase:
+                    out[(p, reading)] = s
+                    break
+        return tuple(sorted(((p, r, s) for (p, r), s in out.items()), key=lambda t: -t[2]))
 
     # -- Chinese ---------------------------------------------------------
     def _system_phrases(self, reading: str) -> tuple[tuple[str, float], ...]:

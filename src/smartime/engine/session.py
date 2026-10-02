@@ -309,7 +309,8 @@ class Session(CorrectionMixin):
         if self.correcting:
             v.composition, v.cursor = self._correction_view()
             v.correcting, v.layer = True, self.layer
-        wanted = self.cfg.panel_decode
+        # 瘋狂模式 guesses a lot: always show what each key became
+        wanted = "always" if self.cfg.crazy_mode and self.scheme == "zhuyin" else self.cfg.panel_decode
         if self.keys and (wanted == "always" or (wanted == "correction" and self.correcting)):
             v.panel = decode_panel(self)
         if self.cfg.smart_suggest and self.keys and not self.correcting and self.cand is None:

@@ -37,6 +37,7 @@ class Column:
     start: int  # key span [start, end)
     end: int
     reordered: bool = False  # keys typed out of order, read in the canonical order
+    abbreviated: bool = False  # 瘋狂模式: only the start of the syllable was typed
     chosen: bool = False  # picked by the user (candidate window, j/k, Tab)
     memory: str = ""  # from my dictionary: its category, or 學過
 
@@ -172,13 +173,15 @@ def decode_panel(session) -> DecodePanel:
             for i, syl in enumerate(seg.readings):
                 a, b = seg.bounds[i], seg.bounds[i + 1]
                 typed = "".join(k.char for k in keys[a:b])
-                reordered = False
+                reordered = abbreviated = False
                 if scheme == "zhuyin":
                     symbols = [layout.symbol(c) or "" for c in typed[:-1]]
                     tone = layout.tone(typed[-1]) if typed else None
                     reordered = tone is not None and bopomofo.compose_strict(symbols, tone) != syl
+                    abbreviated = bool(typed) and tone is None  # no tone key: 瘋狂模式 guessed the rest
                 columns.append(Column("".join(_display_key(c) for c in typed), syl, seg.text[i], "zh", w, a, b,
-                                      reordered=reordered, chosen=seg.pinned, memory=memory))
+                                      reordered=reordered, abbreviated=abbreviated, chosen=seg.pinned,
+                                      memory=memory))
         elif seg.kind is Kind.PENDING:
             if scheme == "zhuyin":
                 reading = bopomofo.canonical(layout.symbol(c) or "" for c in seg.text) or \
