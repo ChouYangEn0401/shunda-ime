@@ -7,7 +7,7 @@
     steps that need them (writing under Program Files, registering the TSF DLL).
 
     Steps:
-      1. Install PIME 1.3.0 if it is missing.
+      1. Check that PIME is installed (the Setup.exe installer provides it).
       2. Make sure the lexicon is built (data/generated/smartime.db).
       3. Download a private embeddable Python into backend/runtime.
       4. [admin] Link (-Dev) or copy the backend into <PIME>\smartime,
@@ -34,7 +34,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $Repo = Split-Path -Parent $PSScriptRoot
 $PythonVersion = '3.13.16'
-$PimeSetupUrl = 'https://github.com/EasyIME/PIME/releases/download/v1.3.0-stable/PIME-1.3.0-stable-setup.exe'
 $PimeClsid = '{35F67E9D-A54D-4177-9697-8B0AB71A9E04}'
 $ProfileGuid = '{61AA71DB-BB8C-4C7D-9BD7-C324464DF341}'
 $Pime = Join-Path ${env:ProgramFiles(x86)} 'PIME'
@@ -42,15 +41,11 @@ $Pime = Join-Path ${env:ProgramFiles(x86)} 'PIME'
 function Step($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
 
 # 1. PIME -------------------------------------------------------------------
+# The official PIME setup would also install its own input methods, so the
+# PIME core comes from our installer (it installs only the core).
 if (-not (Test-Path (Join-Path $Pime 'PIMELauncher.exe'))) {
-    Step 'PIME not found; downloading the PIME 1.3.0 installer'
-    $setup = Join-Path $env:TEMP 'PIME-1.3.0-stable-setup.exe'
-    Invoke-WebRequest -Uri $PimeSetupUrl -OutFile $setup -UseBasicParsing
-    Step 'Running the PIME installer (accept the UAC prompt; the defaults are fine)'
-    Start-Process -FilePath $setup -Wait
-    if (-not (Test-Path (Join-Path $Pime 'PIMELauncher.exe'))) {
-        throw "PIME was not installed to $Pime"
-    }
+    throw ("PIME is not installed. Install dist\ShundaIME-Setup-<version>.exe once " +
+           "(build it with: .venv\Scripts\python tools\build_installer.py), then run this script again.")
 }
 
 # 2. Lexicon ----------------------------------------------------------------

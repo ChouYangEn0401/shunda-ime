@@ -194,13 +194,31 @@
 ## 6. 安裝檔（`installer/`、`tools/build_installer.py`）
 
 - `.venv\Scripts\python tools\build_installer.py` → `dist\ShundaIME-Setup-<版本>.exe`（Inno Setup 6；預設找 `build/tools/InnoSetup6/ISCC.exe`）。
-  建置時下載並以 SHA-256 驗證：PIME 1.3.0 官方安裝檔、Python embeddable、Inno Setup 繁中訊息檔。
-- 安裝流程：沒有 PIME 時以 `/S` 安靜安裝官方版 → 停止 launcher 與後端 → 複製到 `<PIME>\smartime` →
-  寫 `backends.json`、以 TSF API 註冊 64 位元與 32 位元設定檔 → 以原本的使用者身分加到語言清單 →
-  經由 `explorer.exe` 重新啟動 launcher（不屬於安裝程式的行程）→ `verify.py` 端對端檢查。
+  建置時下載並以 SHA-256 驗證：PIME 1.3.0 官方安裝檔、PIME 的 LGPL 授權、Python embeddable、Inno Setup 繁中訊息檔。
+- **不執行 PIME 官方安裝檔**：它的 `/S` 會連新酷音一起裝（Section `chewing` 屬於標準安裝），沒有 VC++ 執行階段時還會
+  跳對話框。建置時改從官方安裝檔（NSIS、solid LZMA）直接取出 PIME 核心三個檔：`PIMELauncher.exe`、
+  `x64\` 與 `x86\PIMETextService.dll`（以 SHA-256 比對，未修改；都是靜態連結，不需要 VC++ 執行階段）。
+- 兩種模式（`smartime.iss` 開頭有完整說明）：
+  - **core**：電腦上沒有 PIME 官方版（解除安裝資訊 `HKLM64\...\Uninstall\PIME` 不存在）。放 PIME 核心到
+    `C:\Program Files (x86)\PIME`（DLL 寫死從這裡找 `backends.json`，launcher 則用自己所在的資料夾），
+    `backends.json` 只列 `smartime`，`regsvr32` 註冊 64／32 位元 DLL（DLL 依 `backends.json` 裡每個後端的
+    `ime.json` 註冊語言設定檔，所以只會有順打），並寫 `HKLM64\...\Run\PIMELauncher` 讓 launcher 登入時啟動。
+  - **shared**：已有 PIME 官方版：只把 `smartime` 加進 `backends.json`、用 TSF API 加自己的設定檔，不動其他輸入法。
+    安裝精靈的「takeover」選項（預設不勾，`UsePreviousTasks=no`）會就地轉成 core：刪掉 `python\`、`node\`、
+    官方的解除安裝資訊與開始功能表資料夾，`regsvr32 /u` 再重新註冊。
+- 流程：停止 launcher 與後端 → 複製到 `<PIME>\smartime`（PIME 核心只在缺少或不同時才複製）→ 預先編譯 `.pyc`
+  （使用者無法寫入 Program Files，否則每次啟動後端都要重新編譯）→ `backends.json`、DLL 註冊（core）、
+  TSF 設定檔 64／32 位元 → 以原本的使用者身分加到語言清單 → 經由 `explorer.exe` 啟動 launcher（不屬於安裝程式的
+  行程）→ `verify.py` 端對端檢查。
+- 使用中的 DLL：App 載入的 `PIMETextService.dll` 不能刪但可以改名。要換掉或移除時改名成 `*.old` 並排在重新開機時刪除，
+  原路徑立刻空出來；不排「重新開機時刪除原路徑」，否則重開機前又安裝的新 DLL 會被刪掉。PIME 官方的解除安裝程式會
+  排這種刪除，所以 core 模式安裝前用 `pending-deletes.ps1` 取消 `PendingFileRenameOperations` 裡針對這三個檔的刪除。
 - 64 位元系統工具用 `{sys}`（Inno Setup 是 32 位元程式，`Sysnative` 在 64 位元 cmd 裡看不到）。
-- 移除時保留 PIME 與其他 PIME 輸入法，也不刪 `%APPDATA%\SmartIME`。
-- 發行前驗證：`tools\test_installer.ps1`（一次 UAC：安裝 → 驗證 → 移除 → 還原開發模式）。安裝檔還沒有程式碼簽章。
+- 移除：core 模式連 PIME 核心、自動啟動、COM 註冊一起移除；shared 模式保留 PIME 官方版與它的輸入法。
+  都不刪 `%APPDATA%\SmartIME`。
+- 發行前驗證：`tools\test_installer.ps1 -Setup <exe> -FreshUserData`（一次 UAC）：共用 → takeover → 移除 →
+  乾淨電腦安裝（沒有 PIME、沒有使用者資料）→ 原地升級，每步檢查註冊、檔案、自動啟動、待刪除檔案、語言清單並實際打字。
+  安裝檔還沒有程式碼簽章。
 
 ## 7. 語音輸入（`src/smartime/voice`）
 
