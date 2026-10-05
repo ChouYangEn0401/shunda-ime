@@ -134,16 +134,20 @@
 
 ## 開發
 
+需要 [python.org 的 Python 3.13](https://www.python.org/downloads/windows/)（裝給自己就好，不用勾 PATH）。
+套件版本全部固定在 `requirements.txt`（開發、測試、建置）與 `requirements-voice.txt`（語音輸入，選用，很大）。
+
 ```powershell
-uv sync --group dev --group build-data          # 建立 .venv（Python 3.13）；要開發語音輸入再加 --group voice
-uv run --group build-data python tools/build_data.py   # 建詞庫 -> data/generated/smartime.db
-uv run pytest                                    # 測試
-uv run python -m smartime.devtools.simulate --steps "ji3ap7{DOWN}"   # 不安裝也能模擬打字
-powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -Dev      # 開發模式安裝（PIME 直接連到這個 repo）
+py -3.13 -m venv .venv                                   # 建立本機環境（第一次）
+.venv\Scripts\python -m pip install -r requirements.txt  # 要開發語音輸入改裝 requirements-voice.txt
+.venv\Scripts\python tools\build_data.py                 # 建詞庫 -> data\generated\smartime.db
+.venv\Scripts\python -m pytest                           # 測試
+.venv\Scripts\python -m smartime.devtools.simulate --steps "ji3ap7{DOWN}"   # 不安裝也能模擬打字
+.venv\Scripts\python tools\build_installer.py            # 產生 dist\ShundaIME-Setup-<版本>.exe（需要 Inno Setup 6）
+.venv\Scripts\python tools\set_version.py [0.4.0]        # 看／改版本號（一次改好所有地方）
+.venv\Scripts\python -m smartime.settings                # 開設定頁（本機網頁）
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -Dev            # 開發模式安裝（PIME 直接連到這個 repo）
 powershell -ExecutionPolicy Bypass -File scripts\dev-reload.ps1 [-Rebuild]   # 讓開發模式的輸入法載入新程式／新詞庫
-uv run python tools/build_installer.py           # 產生 dist\ShundaIME-Setup-<版本>.exe（需要 Inno Setup 6）
-uv run python tools/set_version.py [0.4.0]       # 看／改版本號（一次改好所有地方）
-uv run python -m smartime.settings               # 開設定頁（本機網頁）
 ```
 
 - 架構與交接說明：[docs/architecture.md](docs/architecture.md)

@@ -1,0 +1,45 @@
+# 順打輸入法：語音輸入（選用）。很大：GPU 版的 CUDA / cuDNN DLL 約 2 GB。
+#
+#   .venv\Scripts\python -m pip install -r requirements-voice.txt
+#
+# 一般使用者不用裝這份：設定頁的「語音輸入」會把需要的套件裝到
+# %LOCALAPPDATA%\SmartIME\voice-runtime（smartime/voice/install.py）。
+# 開發時語音服務會用 repo 的 .venv（見 smartime/voice/launch.py）。
+
+-r requirements.txt
+
+# Breeze-ASR-25（GPU）：faster-whisper + CTranslate2；nvidia-* 提供 CUDA 12 / cuDNN 9 的 DLL
+faster-whisper==1.2.1
+ctranslate2==4.8.2       # via faster-whisper
+av==19.0.0               # via faster-whisper
+tokenizers==0.23.2       # via faster-whisper
+onnxruntime==1.30.0      # via faster-whisper
+flatbuffers==25.12.19    # via onnxruntime
+protobuf==7.36.2         # via onnxruntime
+huggingface-hub==1.33.0  # via faster-whisper, tokenizers
+filelock==4.0.8          # via huggingface-hub
+fsspec==2026.9.0         # via huggingface-hub
+hf-xet==1.6.0            # via huggingface-hub
+httpx==0.28.1            # via huggingface-hub
+anyio==4.15.1            # via httpx
+certifi==2026.7.22       # via httpx
+httpcore==1.0.9          # via httpx
+h11==0.16.0              # via httpcore
+idna==3.20               # via httpx, anyio
+click==8.5.0             # via huggingface-hub
+pyyaml==6.0.3            # via ctranslate2, huggingface-hub
+tqdm==4.70.1             # via faster-whisper, huggingface-hub
+typing-extensions==4.16.0  # via huggingface-hub, anyio
+nvidia-cublas-cu12==12.9.2.10
+nvidia-cudnn-cu12==9.26.0.51
+
+# SenseVoice（CPU）
+sherpa-onnx==1.13.8
+sherpa-onnx-core==1.13.8  # via sherpa-onnx
+
+# 錄音、數值、簡轉繁
+sounddevice==0.5.6
+cffi==2.1.1              # via sounddevice
+pycparser==3.0           # via cffi
+numpy==2.5.3
+opencc-python-reimplemented==0.1.7

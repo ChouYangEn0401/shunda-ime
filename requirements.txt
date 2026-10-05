@@ -1,0 +1,33 @@
+# 順打輸入法：開發、測試、建置用的 Python 套件（版本全部固定）。
+#
+# 輸入法引擎本身只用 Python 標準函式庫；安裝程式裡附的是官方 embeddable
+# Python，不需要這裡的任何套件。這份清單只給開發者在本機 .venv 用：
+#
+#   py -3.13 -m venv .venv
+#   .venv\Scripts\python -m pip install -r requirements.txt
+#
+# 要開發語音輸入，改裝 requirements-voice.txt（它會先裝這一份）。
+# 改版本時兩份一起改，並確認 pytest 全過。
+
+# 本專案（可編輯模式：改 src\ 立即生效，python -m smartime... 可用）
+-e .
+
+# 測試
+pytest==9.1.1
+colorama==0.4.6          # via pytest
+iniconfig==2.3.0         # via pytest
+packaging==26.3          # via pytest
+pluggy==1.6.0            # via pytest
+pygments==2.21.0         # via pytest
+
+# 圖示、候選窗預覽、設定頁截圖（tools/make_icons.py、smartime.devtools）
+pillow==12.3.0
+
+# 建詞庫時匯出英文單字頻率（tools/build_data.py）
+wordfreq==3.1.1
+ftfy==6.3.1              # via wordfreq
+wcwidth==0.9.1           # via ftfy
+langcodes==3.5.1         # via wordfreq
+locate==1.1.1            # via wordfreq
+msgpack==1.2.3           # via wordfreq
+regex==2026.9.29         # via wordfreq

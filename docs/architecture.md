@@ -193,7 +193,7 @@
 
 ## 6. 安裝檔（`installer/`、`tools/build_installer.py`）
 
-- `uv run python tools/build_installer.py` → `dist\ShundaIME-Setup-<版本>.exe`（Inno Setup 6；預設找 `build/tools/InnoSetup6/ISCC.exe`）。
+- `.venv\Scripts\python tools\build_installer.py` → `dist\ShundaIME-Setup-<版本>.exe`（Inno Setup 6；預設找 `build/tools/InnoSetup6/ISCC.exe`）。
   建置時下載並以 SHA-256 驗證：PIME 1.3.0 官方安裝檔、Python embeddable、Inno Setup 繁中訊息檔。
 - 安裝流程：沒有 PIME 時以 `/S` 安靜安裝官方版 → 停止 launcher 與後端 → 複製到 `<PIME>\smartime` →
   寫 `backends.json`、以 TSF API 註冊 64 位元與 32 位元設定檔 → 以原本的使用者身分加到語言清單 →
@@ -207,7 +207,7 @@
 - 獨立行程，不在打字的路徑上。需要的套件（faster-whisper、sherpa-onnx、sounddevice、numpy、opencc；有 NVIDIA 顯示卡
   另加 cuBLAS／cuDNN）裝在 `%LOCALAPPDATA%\SmartIME\voice-runtime`：設定頁「安裝語音元件」複製輸入法自己的
   embeddable Python，用官方 `pip.pyz --target` 安裝，不需要管理員權限（`install.py`）。開發時用 repo 的 `.venv`
-  （`uv sync --group voice`）。找 Python 的順序見 `launch.voice_python()`。
+  （`pip install -r requirements-voice.txt`）。找 Python 的順序見 `launch.voice_python()`。
 - 啟動：輸入法 `onActivate` 時若 `voice_enabled` 就 `launch.start()`；設定頁打開開關時也會啟動。mutex
   `Local\SmartIME.Voice` 保證只有一個。服務每 3 秒讀 `config.json`：關掉就自行結束，換模型就在背景重新載入。
 - 按鍵：`WH_KEYBOARD_LL` 放在專用執行緒（自己的訊息迴圈），不攔截任何按鍵，只記狀態並 PostMessage 給主執行緒，
@@ -232,14 +232,14 @@
 ## 9. 開發流程
 
 - **版本號**：唯一來源是 `src/smartime/__init__.py` 的 `__version__`（安裝檔、設定頁、匯出檔都讀它）。
-  要改版本用 `uv run python tools/set_version.py 0.4.0`，它會一起改 `pyproject.toml`、`ime.json`（PIME 要字面值）、
-  `uv.lock`；不帶參數則列出各處版本並檢查一致。`tests/test_backend_files.py` 會擋下不一致。CHANGELOG 手寫。
+  要改版本用 `.venv\Scripts\python tools\set_version.py 0.4.0`，它會一起改 `pyproject.toml` 與 `ime.json`
+  （PIME 要字面值）；不帶參數則列出各處版本並檢查一致。`tests/test_backend_files.py` 會擋下不一致。CHANGELOG 手寫。
 - `install.ps1 -Dev`：`<PIME>\smartime` 變成指向 `repo\backend` 的 junction；改完 Python 程式後，在系統匣 PIME 圖示選「Restart PIME」重啟後端即可。
 - 改 `ime.json`（名稱、GUID、圖示）後需重新執行安裝（會重新登錄 TSF 語言設定檔）。
 - 不安裝也能測：`python -m smartime.devtools.simulate --steps "<按鍵>"`；測試使用同一套模擬器。
 - `tests/test_reported_issues.py` 記錄使用者回報的問題；未修好時用 xfail(strict)，修好就移除標記成為回歸測試。
 - 安裝後的三層驗證（任何動到 PIME/TSF 的改動都要跑）：
-  1. `uv run pytest` — 引擎、session、協定、靜態檔案檢查
+  1. `.venv\Scripts\python -m pytest` — 引擎、session、協定、靜態檔案檢查
   2. `python -m smartime.devtools.pime_probe --require-conversion` — 以 named pipe 直接連 PIMELauncher（如同 App 內的 DLL），驗證 launcher → 後端 → 引擎；`install.ps1` 最後一步也會自動跑
   3. `python -m smartime.devtools.tsf_typing_test`（與 `--richedit`）— 建立真的文字框、以 TSF 啟用本輸入法、用 SendInput 實際打字並讀回結果，要求「實機 == 模擬器」。
      **會等使用者閒置 5 秒才開始，偵測到真人按鍵/點擊立即中止**；使用者在用電腦時不要跑。

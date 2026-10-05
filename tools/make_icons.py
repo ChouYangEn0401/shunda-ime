@@ -1,7 +1,7 @@
 """Render the IME icons (.ico) with Microsoft JhengHei.
 
 The generated icons are committed; re-run only when changing the design.
-Run: uv run python tools/make_icons.py
+Run: .venv\\Scripts\\python tools\\make_icons.py
 """
 
 from pathlib import Path

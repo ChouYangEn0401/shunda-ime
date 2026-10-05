@@ -1,8 +1,8 @@
 """Render the on-screen panels for typed key scripts into PNG files, with
 the same drawing code the IME uses (for design review and docs).
 
-    uv run python -m smartime.devtools.panel_preview out_dir [--scale 1.5] [--theme light|dark|both]
-    uv run python -m smartime.devtools.panel_preview out_dir --script "ji3ee/4{ESC}"
+    python -m smartime.devtools.panel_preview out_dir [--scale 1.5] [--theme light|dark|both]
+    python -m smartime.devtools.panel_preview out_dir --script "ji3ee/4{ESC}"
 
 Needs Pillow (dev dependency) to write PNG.
 """

@@ -37,6 +37,9 @@
 - 「常用」符號與最近使用從來沒被存檔的問題
 - 版本號：`tools/set_version.py` 一次改好所有地方
 
+**開發環境**
+- 改用標準 `py -3.13 -m venv .venv` 與 `requirements.txt`／`requirements-voice.txt`（版本全部固定），不再使用 uv
+
 ## 0.4.0（開發中）— 拼音與倉頡五代
 
 - **拼音**：不打聲調也能打（`women` → 我們），可選打 1–5 指定聲調、v＝ü、' 分音節

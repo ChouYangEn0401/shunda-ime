@@ -36,7 +36,7 @@ if ($Rebuild) {
     Write-Host '==> Rebuilding the lexicon' -ForegroundColor Cyan
     Push-Location $Repo
     try {
-        uv run --group build-data python tools/build_data.py
+        & (Join-Path $Repo '.venv\Scripts\python.exe') tools\build_data.py
         if ($LASTEXITCODE -ne 0) { $failed = 'lexicon build failed' }
     } finally { Pop-Location }
 }

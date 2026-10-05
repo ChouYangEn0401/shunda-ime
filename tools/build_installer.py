@@ -9,7 +9,7 @@ Steps
      their SHA-256 (and the PSF signature on python.exe).
   3. Compile installer/smartime.iss with Inno Setup's ISCC.
 
-Run:  uv run python tools/build_installer.py
+Run:  .venv\\Scripts\\python tools\\build_installer.py
 Needs Inno Setup 6 (ISCC). Default location: build/tools/InnoSetup6/ISCC.exe;
 override with the ISCC environment variable.
 """

@@ -40,7 +40,7 @@ def test_manifest_matches_product_name_and_version():
 
 
 def test_version_is_the_same_everywhere():
-    # change it with: uv run python tools/set_version.py <version>
+    # change it with: python tools/set_version.py <version>
     import importlib.util
 
     import smartime

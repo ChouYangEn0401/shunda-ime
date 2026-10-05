@@ -57,11 +57,12 @@ if (-not (Test-Path (Join-Path $Pime 'PIMELauncher.exe'))) {
 $Db = Join-Path $Repo 'data\generated\smartime.db'
 if (-not (Test-Path $Db)) {
     Step 'Building the lexicon (first time only)'
-    if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-        throw 'uv is required to build the lexicon: https://docs.astral.sh/uv/'
+    $venvPython = Join-Path $Repo '.venv\Scripts\python.exe'
+    if (-not (Test-Path $venvPython)) {
+        throw 'Create the development environment first: py -3.13 -m venv .venv; .venv\Scripts\python -m pip install -r requirements.txt'
     }
     Push-Location $Repo
-    try { uv run --group build-data python tools/build_data.py } finally { Pop-Location }
+    try { & $venvPython tools\build_data.py } finally { Pop-Location }
     if (-not (Test-Path $Db)) { throw 'lexicon build failed' }
 }
 

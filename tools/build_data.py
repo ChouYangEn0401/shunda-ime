@@ -15,7 +15,7 @@ Pipeline
 6. Write everything into a single read-only SQLite file used by the engine.
    ``zh.plain`` is the reading without tone marks, for toneless pinyin.
 
-Run:  uv run --group build-data python tools/build_data.py
+Run:  .venv\\Scripts\\python tools\\build_data.py   (packages: requirements.txt)
 """
 
 from __future__ import annotations

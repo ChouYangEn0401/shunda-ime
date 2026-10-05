@@ -21,7 +21,7 @@ def isolated_user_dir(tmp_path, monkeypatch):
 def lexicon():
     db = paths.system_db_path()
     if not db.exists():
-        pytest.skip("lexicon not built; run: uv run --group build-data python tools/build_data.py")
+        pytest.skip("lexicon not built; run: python tools/build_data.py")
     lex = Lexicon(db)
     yield lex
     lex.close()

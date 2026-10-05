@@ -7,8 +7,8 @@ right-Alt tap: the symbol panel),
 {SPACE}, {S-TAB} (Shift+Tab).
 Ctrl combinations: {C-,} {C-d}; Ctrl+Shift: {CS-/}; Ctrl+Alt: {CA-,}.
 
-    uv run python -m smartime.devtools.simulate "ji3ap7{DOWN}"
-    uv run python -m smartime.devtools.simulate --steps "su3cl3<"
+    python -m smartime.devtools.simulate "ji3ap7{DOWN}"
+    python -m smartime.devtools.simulate --steps "su3cl3<"
 """
 
 from __future__ import annotations

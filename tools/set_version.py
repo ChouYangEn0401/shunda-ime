@@ -1,7 +1,7 @@
 """Change the version number everywhere it is written, in one command.
 
-    uv run python tools/set_version.py            # show the current version (and check all copies agree)
-    uv run python tools/set_version.py 0.4.0      # set a new version
+    .venv\\Scripts\\python tools\\set_version.py          # show the current version (and check all copies agree)
+    .venv\\Scripts\\python tools\\set_version.py 0.4.0    # set a new version
 
 The source of truth is ``src/smartime/__init__.py`` (``__version__``); the
 installer, the settings page and the export file read it from there. Copies
@@ -9,7 +9,6 @@ that must hold a literal value are updated by this script:
 
 * ``pyproject.toml``                              (package metadata)
 * ``backend/input_methods/smartime/ime.json``     (PIME reads it; no BOM allowed)
-* ``uv.lock``                                     (the project's own entry)
 
 ``tests/test_backend_files.py`` fails if they ever disagree. CHANGELOG.md is
 written by hand: the script reminds you when it has no section for the version.
@@ -29,7 +28,6 @@ COPIES = [
     ("src/smartime/__init__.py", r'^__version__ = "([^"]+)"', '__version__ = "{v}"'),
     ("pyproject.toml", r'^version = "([^"]+)"', 'version = "{v}"'),
     ("backend/input_methods/smartime/ime.json", r'^    "version": "([^"]+)",', '    "version": "{v}",'),
-    ("uv.lock", r'^name = "smartime"\nversion = "([^"]+)"', 'name = "smartime"\nversion = "{v}"'),
 ]
 
 
