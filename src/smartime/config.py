@@ -73,6 +73,10 @@ class Config:
     # 片語: typing this opens the list of saved texts (then a keyword filters
     # it). Never valid zhuyin, very rare in English; "" turns it off.
     snippet_trigger: str = ";;"
+    # Text trigger for the symbol panel, the same idea as ;; for 片語 ("" = off).
+    # The hotkey alone was not discoverable, and right Alt never reaches an
+    # input method in some applications.
+    palette_trigger: str = "::"
 
     # Smart correction
     reorder_tolerance: bool = True  # ㄛㄨˇ typed for ㄨㄛˇ still gives 我
@@ -168,6 +172,10 @@ class Config:
             self.drop_stray_keys = "standard"
         if len(self.snippet_trigger) > 4 or self.snippet_trigger.strip() != self.snippet_trigger:
             self.snippet_trigger = ";;"
+        if len(self.palette_trigger) > 4 or self.palette_trigger.strip() != self.palette_trigger:
+            self.palette_trigger = "::"
+        if self.palette_trigger and self.palette_trigger == self.snippet_trigger:
+            self.palette_trigger = ""  # one trigger cannot open two panels
         if self.punct_style not in ("keycap", "fullwidth", "custom"):
             self.punct_style = "keycap"
         self.punct_overrides = {k: v[:4] for k, v in self.punct_overrides.items()

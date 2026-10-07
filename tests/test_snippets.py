@@ -2,6 +2,7 @@
 
 import pytest
 
+from smartime.engine.symbols import TABS
 from smartime.devtools.simulate import run
 from smartime.engine.panel import candidate_panel
 
@@ -93,3 +94,43 @@ def test_recent_symbols_are_saved_by_the_real_backend(tmp_path, monkeypatch):
     assert engine.symbols.path is not None and engine.symbols.path.name == "recent-symbols.json"
     engine.lexicon.user.close()
     engine.lexicon.close()
+
+
+def test_palette_opens_with_the_text_trigger(session):
+    """:: opens the symbol panel the same way ;; opens 片語 — asked for
+    because the hotkey alone was not discoverable (and right Alt, which the
+    user had configured, never reaches an input method in some apps)."""
+    _, v = run(session, "ji3::")
+    assert v.candidates is not None and session.cand.palette == 0
+    _, v = run(session, "{S-TAB}")  # one step back: 顏文字
+    assert session.cand.palette == len(TABS) - 1
+
+
+def test_trigger_does_not_fire_inside_an_english_token(engine):
+    """C++ scope operator: std::vector must stay text.
+
+    The decoder has to follow the config here — with the default "keycap"
+    style ``:`` types the half-width colon, which is not clause punctuation,
+    so the whole token stays in one buffer.
+    """
+    from smartime.config import Config
+    from smartime.engine.session import Session
+
+    engine.config = Config()
+    engine.decoder.apply_config(engine.config)
+    try:
+        s = Session(engine)
+        _, v = run(s, "std::")
+        assert v.candidates is None and v.composition == "std::"
+        _, v = run(s, "vector")
+        assert v.composition == "std::vector"
+    finally:
+        engine.decoder.apply_config(Config.from_dict({"punct_style": "custom", "halfwidth_symbols": '"'}))
+
+
+def test_picking_a_symbol_removes_the_trigger(session):
+    out, _ = run(session, "ji3::")
+    wanted = session.cand.page_items()[2].text
+    more, v = run(session, "3")
+    # the :: itself is never typed, only the symbol
+    assert out + more + v.composition == "我" + wanted

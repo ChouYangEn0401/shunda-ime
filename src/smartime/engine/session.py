@@ -113,6 +113,7 @@ class CandidateList:
     palette: int | None = None  # symbol panel: current category index
     multi: bool = False  # → opens columns instead of turning pages
     snippet_at: int | None = None  # opened by ;; : the trigger's first key (letters after it filter)
+    trigger_at: int | None = None  # text trigger (;; or ::): its first key, removed when something is picked
     query: str = ""
     filter: str = ""  # "" = every group
     columns: int = 1  # pages shown side by side
@@ -638,7 +639,7 @@ class Session(CorrectionMixin):
             self._retype_done()
             if self.correcting:
                 return
-        self._check_snippet_trigger()
+        self._check_text_triggers()
         if self.cand is not None:
             return
         if self.cfg.commit_on_clause_punct and self.cursor == len(self.keys):
@@ -1458,15 +1459,40 @@ class Session(CorrectionMixin):
     def _kaomoji_items(self) -> list[Candidate]:
         return [Candidate(face, None, symbol=face, group=group) for face, group in self.engine.symbols.kaomoji()]
 
-    def _check_snippet_trigger(self) -> None:
-        """Typing the trigger (;;) opens the 片語 list."""
-        trig = self.cfg.snippet_trigger
-        if not trig or self.correcting or self.cand is not None or self.cursor != len(self.keys):
+    def _check_text_triggers(self) -> None:
+        """Typing a trigger opens a panel without a hotkey: ``;;`` the 片語
+        list (letters after it filter), ``::`` the symbol panel (Tab reaches
+        希臘字母, 數學, 片語, 顏文字 …).
+
+        Both are here because the hotkey alone was not enough: right Alt
+        never reaches an input method in some apps, and a key nobody told you
+        about is a key nobody uses.
+        """
+        if self.correcting or self.cand is not None or self.cursor != len(self.keys):
             return
-        n = len(trig)
-        if len(self.keys) >= n and "".join(k.char for k in self.keys[-n:]) == trig:
+        def typed(n: int) -> str:
+            """The last ``n`` keys — but not when they sit inside an English
+            or numeric token, so C++'s ``std::vector`` keeps its scope
+            operator instead of opening the symbol panel."""
+            if len(self.keys) < n:
+                return ""
+            before = len(self.keys) - n - 1
+            if before >= 0:
+                seg = next((x for x in self.decoding.segments if x.start <= before < x.end), None)
+                if seg is not None and seg.kind in (Kind.EN, Kind.NUM):
+                    return ""
+            return "".join(k.char for k in self.keys[-n:])
+
+        trig = self.cfg.snippet_trigger
+        if trig and typed(len(trig)) == trig:
             self.cand = self._new_list(self._snippet_items(""), title="片語")
-            self.cand.snippet_at = len(self.keys) - n
+            self.cand.snippet_at = self.cand.trigger_at = len(self.keys) - len(trig)
+            return
+        trig = self.cfg.palette_trigger
+        if trig and typed(len(trig)) == trig:
+            self._open_palette(0)
+            if self.cand is not None:
+                self.cand.trigger_at = len(self.keys) - len(trig)
 
     def _snippet_key(self, key: KeyInput) -> bool:
         """Keys while the ;; list is open: letters filter it, digits pick,
@@ -1496,13 +1522,14 @@ class Session(CorrectionMixin):
 
     def _refilter_snippets(self, query: str) -> None:
         at = self.cand.snippet_at
+        trigger = self.cand.trigger_at
         self.cand = self._new_list(self._snippet_items(query), title="片語")
-        self.cand.snippet_at, self.cand.query = at, query
+        self.cand.snippet_at, self.cand.trigger_at, self.cand.query = at, trigger, query
 
     def _type_text(self, c: Candidate) -> None:
         """Type a 片語 / 顏文字 as it is. The ;; that opened the list (and
         its filter) is removed; the text before it is committed first."""
-        at = self.cand.snippet_at if self.cand is not None else None
+        at = self.cand.trigger_at if self.cand is not None else None
         self.cand = None
         if at is not None:
             del self.keys[at:]
@@ -1517,8 +1544,14 @@ class Session(CorrectionMixin):
             self.engine.symbols.used(c.symbol)
 
     def _insert_symbol(self, symbol: str) -> None:
+        at = self.cand.trigger_at if self.cand is not None else None
         self.cand = None
         self.engine.symbols.used(symbol)
+        if at is not None:  # the :: that opened the panel is not text
+            del self.keys[at:]
+            self.cursor = len(self.keys)
+            self.pins = [p for p in self.pins if p.end <= at]
+            self._redecode() if self.keys else self._reset_buffer()
         if not self.keys:
             self._commit += symbol  # nothing being composed: type it right away
             return
