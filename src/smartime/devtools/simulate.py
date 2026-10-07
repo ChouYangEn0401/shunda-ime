@@ -57,7 +57,10 @@ def parse(script: str) -> Iterator[str | int | KeyInput]:
         mods, ctrl_key, shift_tab, name, ch = m.groups()
         if mods:
             vk = CTRL_KEY_VK.get(ctrl_key, ord(ctrl_key.upper()))
-            yield KeyInput(vk=vk, ctrl=True, shift=mods == "CS", alt=mods == "CA")
+            # PIME zeroes Ctrl before asking Windows for the character, so a
+            # Ctrl combination still arrives with the plain character on it
+            char = ctrl_key if ctrl_key.isdigit() else ""
+            yield KeyInput(vk=vk, char=char, ctrl=True, shift=mods == "CS", alt=mods == "CA")
         elif shift_tab is not None:
             yield KeyInput(vk=VK_TAB, shift=True)
         elif name and name.startswith("S-") and name[2:] in NAMED:

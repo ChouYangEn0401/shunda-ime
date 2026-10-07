@@ -33,11 +33,19 @@ def test_palette_hotkey_setting(session):
     session.cfg.palette_hotkey = "off"
     _, v = run(session, "{RCTRL}")
     assert v.candidates is None
-    session.cfg.palette_hotkey = "ralt"  # the older choice
+    session.cfg.palette_hotkey = "rctrl"
     _, v = run(session, "{RCTRL}")
-    assert v.candidates is None
-    _, v = run(session, "{RALT}")
     assert v.candidates is not None
+
+
+def test_right_alt_is_migrated_away():
+    """Windows never delivers a key pressed with Alt to an input method, so
+    choosing 右 Alt left people with no way to open the panel at all
+    (reported: 「我自己 right-control 都沒有跳出來???」)."""
+    from smartime.config import Config
+
+    assert Config.from_dict({"palette_hotkey": "ralt"}).palette_hotkey == "rctrl"
+    assert Config.from_dict({"palette_hotkey": "off"}).palette_hotkey == "off"
 
 
 def test_right_ctrl_tap_vs_shortcut_vs_hold(session):

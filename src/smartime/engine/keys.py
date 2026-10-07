@@ -97,6 +97,8 @@ class KeyInput:
             return self.char
         if VK_NUMPAD0 <= self.vk <= VK_NUMPAD9:
             return chr(ord("0") + self.vk - VK_NUMPAD0)
+        if not self.char and 0x30 <= self.vk <= 0x39:
+            return chr(self.vk)  # the number row with a modifier held
         if not self.extended:
             return NUMPAD_NAV_DIGIT.get(self.vk, "")
         return ""

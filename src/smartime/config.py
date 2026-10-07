@@ -43,7 +43,13 @@ class Config:
     vertical_candidates: bool = True
     # → opens the next page as another column (← on the first column folds
     # back) instead of turning the page; the IME's own panel only.
-    candidate_multi_column: bool = False
+    # → in the candidate window opens the next page beside this one instead
+    # of replacing it, so more choices are on screen at once (微軟新注音's
+    # shape). ← walks back and folds the window into one list again.
+    candidate_multi_column: bool = True
+    # What → does at the right-hand edge: "grow" adds one more column (then
+    # scrolls), "page" swaps the whole set and starts again at the left.
+    candidate_expand: str = "grow"
 
     # Composition behaviour
     max_buffer_chars: int = 30  # older text is committed automatically beyond this
@@ -69,7 +75,7 @@ class Config:
     # also open their menu bar on it), or "off". ` is left alone (users fence
     # code with it). Ctrl+Alt+key is impossible: Windows does not pass keys
     # pressed with Alt to input methods.
-    palette_hotkey: str = "rctrl"
+    palette_hotkey: str = "rctrl"  # "rctrl" | "off"; "ralt" is migrated away
     # 片語: typing this opens the list of saved texts (then a keyword filters
     # it). Never valid zhuyin, very rare in English; "" turns it off.
     snippet_trigger: str = ";;"
@@ -137,6 +143,10 @@ class Config:
     key_hint_on_move: bool = True  # cursor moved back: show 字 注音 ⌨ 按鍵
     autocomplete: bool = True  # Tab to accept a phrase continuation
     suggestion_count: int = 5  # continuations shown next to the composition
+    # Ctrl+2 … Ctrl+9 take the second, third … continuation. Tab takes the
+    # first; while composing, a bare digit is a zhuyin key, so without this
+    # the other suggestions can be read but not used.
+    suggestion_ctrl_digits: bool = True
     # Experimental (off by default): 超智慧推薦 — a second panel with longer
     # chains of what may come next and homophones of the word just typed.
     smart_suggest: bool = False
@@ -192,6 +202,17 @@ class Config:
             self.drop_stray_keys = "standard"
         if len(self.snippet_trigger) > 4 or self.snippet_trigger.strip() != self.snippet_trigger:
             self.snippet_trigger = ";;"
+        if self.palette_hotkey == "ralt":
+            # Windows never delivers a key pressed with Alt to an input
+            # method, and a lone right Alt opens the menu bar in many
+            # applications, so this setting quietly did nothing. People who
+            # had chosen it were left with no way to open the symbol panel
+            # at all (reported: 「我自己 right-control 都沒有跳出來???」).
+            self.palette_hotkey = "rctrl"
+        if self.palette_hotkey not in ("rctrl", "off"):
+            self.palette_hotkey = "rctrl"
+        if self.candidate_expand not in ("grow", "page"):
+            self.candidate_expand = "grow"
         if self.newline_enter not in ("off", "shift", "ctrl", "right-shift"):
             self.newline_enter = "off"
         if len(self.palette_trigger) > 4 or self.palette_trigger.strip() != self.palette_trigger:

@@ -54,17 +54,59 @@ def test_tab_filters_one_group_at_a_time(memory_session):
     assert v.composition == "我珍"
 
 
-def test_arrows_walk_the_group_chips(session):
-    """← → point at the row of chips above the list, so that is what they
-    move along: the quick "show me only my own words" the report asked for.
-    Paging moved to PageUp/PageDown — ↑↓ already roll into the next page."""
+def test_arrows_open_and_fold_the_columns(session):
+    """微軟新注音's shape, which the report asked for: the window starts as
+    one tall list, → opens the next page beside it (the cursor keeps its
+    row), ← walks back, and ← on the first column folds it up again."""
+    run(session, "u4{DOWN}")
+    cand = session.cand
+    assert cand.columns == 1 and cand.pages > 2
+    row = cand.index % cand.page_size
+
+    run(session, "{RIGHT}")
+    assert cand.columns == 2 and cand.page == 1
+    assert cand.index % cand.page_size == row, "same row in the new column"
+    run(session, "{RIGHT}")
+    assert cand.columns == 3 and cand.page == 2
+
+    run(session, "{LEFT}")
+    assert cand.page == 1 and cand.columns == 3, "walking back keeps them open"
+    run(session, "{LEFT}")
+    assert cand.page == 0
+    run(session, "{LEFT}")
+    assert cand.columns == 1, "← on the first column folds the window back"
+
+
+def test_tab_still_walks_the_groups(session):
     run(session, "u4{DOWN}")
     cand = session.cand
     assert len(cand.groups()) > 1 and cand.filter == ""
-    run(session, "{RIGHT}")
+    run(session, "{TAB}")
     assert cand.filter == cand.groups()[0]
-    run(session, "{LEFT}")
+    run(session, "{S-TAB}")
     assert cand.filter == ""
+
+
+def test_the_edge_either_grows_or_turns_the_page(session):
+    from smartime.engine.session import MAX_COLUMNS
+
+    run(session, "u4{DOWN}")
+    cand = session.cand
+    for _ in range(MAX_COLUMNS + 2):
+        run(session, "{RIGHT}")
+    assert cand.columns == MAX_COLUMNS and cand.first_page > 0, "grow, then scroll"
+
+    session.cfg.candidate_expand = "page"
+    s2 = Session(session.engine)
+    run(s2, "u4{DOWN}")
+    run(s2, "{RIGHT}")
+    # the whole set is swapped at once and the cursor starts on the left
+    assert s2.cand.page == s2.cand.first_page == 1 and s2.cand.columns > 1
+    for _ in range(MAX_COLUMNS - 1):
+        run(s2, "{RIGHT}")
+    assert s2.cand.page == s2.cand.first_page + MAX_COLUMNS - 1  # walked to the right edge
+    run(s2, "{RIGHT}")
+    assert s2.cand.page == s2.cand.first_page, "past the edge: another fresh set"
 
 
 def test_pageup_pagedown_turn_pages(session):

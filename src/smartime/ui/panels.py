@@ -310,13 +310,14 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
 # suggestions purple; raw keys faint; the rest neutral. Coloured groups get a
 # bar in front of every item, so a whole group can be skipped at a glance.
 GROUP_COLOR = {"我的詞庫": "memory", "學過": "memory", "接續": "predict", "片語": "predict",
-               "顏文字": "predict", "原始按鍵": "faint", "長句": "predict", "也許是": "fix"}
+               "顏文字": "predict", "原始按鍵": "faint", "長句": "predict", "也許是": "fix",
+               "略過的鍵": "drop"}
 ROW_H, GROUP_H, LABEL_W = 29, 19, 16
 # ← → walk the group chips when there are any, else they turn pages.
-CAND_HELP_GROUPS = [("↑↓", "移動"), ("1–9", "選"), ("← →", "分類"), ("PgUp/PgDn", "翻頁"), ("Del", "忘記"),
-                    ("Ctrl+D", "加詞")]
+CAND_HELP_GROUPS = [("↑↓", "移動"), ("1–9", "選"), ("→", "展開一欄"), ("←", "收合"), ("Tab", "分類"),
+                    ("Del", "忘記"), ("Ctrl+D", "加詞")]
 CAND_HELP_PAGES = [("↑↓", "移動"), ("1–9", "選"), ("← →", "翻頁"), ("Del", "忘記"), ("Ctrl+D", "加詞")]
-PALETTE_HELP = [("↑↓", "移動"), ("1–9", "選這一列"), ("Tab", "換分類"), ("← →", "翻頁"), ("Esc", "關閉")]
+PALETTE_HELP = [("↑↓", "移動"), ("1–9", "選這一欄"), ("→", "展開一欄"), ("←", "收合"), ("Tab", "換分類"), ("Esc", "關閉")]
 GRID_HELP = [("↑↓ ← →", "移動"), ("1–9", "選這一列"), ("Tab", "換分類"), ("Esc", "關閉")]
 # Tab walks eleven categories whose contents are nothing like each other in
 # size (「，」 next to 「ヽ(✿ﾟ▽ﾟ)ノ」). A window that resizes under the cursor on
@@ -473,7 +474,7 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
     gap = 10 * k
     cols_w = sum(col_w) + gap * max(0, len(col_w) - 1)
     help_items = SNIPPET_HELP if p.snippet else PALETTE_HELP if p.palette else (
-        CAND_HELP_GROUPS if p.chips else CAND_HELP_PAGES)
+        CAND_HELP_GROUPS if p.multi else CAND_HELP_PAGES)
     title_w = measure_mixed(c, p.notice or p.title, s.help, s.symbol) + 60 * k
     chips_w = sum(c.measure(ch, s.small)[0] + 18 * k for ch in p.chips)
     width = max(cols_w, _help_width(c, s, help_items), title_w, min(chips_w, 560 * k),
@@ -641,11 +642,18 @@ GAP_HINT = 16  # between the zones of the strip
 
 
 def _hint_others(p: HintPanel) -> str:
-    """The suggestions after the first, numbered the way the ⇧⇥ list numbers
-    them — so "the second one" has a name and a key, instead of being a word
-    you can see and cannot take (reported: 「tab 可以 apply 第一個建議，但我不
-    知道如何 apply 更後面的內容」)."""
+    """The suggestions after the first, with the number that takes them.
+
+    They used to be plain words: you could read them and not use them,
+    because while composing a bare digit is a zhuyin key (reported:
+    「tab 可以 apply 第一個建議，但我不知道如何 apply 更後面的內容」,
+    「數字鍵似乎會變成打字…不然你的推薦字都不能用」). The 「Ctrl+」 in front
+    of the row is the missing half of the instruction.
+    """
     return "  ".join(f"{i} {text}" for i, text in enumerate(p.others, start=2))
+
+
+CTRL_LABEL = "Ctrl+"
 
 
 def _hint_suggest_width(c: Canvas, s: Styles, p: HintPanel, k: float) -> float:
@@ -654,7 +662,7 @@ def _hint_suggest_width(c: Canvas, s: Styles, p: HintPanel, k: float) -> float:
     w = measure_mixed(c, p.suggestion + " ⇥", s.reading, s.symbol) + 14 * k
     rest = _hint_others(p)
     if rest:
-        w += c.measure(rest, s.small)[0] + 10 * k
+        w += c.measure(CTRL_LABEL, s.help_key)[0] + 4 * k + c.measure(rest, s.small)[0] + 10 * k
     if p.others:
         w += measure_mixed(c, "⇧⇥ 更多", s.small, s.symbol) + 10 * k
     return w
@@ -722,6 +730,8 @@ def paint_hint(c: Canvas, t: Theme, p: HintPanel, size: float = 1.0, draw: bool 
             x += chip_w + 10 * k
             rest = _hint_others(p)
             if rest:
+                c.text(x, y + 4 * k, CTRL_LABEL, s.help_key, t.faint)
+                x += c.measure(CTRL_LABEL, s.help_key)[0] + 4 * k
                 c.text(x, y + 4 * k, rest, s.small, t.muted)
                 x += c.measure(rest, s.small)[0] + 10 * k
             if p.others:

@@ -499,17 +499,18 @@
             </div>
           </div>
           <div class="row">
-            <div><div class="label">符號面板的熱鍵</div><div class="desc">單按一下就打開（再按一次關閉）；按住右 Ctrl 是語音輸入。
-              <b>右 Alt 在很多程式裡不會送到輸入法</b>（Windows 把它當功能表鍵），選它可能按了沒反應——用下面的文字觸發比較保險。</div></div>
-            <div class="seg" role="group" aria-label="符號面板的鍵" data-cfg="palette_hotkey">
-              <button data-value="rctrl">右 Ctrl</button><button data-value="ralt">右 Alt</button><button data-value="off">關閉</button>
-            </div>
-          </div>
-          <div class="row">
-            <div><div class="label">符號面板的文字觸發</div><div class="desc">打兩個冒號就打開，不需要任何熱鍵。<kbd>Tab</kbd> 換到希臘字母、數學、箭頭、顏文字……
+            <div><div class="label">符號面板：打 <kbd>:</kbd><kbd>:</kbd></div><div class="desc">連打兩個冒號（<kbd>Shift</kbd>+<kbd>;</kbd> 兩下）就打開，
+              不需要任何熱鍵。<kbd>Tab</kbd> 換到括號、希臘字母、數學、箭頭、單位、片語、顏文字……
               不會在英文詞中間發動，所以 C++ 的 <code>std::vector</code> 照常打得出來。</div></div>
             <div class="seg" role="group" aria-label="符號面板文字觸發" data-cfg="palette_trigger">
               <button data-value="::">::</button><button data-value="">關閉</button>
+            </div>
+          </div>
+          <div class="row">
+            <div><div class="label">符號面板：單按右 <kbd>Ctrl</kbd></div><div class="desc">單按一下就打開（再按一次關閉）；<b>按住</b>右 Ctrl 是語音輸入。
+              （以前可以選右 Alt，已經移除：Windows 不會把按著 Alt 的鍵送給輸入法，選了等於沒有熱鍵。）</div></div>
+            <div class="seg" role="group" aria-label="符號面板的鍵" data-cfg="palette_hotkey">
+              <button data-value="rctrl">開啟</button><button data-value="off">關閉</button>
             </div>
           </div>
           <div class="row">

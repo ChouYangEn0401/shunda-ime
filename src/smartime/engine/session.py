@@ -82,8 +82,8 @@ SCHEME_LABEL = {"zhuyin": "注音", "pinyin": "拼音", "cangjie": "倉頡"}
 # first, then what you chose before, then the dictionary, then the other
 # ways to read the keys (user feedback #6-2: "先從自訂群組匹配，然後常用，
 # 最後推薦"). The panel colours each group (smartime.ui.theme).
-GROUP_ORDER = ("我的詞庫", "學過", "詞庫", "英文", "數字", "標點", "其他讀法", "原始按鍵", "長句", "也許是", "接續",
-               "符號")
+GROUP_ORDER = ("我的詞庫", "學過", "詞庫", "英文", "數字", "標點", "其他讀法", "原始按鍵", "略過的鍵",
+               "長句", "也許是", "接續", "符號")
 MAX_COLUMNS = 4  # multi-column candidate window: pages shown side by side
 
 
@@ -152,18 +152,46 @@ class CandidateList:
         self.index = page * self.page_size
         self.first_page, self.columns = page, 1
 
-    def move_column(self, delta: int) -> None:
-        """Multi-column mode: → the same row in the next page (opening a
-        column for it); ← the previous one; ← on the first folds back."""
-        target = self.page + delta
-        if target < 0 or (delta < 0 and self.page == self.first_page and self.columns > 1 and target < self.first_page):
-            self.columns, self.first_page = 1, self.page
-            return
-        if target >= self.pages:
-            return
+    def move_column(self, delta: int, expand: str = "grow") -> None:
+        """← → walk the columns, the way 微軟新注音's candidate window does.
+
+        The window starts as one tall list of 1–9. → opens the next page
+        beside it as another column and puts the cursor on the same row
+        there, so more and more choices are on screen at once. ← walks back;
+        on the first column it folds the window back into the single list.
+
+        At the right-hand edge, ``expand`` decides what → does: "grow" adds
+        one more column (then scrolls a column at a time), "page" replaces
+        the whole set with the next one and starts again at the left.
+        """
         row = self.index % self.page_size
+        last_visible = self.first_page + self.columns - 1
+        if delta < 0:
+            if self.page > self.first_page:
+                target = self.page - 1
+            elif self.columns > 1:
+                self.columns = 1  # fold back into one list
+                return
+            elif self.first_page > 0:
+                self.first_page -= 1
+                target = self.first_page
+            else:
+                return
+        else:
+            target = self.page + 1
+            if target >= self.pages:
+                return
+            if target > last_visible:
+                if expand == "page":
+                    self.first_page = target
+                    self.columns = min(MAX_COLUMNS, self.pages - self.first_page)
+                elif self.columns < MAX_COLUMNS:
+                    self.columns += 1
+                else:
+                    self.first_page += 1
         self.index = min(target * self.page_size + row, len(self.shown) - 1)
-        self._keep_visible(grow=True)
+        self.first_page = min(self.first_page, self.page)
+        self.columns = max(self.columns, self.page - self.first_page + 1)
 
     def cycle_filter(self, delta: int) -> None:
         options = [""] + self.groups()
@@ -413,6 +441,8 @@ class Session(CorrectionMixin):
             return False
         if key.vk == VK_PACKET:
             return True
+        if self._suggestion_digit(key) is not None:
+            return False  # Ctrl+2 takes a continuation; it is ours
         if key.ctrl or key.alt:
             return self._ctrl_punct(key) is None and not (key.ctrl and not key.alt and key.vk in (VK_D, VK_Y, VK_Z))
         if key.vk == VK_RETURN and self._newline_modifier(key):
@@ -547,6 +577,8 @@ class Session(CorrectionMixin):
             return True
         if self.composing and key.ctrl and not key.alt and key.vk in (VK_D, VK_Y, VK_Z):
             return True  # add the composition to my dictionary / undo / redo
+        if self._suggestion_digit(key) is not None:
+            return True  # Ctrl+2 takes the second continuation
         if self._for_the_app(key):
             return True  # commit, then pass it on (key_down returns False)
         if key.ctrl or key.alt:
@@ -575,8 +607,31 @@ class Session(CorrectionMixin):
             return False
         return True
 
+    def _suggestion_digit(self, key: KeyInput) -> int | None:
+        """Index into ``self.suggestions`` for Ctrl+2 … Ctrl+9, when there is
+        a continuation to take.
+
+        Tab takes the first one; the rest were on screen with no way to reach
+        them, because while composing the digit keys are zhuyin (reported:
+        「數字鍵似乎會變成打字，不然你的推薦字都不能用」). Ctrl+digit was
+        going straight to the application and is free here.
+        """
+        if not (key.ctrl and not key.alt and not key.shift) or not self.cfg.suggestion_ctrl_digits:
+            return None
+        if self.cand is not None or self.correcting or not self.suggestions:
+            return None
+        digit = key.digit
+        if not digit or digit == "1" or not digit.isdigit():
+            return None
+        i = int(digit) - 1
+        return i if i < min(len(self.suggestions), self.cfg.suggestion_count) else None
+
     def _edit_key(self, key: KeyInput) -> bool:
         vk = key.vk
+        i = self._suggestion_digit(key)
+        if i is not None:
+            self._accept_suggestion(self.suggestions[i])
+            return True
         punct = self._ctrl_punct(key)
         if punct is not None:
             # Inserted as a key whose character *is* the punctuation, so it
@@ -885,7 +940,7 @@ class Session(CorrectionMixin):
         return CandidateList(items, self.cfg.candidates_per_page, multi=self.cfg.candidate_multi_column, **kw)
 
     def _open_candidates(self) -> None:
-        items = self._candidate_items()
+        items = self._candidate_items() + self._drop_candidates()
         if items:
             self.cand = self._new_list(items)
             # start on what is on screen now (your own words are listed
@@ -893,6 +948,24 @@ class Session(CorrectionMixin):
             # Enter keeps it, ↓ walks to the alternatives
             self.cand.index = self._current_index(items)
             self.cand._keep_visible()
+
+    def _drop_candidates(self) -> list[Candidate]:
+        """Keys just typed that the decoder threw away as slips, offered back.
+
+        The hint says 「略過 e，↓ 可還原」 and until now ↓ did nothing about it:
+        a dropped key produces no character, so it was not a candidate for
+        anything (reported: 「有時候『略過』要取消現在都沒辦法」). Picking one
+        keeps the key exactly as typed.
+        """
+        out = []
+        window = len(self.keys) - 4
+        for seg in self.decoding.segments:
+            if seg.kind is not Kind.DROP or seg.end <= window:
+                continue
+            raw = "".join(k.char for k in self.keys[seg.start:seg.end])
+            pin = Segment(seg.start, seg.end, raw, Kind.LITERAL, -10.0, pinned=True)
+            out.append(Candidate(raw, pin, "保留這個鍵", group="略過的鍵"))
+        return out
 
     def _candidate_items(self) -> list[Candidate]:
         t = self._target_unit()
@@ -1086,12 +1159,8 @@ class Session(CorrectionMixin):
             # paging arrow was spending the two most reachable keys on the
             # rarest action. Shift+→ still opens another column.
             step = +1 if vk == VK_RIGHT else -1
-            if key.shift and cand.multi:
-                cand.move_column(step)
-            elif cand.palette is not None:
-                cand.move_page(step)  # 片語 / 顏文字 are lists: ← → turn pages
-            elif len(cand.groups()) > 1:
-                cand.cycle_filter(step)
+            if cand.multi:
+                cand.move_column(step, self.cfg.candidate_expand)
             else:
                 cand.move_page(step)
         elif vk == VK_NEXT:
@@ -1506,12 +1575,7 @@ class Session(CorrectionMixin):
         return False
 
     def _is_palette_key(self, key: KeyInput) -> bool:
-        hotkey = self.cfg.palette_hotkey
-        if hotkey == "rctrl":
-            return key.vk == VK_CONTROL and key.extended
-        if hotkey == "ralt":
-            return key.vk == VK_MENU and key.extended
-        return False
+        return self.cfg.palette_hotkey == "rctrl" and key.vk == VK_CONTROL and key.extended
 
     def _is_palette_tap(self, key: KeyInput) -> bool:
         """A lone tap of the symbol-panel key: right Ctrl (default) or
@@ -1521,8 +1585,7 @@ class Session(CorrectionMixin):
         why right Ctrl is the default (user feedback #8)."""
         if self._palette_down_at is None or not self._is_palette_key(key):
             return False
-        limit = CTRL_TAP_SECONDS if self.cfg.palette_hotkey == "rctrl" else SHIFT_TAP_SECONDS
-        return time.monotonic() - self._palette_down_at <= limit
+        return time.monotonic() - self._palette_down_at <= CTRL_TAP_SECONDS
 
     def toggle_palette(self) -> None:
         if self.cand is not None and self.cand.palette is not None:
