@@ -35,7 +35,9 @@ def mem_session(mem_engine):
 # ------------------------------------------------------------- storage
 def test_default_categories(user):
     names = [c["name"] for c in user.categories()]
-    assert names[:4] == ["常用詞", "朋友", "專案術語", "常用英文"]
+    # 人工加入 leads: it is where Ctrl+D puts a word before it is sorted,
+    # so 常用詞 can be a category the user assigns rather than the bucket
+    assert names[:5] == ["人工加入", "常用詞", "朋友", "專案術語", "常用英文"]
 
 
 def test_learn_counts_and_boost(user):
@@ -126,13 +128,13 @@ def test_ctrl_d_adds_the_typed_name_with_a_category_note(mem_session):
     run(mem_session, "t06u6rmp ")  # ㄔㄣˊㄧˊㄐㄩㄣ
     _, v = run(mem_session, "{C-d}")
     added = v.composition
-    assert v.notice == f"已加入詞庫：{added}（常用詞）"
+    assert v.notice == f"已加入詞庫：{added}（人工加入）"
     run(mem_session, "{ENTER}")
     # ... next time it comes out whole, with its category in the window
     _, v = run(mem_session, "t06u6rmp ")
     assert v.composition == added
     _, v = run(mem_session, "{DOWN}")
-    assert v.candidate_notes[0] == "常用詞"
+    assert v.candidate_notes[0] == "人工加入"
 
 
 def test_tab_continuation_is_learned(mem_session, user):
@@ -281,3 +283,37 @@ def test_inbox_and_my_words_views_sort_and_page(user):
     entry_id = user.list(view="inbox")[0]["id"]
     user.update(entry_id, category="常用詞")
     assert user.count(view="inbox") == 1 and user.count(view="mine") == 2
+
+
+def learned_phrases(user):
+    return {e.phrase for e in user._entries() if e.source == "learned"}
+
+
+def test_fixing_several_characters_does_not_leave_the_words_in_between(mem_session, user):
+    """Reported: 「當我選字的時候，他會亂把東西加入常用字…我打四個字，然後一個
+    一個改字，你可以去看一下他都亂改了什麼」.
+
+    A correction is remembered with its neighbour, so the same sentence
+    comes out right next time. Fixing character after character therefore
+    built a pair around every character on its way out: the real dictionary
+    had 彩但 beside 彩蛋 and 蛋模 beside nothing at all. Once the sentence is
+    settled, the pairs it does not contain go again.
+    """
+    run(mem_session, "5p 284 ")  # two characters, both likely wrong
+    first = mem_session.view().composition
+    run(mem_session, "{ESC}{HOME}j")  # change the first one
+    run(mem_session, "lj")  # and then the second one
+    final = mem_session.view().composition
+    assert final != first
+    run(mem_session, "{ENTER}")
+
+    for phrase in learned_phrases(user):
+        assert phrase in final, f"「{phrase}」 is not in 「{final}」 and should not have been kept"
+
+
+def test_a_pair_that_survives_to_the_end_is_kept(mem_session, user):
+    run(mem_session, "5p 284 ")
+    final, _ = run(mem_session, "{ESC}{HOME}j{ENTER}")
+    kept = learned_phrases(user)
+    assert kept, "the correction itself must still be remembered"
+    assert all(p in final for p in kept)

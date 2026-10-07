@@ -277,6 +277,8 @@ class Session(CorrectionMixin):
         self.suggestions: list[Suggestion] = []
         self._commit = ""
         self._notice = ""
+        self._learned_here: list[tuple[str, str]] = []  # (phrase, reading) this composition invented
+        self._text_here = ""  # everything this composition has put on screen so far
         self._shift_down_at: float | None = None
         self._palette_down_at: float | None = None  # the symbol-panel key went down (alone) at
         self._shift_scan = 0
@@ -490,11 +492,36 @@ class Session(CorrectionMixin):
         self.cand = None
         if self.keys:
             self._commit += self.decoding.text
+            self._text_here += self.decoding.text
+        self._prune_learned()
         self._reset_buffer()
+
+    def _prune_learned(self) -> None:
+        """Take back the words this composition invented and then wrote over.
+
+        A correction is remembered together with a neighbour, so that the
+        same sentence comes out right next time. Fixing several characters
+        one after another therefore leaves a trail of pairs built around
+        characters that are no longer there: 彩但 on the way to 彩蛋, 蛋模 on
+        the way to 蛋糕. None of them is a word anybody meant. Once the
+        sentence is settled, whatever is not in it goes.
+        """
+        user = self.engine.user
+        if user is None or not self._learned_here:
+            return
+        text, stale = self._text_here, False
+        for phrase, reading in self._learned_here:
+            if phrase not in text and user.unlearn_fresh(phrase, reading):
+                stale = True
+        self._learned_here = []
+        if stale:
+            self.engine.lexicon.invalidate()
 
     def reset(self) -> None:
         """Composition was terminated by the app (focus change, click, ...)."""
         self.cand = None
+        self._text_here += self.decoding.text  # it stayed in the document
+        self._prune_learned()
         self._reset_buffer()
 
     # ========================================================= key routing
@@ -681,6 +708,7 @@ class Session(CorrectionMixin):
             if first.end > pos:
                 break
             self._commit += first.text
+            self._text_here += first.text
             self._delete_keys(0, first.end)
             pos -= first.end
             self._forget_history()
@@ -793,11 +821,14 @@ class Session(CorrectionMixin):
             if first.end > self.cursor:
                 break
             self._commit += first.text
+            self._text_here += first.text
             self._delete_keys(0, first.end)
             self._forget_history()
             self._redecode()
 
     def _reset_buffer(self) -> None:
+        self._learned_here = []
+        self._text_here = ""
         self.keys.clear()
         self.pins.clear()
         self.cursor = 0
@@ -1116,6 +1147,11 @@ class Session(CorrectionMixin):
         else:
             return False
         self.engine.lexicon.invalidate()
+        if new and origin == "fix":
+            # provisional: a later fix in the same sentence may replace the
+            # character this pair was built around (see _prune_learned)
+            self._learned_here.append((seg.text if seg.kind is Kind.ZH else seg.text.lower(),
+                                       "-".join(seg.readings) if seg.kind is Kind.ZH else ""))
         if new and self.cfg.learn_notice:
             # once per word: learning is visible, and so is how to undo it
             how = "（修正）" if origin == "fix" else ""

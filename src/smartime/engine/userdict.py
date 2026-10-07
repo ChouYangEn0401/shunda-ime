@@ -28,7 +28,10 @@ from pathlib import Path
 
 SCHEMA_VERSION = 2  # 2: entries.origin
 ORIGINS = ("pick", "fix", "tab")
-DEFAULT_CATEGORIES = ("常用詞", "朋友", "專案術語", "常用英文")
+# 人工加入 is where Ctrl+D puts a word: "I typed this and said keep it",
+# before it has been sorted into anything. 常用詞 is then a real category the
+# user assigns, not the bucket everything lands in.
+DEFAULT_CATEGORIES = ("人工加入", "常用詞", "朋友", "專案術語", "常用英文")
 
 # Learned words used only once and not again for this long are forgotten
 # (tidy): one-off picks should not pile up forever. Words the user added and
@@ -121,6 +124,10 @@ class UserDict:
         if "origin" not in columns:  # schema 1 -> 2
             c.execute("ALTER TABLE entries ADD COLUMN origin TEXT NOT NULL DEFAULT ''")
             c.execute("UPDATE meta SET value=? WHERE key='schema'", (str(SCHEMA_VERSION),))
+        # 人工加入 arrived after the first release: give it to existing
+        # dictionaries too, or Ctrl+D would write into a category that is
+        # not there (and fall back to 常用詞 again).
+        c.execute("INSERT OR IGNORE INTO categories (name, sort) VALUES (?, -1)", (DEFAULT_CATEGORIES[0],))
 
     # ------------------------------------------------------------ cache
     def _load(self) -> None:
@@ -189,6 +196,22 @@ class UserDict:
         )
         self._load()
         return not known
+
+    def unlearn_fresh(self, phrase: str, reading: str) -> bool:
+        """Drop a learned entry that nothing has used yet.
+
+        Used to take back the two-character words a composition invented on
+        the way to the text it ended up with: fixing characters one at a
+        time remembers 彩但 before 彩蛋, and 蛋模 before 蛋糕. Only entries
+        this session created (learned, never used again) are removed —
+        anything the user typed on purpose, or used more than once, stays.
+        """
+        cur = self._con.execute(
+            "DELETE FROM entries WHERE phrase=? AND reading=? AND source='learned' AND count<=1 AND blocked=0",
+            (phrase, reading))
+        if cur.rowcount:
+            self._load()
+        return bool(cur.rowcount)
 
     def forget(self, phrase: str, reading: str, kind: str = "zh") -> str:
         """Delete key on a candidate. Returns what happened:

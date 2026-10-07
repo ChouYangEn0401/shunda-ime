@@ -113,7 +113,7 @@ class Config:
     # Memory (my dictionary)
     learn: bool = True  # remember candidates I pick and continuations I accept
     learn_notice: bool = True  # say so the first time a word is learned
-    default_category: str = "常用詞"  # where Ctrl+D puts a new word
+    default_category: str = "人工加入"  # where Ctrl+D puts a new word
 
     # Voice input (hold right Ctrl, speak, release)
     voice_enabled: bool = False  # off until a model is downloaded and the user turns it on
@@ -198,7 +198,7 @@ class Config:
         self.max_buffer_chars = max(10, min(80, self.max_buffer_chars))
         self.suggestion_count = max(1, min(9, self.suggestion_count))
         if not self.default_category.strip():
-            self.default_category = "常用詞"
+            self.default_category = "人工加入"
 
     def to_dict(self) -> dict:
         return asdict(self)
