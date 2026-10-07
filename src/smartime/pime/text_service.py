@@ -29,6 +29,35 @@ ID_ABOUT = 3
 ID_SETTINGS = 4
 # Right-click menu entries for the three modes.
 MODE_MENU_IDS = {10: Mode.AUTO, 11: Mode.CHINESE, 12: Mode.ENGLISH, 13: Mode.PINYIN, 14: Mode.CANGJIE}
+
+# The rest of the tray menu. 華碩智慧輸入法 puts the settings people actually
+# flip (自動完成字, 輸入中顯示注音, 字元寬度, 鍵盤配置, 主題顏色) straight into
+# this menu with submenus, and keeps one 教學與設定 entry for everything else;
+# Windows' own IMEs do much the same. Ours used to be three modes plus
+# 設定…, so changing anything meant opening a window and finding the page.
+# These are the switches worth reaching in one click, plus a way into the
+# page that owns each of the longer lists.
+ID_SETTINGS_PUNCT, ID_SETTINGS_DICT, ID_SETTINGS_KEYS = 5, 6, 7
+ID_UPDATE = 8
+TOGGLES = {  # id: (config field, label)
+    20: ("autocomplete", "接續建議（Tab 接詞）"),
+    21: ("composing_indicator", "組字中顯示小點"),
+    22: ("learn_notice", "學到新詞時通知我"),
+    23: ("correction_mode", "Esc 進修正模式"),
+}
+# id: (config field, value, label), grouped into submenus by the first entry
+CHOICES = {
+    30: ("panel_decode", "off", "關閉"),
+    31: ("panel_decode", "correction", "只在修正模式"),
+    32: ("panel_decode", "always", "一直顯示"),
+    35: ("panel_theme", "system", "跟隨系統"),
+    36: ("panel_theme", "light", "淺色"),
+    37: ("panel_theme", "dark", "深色"),
+    40: ("chinese_scheme", "zhuyin", "注音"),
+    41: ("chinese_scheme", "pinyin", "拼音"),
+    42: ("chinese_scheme", "cangjie", "倉頡五代"),
+}
+SUBMENUS = [("解碼面板", (30, 31, 32)), ("面板顏色", (35, 36, 37)), ("中英自動裡的中文", (40, 41, 42))]
 MODE_ICONS = {Mode.AUTO: "auto.ico", Mode.CHINESE: "chinese.ico", Mode.ENGLISH: "english.ico",
               Mode.PINYIN: "pinyin.ico", Mode.CANGJIE: "cangjie.ico"}
 
@@ -41,6 +70,8 @@ MESSAGE_DURATION = 3600  # seconds; we hide the message explicitly
 # and puts our own strip in its place.
 ANCHOR_MESSAGE = " "
 SELECTION_KEYS = "123456789"
+SETTINGS_SECTIONS = {ID_SETTINGS: "", ID_ABOUT: "about", ID_SETTINGS_PUNCT: "punct",
+                     ID_SETTINGS_DICT: "dict", ID_SETTINGS_KEYS: "keys", ID_UPDATE: "about"}
 
 
 def _panel_window(create: bool, second: bool = False):
@@ -183,14 +214,17 @@ class SmartTextService:
                 s.toggle_mode()
             elif command in MODE_MENU_IDS:
                 s.set_mode(MODE_MENU_IDS[command])
-            elif command in (ID_SETTINGS, ID_ABOUT):
-                self._open_settings("about" if command == ID_ABOUT else "")
+            elif command in SETTINGS_SECTIONS:
+                self._open_settings(SETTINGS_SECTIONS[command])
+            elif command in TOGGLES:
+                field, _ = TOGGLES[command]
+                self._set_config(field, not getattr(self.engine.config, field))
+            elif command in CHOICES:
+                field, value, _ = CHOICES[command]
+                self._set_config(field, value)
             self._render(reply)
         elif method == "onMenu":
-            # every mode this lexicon supports, Shift cycle or not
-            ret = [{"text": s.mode_label() if mode is Mode.AUTO else mode.label, "id": cid, "checked": s.mode is mode}
-                   for cid, mode in MODE_MENU_IDS.items() if s._available(mode)]
-            ret += [{}, {"text": "設定…", "id": ID_SETTINGS}, {"text": f"關於{PRODUCT_NAME}", "id": ID_ABOUT}]
+            ret = self._menu()
         elif method == "onCompartmentChanged":
             pass
         elif method == "onKeyboardStatusChanged":
@@ -412,6 +446,47 @@ class SmartTextService:
         if mouse_clicked():
             return False
         return app == self._composing_app
+
+    def _menu(self) -> list[dict]:
+        """The tray icon's right-click menu."""
+        s, cfg = self.session, self.engine.config
+        # every mode this lexicon supports, Shift cycle or not
+        items: list[dict] = [
+            {"text": s.mode_label() if mode is Mode.AUTO else mode.label, "id": cid, "checked": s.mode is mode}
+            for cid, mode in MODE_MENU_IDS.items() if s._available(mode)
+        ]
+        items.append({})
+        items += [{"text": label, "id": cid, "checked": bool(getattr(cfg, field, False))}
+                  for cid, (field, label) in TOGGLES.items()]
+        for title, ids in SUBMENUS:
+            field = CHOICES[ids[0]][0]
+            now = getattr(cfg, field, None)
+            sub = [{"text": CHOICES[i][2], "id": i, "checked": CHOICES[i][1] == now} for i in ids]
+            here = next((c[2] for c in (CHOICES[i] for i in ids) if c[1] == now), "")
+            items.append({"text": f"{title}（{here}）" if here else title, "submenu": sub})
+        items.append({})
+        items += [{"text": "標點與符號…", "id": ID_SETTINGS_PUNCT},
+                  {"text": "我的詞庫…", "id": ID_SETTINGS_DICT},
+                  {"text": "按鍵說明…", "id": ID_SETTINGS_KEYS},
+                  {"text": "設定…", "id": ID_SETTINGS},
+                  {},
+                  {"text": "檢查更新…", "id": ID_UPDATE},
+                  {"text": f"關於{PRODUCT_NAME}", "id": ID_ABOUT}]
+        return items
+
+    def _set_config(self, field: str, value) -> None:
+        """Flip a setting from the tray menu and write it out, so the
+        settings window and the next backend start agree with what the user
+        just chose."""
+        cfg = self.engine.config
+        setattr(cfg, field, value)
+        cfg._normalize()
+        if field in ("chinese_scheme", "crazy_mode"):
+            self.engine.decoder.apply_config(cfg)
+        try:
+            cfg.save(self.engine.config_path)
+        except Exception:
+            log.exception("cannot save the setting changed from the tray menu")
 
     def _open_settings(self, section: str = "") -> None:
         """Start the settings window (backend\\settings.py) without

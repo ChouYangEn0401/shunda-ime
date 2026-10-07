@@ -366,3 +366,43 @@ def test_our_panel_turns_pime_s_hint_box_into_a_silent_anchor(engine, monkeypatc
     assert messages == [ts.ANCHOR_MESSAGE], "the hint box must be set once and never change"
     kinds = [k for k, _ in overlay.shown if k]
     assert "hint" in kinds and all(cover for k, cover in overlay.shown if k)
+
+
+def test_tray_menu_has_the_switches_people_actually_flip(engine):
+    """Competitors (華碩智慧輸入法, Windows' own IMEs) put the frequently
+    changed settings straight into the tray menu with submenus, and keep one
+    entry for the full settings window. Ours was three modes and 設定…, so
+    changing anything meant opening a window and finding the page."""
+    from smartime.pime.text_service import CHOICES, SmartTextService, TOGGLES
+
+    svc = SmartTextService(engine, Path("icons"))
+    menu = svc._menu()
+    texts = [i.get("text", "") for i in menu]
+    assert "設定…" in texts and any(t.startswith("關於") for t in texts)
+    assert "檢查更新…" in texts
+
+    # every toggle shows its current state, and flipping it writes the config
+    ids = {i["id"] for i in menu if "id" in i}
+    assert set(TOGGLES) <= ids
+    cid, (field, _) = next(iter(TOGGLES.items()))
+    before = getattr(engine.config, field)
+    svc.handle({"method": "onCommand", "seqNum": 1, "id": cid})
+    assert getattr(engine.config, field) is not before
+
+    # submenus carry the choices and mark the one in force
+    subs = [i for i in menu if "submenu" in i]
+    assert len(subs) == 3
+    for sub in subs:
+        assert sum(1 for x in sub["submenu"] if x["checked"]) == 1
+        assert {x["id"] for x in sub["submenu"]} <= set(CHOICES)
+
+
+def test_tray_menu_choice_applies_and_is_saved(engine, tmp_path):
+    from smartime.pime.text_service import CHOICES, SmartTextService
+
+    engine.config_path = tmp_path / "config.json"
+    svc = SmartTextService(engine, Path("icons"))
+    cid = next(c for c, (f, v, _) in CHOICES.items() if f == "panel_theme" and v == "dark")
+    svc.handle({"method": "onCommand", "seqNum": 1, "id": cid})
+    assert engine.config.panel_theme == "dark"
+    assert "dark" in engine.config_path.read_text(encoding="utf-8")
