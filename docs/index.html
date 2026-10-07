@@ -174,7 +174,7 @@ footer a { color: var(--muted); }
     <h1>順打輸入法</h1>
     <span class="latin">Shunda IME · Windows 10 / 11</span>
   </div>
-  <p class="thesis">中文和英文<em>順著打下去</em>就好，不用切換。</p>
+  <p class="thesis"><em>順著打，不用切換。</em></p>
   <p class="lede" style="margin-top:18px">
     注音和英文混在同一句裡直接打。字母先出現、旁邊提示注音，按聲調鍵才變成中文。
     打反的注音、快打時多按的鍵、中英誤判，整句重新解碼時一起處理掉。
@@ -182,14 +182,16 @@ footer a { color: var(--muted); }
 
   <figure class="decode">
     <table>
-      <tr class="r-keys"><th>按鍵</th><td>ji3</td><td class="drop">e</td><td>e/4</td><td>dj94</td><td>k27</td><td>python</td></tr>
-      <tr class="r-read"><th>注音</th><td>ㄨㄛˇ</td><td class="drop">略過</td><td>ㄍㄥˋ</td><td>ㄎㄨㄞˋ</td><td class="fix">ㄉㄜ˙ ↺</td><td>英文</td></tr>
-      <tr class="r-text"><th>國字</th><td>我</td><td></td><td>更</td><td>快</td><td>的</td><td style="font-family:var(--mono);font-size:21px">python<span class="caret"></span></td></tr>
+      <tr class="r-keys"><th>按鍵</th><td>rup␣</td><td>wu0␣</td><td>k27</td><td>deadline</td><td>ji3</td><td>x96</td><td>tj4</td><td class="drop">e</td><td>xu3</td></tr>
+      <tr class="r-read"><th>注音</th><td>ㄐㄧㄣ</td><td>ㄊㄧㄢ</td><td class="fix">ㄉㄜ˙ ↺</td><td>英文</td><td>ㄨㄛˇ</td><td>ㄌㄞˊ</td><td>ㄔㄨˋ</td><td class="drop">略過</td><td>ㄌㄧˇ</td></tr>
+      <tr class="r-text"><th>國字</th><td>今</td><td>天</td><td>的</td><td style="font-family:var(--mono);font-size:19px">deadline</td><td>我</td><td>來</td><td>處</td><td></td><td>理<span class="caret"></span></td></tr>
     </table>
     <figcaption>
-      一句話裡發生的事：<span style="color:var(--drop)">多按的 e 被略過</span>、
+      打「今天的 deadline 我來處理」時實際發生的事：
       <span style="color:var(--fix)">順序打反的 k27 讀成 ㄉㄜ˙</span>、
-      python 自己留在英文。這張表在修正模式裡隨時叫得出來。
+      <span style="color:var(--drop)">手滑多按的 e 被略過</span>、
+      deadline 自己留在英文。一次都沒有切換過，也沒有回頭刪掉重打。
+      這張表在修正模式裡隨時叫得出來，而且可以直接在上面改。
     </figcaption>
   </figure>
 
@@ -352,7 +354,7 @@ footer a { color: var(--muted); }
   </ol>
   <div class="cta">
     <a class="btn primary" href="https://github.com/ChouYangEn0401/shunda-ime/releases/latest">到 Releases 下載</a>
-    <a class="btn" href="install.md">完整安裝說明與疑難排解</a>
+    <a class="btn" href="https://github.com/ChouYangEn0401/shunda-ime/blob/main/docs/install.md">完整安裝說明與疑難排解</a>
   </div>
   <p class="note">
     移除：Windows 設定 → 應用程式 → 順打輸入法。個人資料（設定、我的詞庫、學習記憶）放在
@@ -388,9 +390,9 @@ footer a { color: var(--muted); }
   </div>
 
   <div class="cta">
-    <a class="btn" href="architecture.md">架構與交接說明</a>
+    <a class="btn" href="https://github.com/ChouYangEn0401/shunda-ime/blob/main/docs/architecture.md">架構與交接說明</a>
     <a class="btn" href="https://github.com/ChouYangEn0401/shunda-ime/blob/main/CHANGELOG.md">版本紀錄</a>
-    <a class="btn" href="licenses.md">第三方資料與授權</a>
+    <a class="btn" href="https://github.com/ChouYangEn0401/shunda-ime/blob/main/docs/licenses.md">第三方資料與授權</a>
   </div>
   <p class="note">
     內部代號是 <code>smartime</code>（Python 套件、PIME 後端資料夾、<code>%APPDATA%\SmartIME</code>）。
@@ -407,11 +409,11 @@ footer a { color: var(--muted); }
       <thead><tr><th>文件</th><th>給誰</th><th>裡面有什麼</th></tr></thead>
       <tbody>
         <tr><td><a href="https://github.com/ChouYangEn0401/shunda-ime#readme">README</a></td><td>所有人</td><td>三十秒看完這個專案在做什麼，和往下走的岔路</td></tr>
-        <tr><td><a href="install.md">install.md</a></td><td>使用者</td><td>安裝、移除、換電腦搬資料、裝不起來時怎麼查</td></tr>
-        <tr><td><a href="keys.md">keys.md</a></td><td>使用者</td><td>每一個按鍵在做什麼：打字、選字、修正模式、標點四種按法</td></tr>
-        <tr><td><a href="architecture.md">architecture.md</a></td><td>工程師</td><td>解碼器、session、PIME 協定、面板、資料流，和每個決定的理由</td></tr>
+        <tr><td><a href="https://github.com/ChouYangEn0401/shunda-ime/blob/main/docs/install.md">install.md</a></td><td>使用者</td><td>安裝、移除、換電腦搬資料、裝不起來時怎麼查</td></tr>
+        <tr><td><a href="https://github.com/ChouYangEn0401/shunda-ime/blob/main/docs/keys.md">keys.md</a></td><td>使用者</td><td>每一個按鍵在做什麼：打字、選字、修正模式、標點四種按法</td></tr>
+        <tr><td><a href="https://github.com/ChouYangEn0401/shunda-ime/blob/main/docs/architecture.md">architecture.md</a></td><td>工程師</td><td>解碼器、session、PIME 協定、面板、資料流，和每個決定的理由</td></tr>
         <tr><td><a href="https://github.com/ChouYangEn0401/shunda-ime/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a></td><td>工程師</td><td>開發環境、測試怎麼跑、改了要驗什麼、怎麼出一版</td></tr>
-        <tr><td><a href="licenses.md">licenses.md</a></td><td>法務、散佈者</td><td>詞庫、字型、元件各自的授權與出處</td></tr>
+        <tr><td><a href="https://github.com/ChouYangEn0401/shunda-ime/blob/main/docs/licenses.md">licenses.md</a></td><td>法務、散佈者</td><td>詞庫、字型、元件各自的授權與出處</td></tr>
       </tbody>
     </table>
   </div>
