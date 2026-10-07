@@ -156,3 +156,20 @@ def test_an_accidental_space_split_a_syllable_and_the_keys_view_joins_it(session
     run(session, "{ESC}vv{END}hhh")  # 按鍵 view, onto the stray space
     run(session, "x")
     assert text(session) == "至關"
+
+
+def test_a_key_the_decoder_threw_away_can_be_kept(session):
+    """Reported: typing a lowercase 「p2」 marked the p as 略過 — "那我該怎麼辦".
+
+    A dropped key has no reading, so j/k and the candidate window never see
+    it, and x would only finish throwing it away. e (中⇄英) on it in the
+    按鍵 view now means "I meant that key" and keeps it as typed.
+    """
+    run(session, "ji3ee/4dj94")
+    assert text(session) == "我更快"  # the second e was read as a slip
+    run(session, "{ESC}vv{HOME}lll")  # 按鍵 view, onto the dropped e
+    assert decode_panel(session).columns[decode_panel(session).focus].role == "drop"
+    run(session, "e")
+    assert text(session) == "我e更快"
+    out, _ = run(session, "{ENTER}")
+    assert out == "我e更快"

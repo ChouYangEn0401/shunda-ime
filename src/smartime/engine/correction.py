@@ -278,9 +278,23 @@ class CorrectionMixin:
         """Chinese <-> the raw keys / English for the segment under the cursor."""
         self._finish_cycle()
         t = self._target()
-        if t is None:
+        here = next((x for x in self.decoding.segments if x.start <= self.cursor < x.end), None)
+        # a dropped key shows no character, so _target() steps over it
+        seg = here if (here is not None and here.kind is Kind.DROP) else (
+            self.decoding.segments[t[3]] if t is not None else None)
+        if seg is None:
             return
-        seg = self.decoding.segments[t[3]]
+        if seg.kind is Kind.DROP:
+            # "I meant that key": a key the decoder threw away as a slip has
+            # no reading to offer, so j/k and the candidate window cannot
+            # reach it and x would only finish the job. Keeping it as typed
+            # is the one thing that was missing (reported: the p of a
+            # lowercase "p2" was marked 略過 and could not be brought back).
+            raw = "".join(k.char for k in self.keys[seg.start:seg.end])
+            self._snapshot()
+            self._apply_pin(Segment(seg.start, seg.end, raw, Kind.LITERAL, -10.0, pinned=True))
+            self._notice = f"保留按鍵「{raw}」"
+            return
         if seg.kind is Kind.ZH:
             # only the character under the cursor; the rest of the phrase is
             # decoded again on its own
