@@ -44,6 +44,8 @@ TOGGLES = {  # id: (config field, label)
     21: ("composing_indicator", "組字中顯示小點"),
     22: ("learn_notice", "學到新詞時通知我"),
     23: ("correction_mode", "Esc 進修正模式"),
+    24: ("smart_suggest", "超智慧推薦（實驗）"),
+    25: ("crazy_mode", "瘋狂模式（實驗）"),
 }
 # id: (config field, value, label), grouped into submenus by the first entry
 CHOICES = {
@@ -481,7 +483,7 @@ class SmartTextService:
         cfg = self.engine.config
         setattr(cfg, field, value)
         cfg._normalize()
-        if field in ("chinese_scheme", "crazy_mode"):
+        if field in ("chinese_scheme", "crazy_mode", "smart_suggest"):
             self.engine.decoder.apply_config(cfg)
         try:
             cfg.save(self.engine.config_path)

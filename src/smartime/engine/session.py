@@ -228,6 +228,7 @@ class Smart:
     chains: list[Suggestion]
     fixes: list[Candidate]
     stale: bool = False
+    context: str = ""  # the characters the chains continue from
 
 
 @dataclass
@@ -1453,8 +1454,11 @@ class Session(CorrectionMixin):
 
         run = self._trailing_run(4)
         tail = [(u[2], u[3]) for u in run]
+        # only continue from a word boundary (see predict.chains)
+        seg_starts = {x.start for x in segs}
+        starts = frozenset(k for k in range(1, len(tail[-3:]) + 1) if run[-k][0] in seg_starts)
         chains = []
-        for c in predict.chains(self.engine.lexicon, tail[-3:], self.cfg.autocomplete_min_score):
+        for c in predict.chains(self.engine.lexicon, tail[-3:], self.cfg.autocomplete_min_score, starts=starts):
             sug = self._make_suggestion(run[-1:], c.text, c.readings, c.score)
             if sug is not None:
                 chains.append(sug)
@@ -1465,7 +1469,11 @@ class Session(CorrectionMixin):
             bounds = tuple(u[0] for u in part) + (part[-1][1],)
             pin = Segment(part[0][0], part[-1][1], word, Kind.ZH, 0.0, readings, bounds, pinned=True)
             fixes.append(Candidate(word, pin, "".join(u[2] for u in part), group="也許是"))
-        self.smart = Smart(chains, fixes)
+        # the context shown in front of every chain starts at a word
+        # boundary, or it reads as a slice of nothing (「們今天會不會有」)
+        whole = [k for k in range(len(tail), 0, -1) if run[-k][0] in seg_starts]
+        n = next((k for k in whole if k <= 3), min(3, len(tail)))
+        self.smart = Smart(chains, fixes, context="".join(c for c, _ in tail[-n:]))
 
     def _make_suggestion(self, tail, text: str, readings: tuple[str, ...], score: float) -> "Suggestion | None":
         """A continuation of ``text`` after the trailing characters ``tail``

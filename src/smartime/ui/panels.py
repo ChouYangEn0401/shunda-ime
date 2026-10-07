@@ -581,7 +581,7 @@ def paint_smart(c: Canvas, t: Theme, p: SmartPanel, size: float = 1.0, draw: boo
     widths = [_help_width(c, s, SMART_HELP), c.measure("超智慧推薦 · 實驗", s.title)[0] + 150 * k]
     for kind, n, text, extra in rows:
         if kind == "chain":
-            widths.append((LABEL_W + 10) * k + c.measure(text, s.cand)[0])
+            widths.append((LABEL_W + 10) * k + c.measure(p.context + text, s.cand)[0])
         elif kind == "fix":
             widths.append((LABEL_W + 10) * k + c.measure(extra, s.reading)[0] + 30 * k + c.measure(text, s.cand)[0])
     width = min(max(widths) + 2 * PAD_X * k, 620 * k)
@@ -610,6 +610,12 @@ def paint_smart(c: Canvas, t: Theme, p: SmartPanel, size: float = 1.0, draw: boo
             c.text(x0 + 4 * k, y + 6 * k, n, s.num, t.faint)
         tx = x0 + (LABEL_W + 10) * k
         if kind == "chain":
+            # the characters already typed, in grey, then what would be
+            # added — a chain reads as nonsense without the words it
+            # continues (「下沒有不」 after 「今天」)
+            if p.context:
+                c.text(tx, y + 2 * k, p.context, s.cand, t.faint)
+                tx += c.measure(p.context, s.cand)[0]
             c.text(tx, y + 2 * k, text, s.cand, color)
         else:
             c.text(tx, y + 6 * k, extra, s.reading, t.faint)

@@ -10,7 +10,11 @@ Tab continuation, shown in a panel of their own.
   wrong: 鬥號 → 逗號).
 
 Only phrase statistics, no language model: a long chain can drift in
-meaning. That is why it is an experiment the user turns on.
+meaning — 「今天」 continues through 「天下」 into 「天下沒有不…」, which is a
+real idiom but not what was being written. That is why it is an experiment
+the user turns on, and why the panel shows the characters already typed in
+front of every chain: a suggestion you cannot read in full is one you
+cannot judge.
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ from dataclasses import dataclass
 
 MAX_PIECE = 4  # characters added by one link of a chain
 WEAK_CONTEXT = 1.0  # a one-character context must be this much more common (log10)
+MID_WORD = 0.5  # ...and so must a context that starts inside a word the decoder settled
 # Function characters lead anywhere (的問題是不是…): never continue from one alone.
 FUNCTION_CHARS = frozenset("的了是在不有也就都而與和及或之其這那個們嗎呢吧啊著過被把對向從到讓給")
 
@@ -69,8 +74,15 @@ def _extend(lex, acc_text: str, acc_readings: tuple[str, ...], min_score: float,
     return text, readings
 
 
-def chains(lex, tail: list[tuple[str, str]], min_score: float, beams: int = 3, max_chars: int = 8) -> list[Chain]:
-    """``tail``: [(char, reading)] of the Chinese characters just typed (≤ 3)."""
+def chains(lex, tail: list[tuple[str, str]], min_score: float, beams: int = 3, max_chars: int = 8,
+           starts: frozenset[int] | None = None) -> list[Chain]:
+    """``tail``: [(char, reading)] of the Chinese characters just typed (≤ 3).
+
+    ``starts``: which suffix lengths begin at a word boundary. Continuing
+    from the middle of a word is where the drift comes from — after 「今天」
+    the last character alone leads into 「天下沒有不…」, a real idiom about
+    something else entirely — so those have to clear a higher bar.
+    """
     if not tail:
         return []
     by_k: dict[int, list[Chain]] = {}
@@ -80,6 +92,12 @@ def chains(lex, tail: list[tuple[str, str]], min_score: float, beams: int = 3, m
         prefix = "".join(c for c, _ in part)
         prefix_r = tuple(r for _, r in part)
         floor = min_score + (WEAK_CONTEXT if k == 1 and len(tail) > 1 else 0.0)
+        if starts is not None and k not in starts:
+            # continuing from inside a word the decoder already settled:
+            # allowed, because the segmentation is not gospel (「你好」 really
+            # can continue into 「你好不容易」), but it has to be clearly
+            # common to be worth suggesting
+            floor += MID_WORD
         for phrase, reading, score in lex.completions(prefix, limit=24):
             if score < floor:
                 break
@@ -89,6 +107,8 @@ def chains(lex, tail: list[tuple[str, str]], min_score: float, beams: int = 3, m
             piece = phrase[k:][:MAX_PIECE]
             if piece in seen or (k == 1 and len(tail) > 1 and (len(piece) < 2 or prefix in FUNCTION_CHARS)):
                 continue
+            if piece[0] in FUNCTION_CHARS and len(piece) < 2:
+                continue  # 「…的」 on its own is what the Tab suggestion is for
             seen.add(piece)
             by_k.setdefault(k, []).append(Chain(piece, syl[k:k + len(piece)], score))
     # different starts: the best of each context length in turn, longest first
@@ -105,6 +125,8 @@ def chains(lex, tail: list[tuple[str, str]], min_score: float, beams: int = 3, m
         more, more_r = _extend(lex, typed + seed.text, typed_r + seed.readings, min_score, max_chars,
                                len(seed.text))
         chain = Chain(seed.text + more, seed.readings + more_r, seed.score)
+        if len(chain.text) < 2:
+            continue  # one character is the plain Tab suggestion, not this
         if all(c.text != chain.text for c in out):
             out.append(chain)
     return out

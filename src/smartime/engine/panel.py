@@ -117,6 +117,7 @@ class SmartPanel:
     chains: list[tuple[str, str]]
     fixes: list[tuple[str, str, str]]  # (number, what is there now, the other word)
     stale: bool = False
+    context: str = ""  # the characters just typed that the chains continue
 
 
 def smart_panel(session) -> SmartPanel | None:
@@ -131,7 +132,7 @@ def smart_panel(session) -> SmartPanel | None:
     for f in smart.fixes:
         n += 1
         fixes.append(("" if smart.stale else str(n), f.annotation, f.text))
-    return SmartPanel(chains, fixes, smart.stale)
+    return SmartPanel(chains, fixes, smart.stale, smart.context)
 
 
 def candidate_panel(session) -> CandidatePanel | None:
