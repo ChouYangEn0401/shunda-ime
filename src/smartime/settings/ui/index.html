@@ -615,6 +615,27 @@
         <h2>關於</h2>
         <p class="lead"><span data-text="product">順打輸入法</span> <span data-text="version"></span>。免切換中英混打的注音輸入法。</p>
         <div class="group">
+          <h3>版本與更新</h3>
+          <div class="row">
+            <div>
+              <div class="label">目前版本 <span data-text="version"></span></div>
+              <div class="desc" id="update-status">尚未檢查。</div>
+            </div>
+            <span>
+              <button class="btn" id="update-check">檢查更新</button>
+              <button class="btn primary" id="update-install" hidden>下載並安裝</button>
+            </span>
+          </div>
+          <div class="row">
+            <div>
+              <div class="label">每天自動檢查一次</div>
+              <div class="desc">只對 GitHub 發一個公開的 HTTPS 查詢，不帶帳號、不帶任何可以認出你的識別碼，
+                也不會自己安裝任何東西——找到新版本只會在這裡告訴你。關掉以後輸入法完全不連網。</div>
+            </div>
+            <label class="switch"><input type="checkbox" data-cfg="update_check"><span></span></label>
+          </div>
+        </div>
+        <div class="group">
           <h3>開發者</h3>
           <div class="row">
             <div><div class="label">開發者</div><div class="desc">個人開發的開源專案；打字手感參考華碩智慧輸入法，與華碩無關。</div></div>

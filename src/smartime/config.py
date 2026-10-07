@@ -116,6 +116,12 @@ class Config:
     default_category: str = "人工加入"  # where Ctrl+D puts a new word
 
     # Voice input (hold right Ctrl, speak, release)
+    # Ask GitHub once a day whether there is a newer release. One plain
+    # HTTPS GET to a public API, no account and no identifier beyond a
+    # User-Agent naming the product; nothing is ever installed without the
+    # user starting it. Turn it off and the input method never goes online.
+    update_check: bool = True
+
     voice_enabled: bool = False  # off until a model is downloaded and the user turns it on
     voice_engine: str = "auto"  # "auto" | "breeze" (GPU) | "sensevoice" (CPU)
     voice_hotwords: bool = True  # my dictionary's own words help recognition

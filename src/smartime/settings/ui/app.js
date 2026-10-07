@@ -194,6 +194,7 @@
     document.title = `${state.product} 設定`;
     renderConfig();
     renderDebug();
+    loadUpdate();
     renderCategories();
     renderShortcuts();
     for (const feature of ["correction_mode", "palette_hotkey"]) {
@@ -925,6 +926,47 @@
       renderDebug();
       toast(state.debugLog.on ? "已開啟除錯紀錄（輸入法已重新啟動）" : "已關閉除錯紀錄（輸入法已重新啟動）");
     } catch (err) { toast(err.message, true); }
+  });
+
+  // ------------------------------------------------------------ updates
+  function fmtSize(n) { return n ? (n / 1048576).toFixed(0) + " MB" : ""; }
+
+  function renderUpdate(u) {
+    const status = document.getElementById("update-status");
+    const install = document.getElementById("update-install");
+    install.hidden = !(u.newer && u.canInstall);
+    if (u.job && u.job.active) {
+      const pct = u.job.total ? Math.round(100 * u.job.done / u.job.total) : 0;
+      status.textContent = `下載中… ${pct}%（${fmtSize(u.job.total)}）`;
+      install.hidden = true;
+      setTimeout(loadUpdate, 700);
+      return;
+    }
+    if (u.job && u.job.error) { status.textContent = "下載失敗：" + u.job.error; return; }
+    if (u.job && u.job.path) { status.textContent = "安裝檔已下載，請在安裝視窗繼續。"; return; }
+    if (u.error && !u.latest) { status.textContent = "這次連不上 GitHub（離線也沒關係，輸入法照常用）。"; return; }
+    if (!u.latest) { status.textContent = "尚未檢查。"; return; }
+    if (u.newer) {
+      status.textContent = `有新版本 ${u.latest}${u.size ? "（" + fmtSize(u.size) + "）" : ""}。`;
+    } else {
+      status.textContent = `已經是最新版本（GitHub 上也是 ${u.latest}）。`;
+    }
+  }
+
+  async function loadUpdate(force) {
+    try {
+      renderUpdate(await api("GET", "/api/update" + (force ? "?force=1" : "")));
+    } catch (e) { document.getElementById("update-status").textContent = e.message; }
+  }
+  document.getElementById("update-check").addEventListener("click", async () => {
+    document.getElementById("update-status").textContent = "檢查中…";
+    await loadUpdate(true);
+  });
+  document.getElementById("update-install").addEventListener("click", async () => {
+    try {
+      await api("POST", "/api/update/install");
+      loadUpdate();
+    } catch (e) { toast(e.message, true); }
   });
 
   // ------------------------------------------------------------ start

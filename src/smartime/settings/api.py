@@ -68,6 +68,7 @@ class SettingsApp:
         self.last_ping = time.monotonic()
         self.download: dict = {}  # voice model download progress
         self.install_state: dict = {}  # voice component installation
+        self.update_job: dict = {}  # new-version download progress
 
     def close(self) -> None:
         self.user.close()
@@ -372,6 +373,56 @@ class SettingsApp:
             applied = True
         return {"merged": merged, "settingsApplied": applied}
 
+    # ---------------------------------------------------------- updates
+    def update_state(self, force: bool = False) -> dict:
+        from .. import update as upd
+
+        if self.update_job.get("active"):
+            return {**self._release_dict(upd.cached()), "job": dict(self.update_job)}
+        release = upd.check(force=True) if force else upd.cached()
+        return {**self._release_dict(release), "job": dict(self.update_job)}
+
+    def _release_dict(self, release) -> dict:
+        from .. import update as upd
+
+        return {
+            "current": __version__,
+            "latest": release.version,
+            "newer": release.newer,
+            "url": release.url or upd.RELEASES_PAGE,
+            "notes": release.notes,
+            "published": release.published,
+            "checked": release.checked,
+            "error": release.error,
+            "canInstall": bool(release.asset_url),
+            "size": release.size,
+        }
+
+    def install_update(self) -> dict:
+        """Download the installer and start it. It asks for administrator
+        rights itself — nothing is installed behind the user's back."""
+        from .. import update as upd
+
+        if self.update_job.get("active"):
+            raise ApiError(400, "已經在下載了")
+        release = upd.cached()
+        if not release.asset_url:
+            raise ApiError(400, "這個版本沒有可以下載的安裝檔")
+        self.update_job = {"active": True, "done": 0, "total": release.size, "error": "", "path": ""}
+
+        def run() -> None:
+            try:
+                path = upd.download(release, lambda d, t: self.update_job.update(done=d, total=t))
+                self.update_job["path"] = str(path)
+                upd.run_installer(path)
+            except Exception as e:  # noqa: BLE001
+                log.exception("update download failed")
+                self.update_job["error"] = str(e)
+            self.update_job["active"] = False
+
+        threading.Thread(target=run, daemon=True).start()
+        return dict(self.update_job)
+
     # ---------------------------------------------------------- system
     def open_folder(self) -> dict:
         os.startfile(paths.user_dir())  # noqa: S606 - opening the user's own folder
@@ -504,6 +555,9 @@ class _Handler(BaseHTTPRequestHandler):
             ("POST", "/api/memory/tidy"): app.tidy_memory,
             ("POST", "/api/open-folder"): app.open_folder,
             ("POST", "/api/debug-log"): lambda: app.set_debug_log(bool(self._json_body().get("on"))),
+            ("GET", "/api/update"): lambda: app.update_state(
+                (query.get("force") or ["0"])[0] == "1"),
+            ("POST", "/api/update/install"): app.install_update,
             ("GET", "/api/voice"): app.voice_state,
             ("POST", "/api/voice/download"): lambda: app.start_download(str(self._json_body().get("key", ""))),
             ("POST", "/api/voice/install"): app.install_voice,

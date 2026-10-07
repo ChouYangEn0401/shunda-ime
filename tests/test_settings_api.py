@@ -162,3 +162,26 @@ def test_tidy_memory_reports_size(server):
     status, body = call(server, "POST", "/api/memory/tidy")
     assert status == 200 and body["removed"] == 0
     assert body["stats"]["bytes"] > 0
+
+
+def test_update_state_reads_the_cache_without_going_online(monkeypatch):
+    """The settings page must open instantly and work offline; only the
+    「檢查更新」 button is allowed to make a request."""
+    from smartime import update as upd
+
+    app = SettingsApp()
+    calls = []
+    monkeypatch.setattr(upd, "check", lambda force=True: calls.append(force) or upd.Release())
+    state = app.update_state()
+    assert calls == [] and state["current"] and state["latest"] == ""
+    app.update_state(force=True)
+    assert calls == [True]
+    app.close()
+
+
+def test_version_comparison():
+    from smartime import update as upd
+
+    assert upd.version_tuple("v0.10.0") > upd.version_tuple("0.9.9")
+    assert not upd.Release(version="0.0.1").newer
+    assert upd.Release(version="99.0.0").newer
