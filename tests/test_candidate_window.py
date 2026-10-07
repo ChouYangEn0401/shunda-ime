@@ -53,11 +53,35 @@ def test_tab_filters_one_group_at_a_time(memory_session):
     assert v.composition == "我珍"
 
 
-def test_single_column_turns_pages(session):
+def test_arrows_walk_the_group_chips(session):
+    """← → point at the row of chips above the list, so that is what they
+    move along: the quick "show me only my own words" the report asked for.
+    Paging moved to PageUp/PageDown — ↑↓ already roll into the next page."""
     run(session, "u4{DOWN}")
     cand = session.cand
+    assert len(cand.groups()) > 1 and cand.filter == ""
     run(session, "{RIGHT}")
+    assert cand.filter == cand.groups()[0]
+    run(session, "{LEFT}")
+    assert cand.filter == ""
+
+
+def test_pageup_pagedown_turn_pages(session):
+    run(session, "u4{DOWN}")
+    cand = session.cand
+    run(session, "{PGDN}")
     assert cand.page == 1 and cand.columns == 1 and cand.first_page == 1
+    run(session, "{PGUP}")
+    assert cand.page == 0
+
+
+def test_arrows_turn_pages_in_the_symbol_panel(session):
+    # the panel has its own tabs on Tab, so ← → keep turning pages there
+    run(session, "ji3{RCTRL}{S-TAB}")  # 顏文字
+    cand = session.cand
+    assert cand.palette is not None and cand.pages > 1
+    run(session, "{RIGHT}")
+    assert cand.page == 1 and cand.filter == ""
 
 
 def test_multi_column_opens_and_folds_columns(session):
@@ -65,15 +89,15 @@ def test_multi_column_opens_and_folds_columns(session):
     run(session, "u4{DOWN}")
     cand = session.cand
     row = cand.index % cand.page_size
-    run(session, "{RIGHT}{RIGHT}")
+    run(session, "{S-RIGHT}{S-RIGHT}")
     assert cand.columns == 3 and cand.first_page == 0 and cand.page == 2
     assert cand.index % cand.page_size == row  # same row in the next column
-    _, v = run(session, "{LEFT}{LEFT}")
+    _, v = run(session, "{S-LEFT}{S-LEFT}")
     assert cand.page == 0 and cand.columns == 3
-    run(session, "{LEFT}")  # nothing more on the left: fold back to one column
+    run(session, "{S-LEFT}")  # nothing more on the left: fold back to one column
     assert cand.columns == 1
     # digits pick in the column the selection is in
-    run(session, "{RIGHT}")
+    run(session, "{S-RIGHT}")
     page = cand.page_items()
     _, v = run(session, "2")
     assert v.composition.endswith(page[1].text)

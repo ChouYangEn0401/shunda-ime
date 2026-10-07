@@ -1037,10 +1037,19 @@ class Session(CorrectionMixin):
             cand.move(+1)
         elif vk == VK_UP:
             cand.move(-1)
-        elif vk == VK_RIGHT:
-            cand.move_column(+1) if cand.multi else cand.move_page(+1)
-        elif vk == VK_LEFT:
-            cand.move_column(-1) if cand.multi else cand.move_page(-1)
+        elif vk in (VK_LEFT, VK_RIGHT):
+            # ← → walk the row of group chips at the top of the window — the
+            # thing they point at. 微軟注音 keeps paging on PageUp/PageDown,
+            # and ↑↓ already roll over into the next page, so a dedicated
+            # paging arrow was spending the two most reachable keys on the
+            # rarest action. Shift+→ still opens another column.
+            step = +1 if vk == VK_RIGHT else -1
+            if key.shift and cand.multi:
+                cand.move_column(step)
+            elif cand.palette is None and len(cand.groups()) > 1:
+                cand.cycle_filter(step)
+            else:
+                cand.move_page(step)
         elif vk == VK_NEXT:
             cand.move_page(+1)
         elif vk == VK_PRIOR:

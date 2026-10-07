@@ -5,7 +5,7 @@ keys go in braces: {BS} {DEL} {ENTER} {ESC} {TAB} {LEFT} {RIGHT} {UP} {DOWN}
 {HOME} {END} {NUM1}..{NUM9} (numeric keypad, NumLock on) {KP1}..{KP9} (the
 same keys with NumLock off) {SHIFT} (a lone Shift tap), {RCTRL} / {RALT} (a lone right-Ctrl /
 right-Alt tap: the symbol panel),
-{SPACE}, {S-TAB} (Shift+Tab).
+{SPACE}, {S-TAB} (Shift+Tab), {S-LEFT}/{S-RIGHT} etc. ({PGUP} {PGDN} too).
 Ctrl combinations: {C-,} {C-d}; Ctrl+Shift: {CS-/}; Ctrl+Alt: {CA-,}.
 
     python -m smartime.devtools.simulate "ji3ap7{DOWN}"
@@ -38,14 +38,16 @@ NAMED = {
     # which Windows sends as End. {NUM1} is the same key with NumLock on.
     "KP0": VK_INSERT, "KP1": VK_END, "KP2": VK_DOWN, "KP3": VK_NEXT, "KP4": VK_LEFT,
     "KP5": VK_CLEAR, "KP6": VK_RIGHT, "KP7": VK_HOME, "KP8": VK_UP, "KP9": VK_PRIOR,
+    "PGUP": VK_PRIOR, "PGDN": VK_NEXT,
 }
 # Named keys that Windows marks as extended: the dedicated navigation block
 # (the keypad sends the same VKs without the flag).
-EXTENDED_VKS = frozenset({VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN, VK_HOME, VK_END, VK_DELETE})
+EXTENDED_VKS = frozenset({VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN, VK_HOME, VK_END, VK_DELETE,
+                          VK_PRIOR, VK_NEXT, VK_INSERT})
 # Physical key for Ctrl combinations, written as {C-,} or {CS-/} (Ctrl+Shift).
 CTRL_KEY_VK = {",": VK_OEM_COMMA, ".": VK_OEM_PERIOD, ";": VK_OEM_1, "'": VK_OEM_7, "/": VK_OEM_2,
                "-": VK_OEM_MINUS, "[": VK_OEM_4, "]": VK_OEM_6}
-_TOKEN = re.compile(r"\{(CS|CA|C)-(.)\}|\{S-TAB\}()|\{([A-Z]+[0-9]*)\}|(.)", re.S)
+_TOKEN = re.compile(r"\{(CS|CA|C)-(.)\}|\{S-TAB\}()|\{([A-Z][A-Z0-9-]*)\}|(.)", re.S)
 
 
 def parse(script: str) -> Iterator[str | int | KeyInput]:
@@ -58,6 +60,8 @@ def parse(script: str) -> Iterator[str | int | KeyInput]:
             yield KeyInput(vk=vk, ctrl=True, shift=mods == "CS", alt=mods == "CA")
         elif shift_tab is not None:
             yield KeyInput(vk=VK_TAB, shift=True)
+        elif name and name.startswith("S-") and name[2:] in NAMED:
+            yield KeyInput(vk=NAMED[name[2:]], shift=True, extended=NAMED[name[2:]] in EXTENDED_VKS)
         elif name:
             if name == "SHIFT":
                 yield VK_SHIFT

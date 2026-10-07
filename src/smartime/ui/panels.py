@@ -310,9 +310,10 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
 GROUP_COLOR = {"我的詞庫": "memory", "學過": "memory", "接續": "predict", "片語": "predict",
                "顏文字": "predict", "原始按鍵": "faint", "長句": "predict", "也許是": "fix"}
 ROW_H, GROUP_H, LABEL_W = 29, 19, 16
-CAND_HELP = [("↑↓", "移動"), ("1–9", "選"), ("Tab", "分類"), ("→", "更多"), ("Del", "忘記"), ("Ctrl+D", "加詞")]
-CAND_HELP_SINGLE = [("↑↓", "移動"), ("1–9", "選"), ("Tab", "分類"), ("← →", "翻頁"), ("Del", "忘記"),
+# ← → walk the group chips when there are any, else they turn pages.
+CAND_HELP_GROUPS = [("↑↓", "移動"), ("1–9", "選"), ("← →", "分類"), ("PgUp/PgDn", "翻頁"), ("Del", "忘記"),
                     ("Ctrl+D", "加詞")]
+CAND_HELP_PAGES = [("↑↓", "移動"), ("1–9", "選"), ("← →", "翻頁"), ("Del", "忘記"), ("Ctrl+D", "加詞")]
 PALETTE_HELP = [("1–9", "選"), ("Tab", "換分類"), ("→", "更多"), ("Esc", "關閉")]
 SNIPPET_HELP = [("字母", "篩選"), ("↑↓", "移動"), ("1–9", "選"), ("Enter", "打出"), ("Esc", "關閉（保留 ;;）")]
 PREVIEW_LINES = 8
@@ -462,7 +463,7 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
     gap = 10 * k
     cols_w = sum(col_w) + gap * max(0, len(col_w) - 1)
     help_items = SNIPPET_HELP if p.snippet else PALETTE_HELP if p.palette else (
-        CAND_HELP if p.multi else CAND_HELP_SINGLE)
+        CAND_HELP_GROUPS if p.chips else CAND_HELP_PAGES)
     title_w = measure_mixed(c, p.notice or p.title, s.help, s.symbol) + 60 * k
     chips_w = sum(c.measure(ch, s.small)[0] + 18 * k for ch in p.chips)
     width = max(cols_w, _help_width(c, s, help_items), title_w, min(chips_w, 560 * k),
