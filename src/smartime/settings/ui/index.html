@@ -493,15 +493,23 @@
         <div class="group">
           <h3>可以調整的按鍵</h3>
           <div class="row">
-            <div><div class="label">切換模式的 Shift</div><div class="desc">單按一下哪一邊的 Shift 切換模式（像 Windows 注音可以選左右）。按住 Shift 打大寫不受影響。輪流哪些模式在「一般」。</div></div>
+            <div><div class="label">切換模式的 Shift</div><div class="desc">單按一下哪一邊的 Shift 切換模式（像 Windows 注音可以選左右）。按住 Shift 打大寫不受影響。要輪流哪些模式在<a href="#general" data-goto="general">「一般」</a>選。</div></div>
             <div class="seg" role="group" aria-label="切換模式的 Shift" data-cfg="toggle_shift">
               <button data-value="left">左</button><button data-value="right">右</button><button data-value="both">兩邊</button><button data-value="none">關閉</button>
             </div>
           </div>
           <div class="row">
-            <div><div class="label">符號面板</div><div class="desc">單按一下就打開（再按一次關閉）；按住右 Ctrl 是語音輸入。</div></div>
+            <div><div class="label">符號面板的熱鍵</div><div class="desc">單按一下就打開（再按一次關閉）；按住右 Ctrl 是語音輸入。
+              <b>右 Alt 在很多程式裡不會送到輸入法</b>（Windows 把它當功能表鍵），選它可能按了沒反應——用下面的文字觸發比較保險。</div></div>
             <div class="seg" role="group" aria-label="符號面板的鍵" data-cfg="palette_hotkey">
               <button data-value="rctrl">右 Ctrl</button><button data-value="ralt">右 Alt</button><button data-value="off">關閉</button>
+            </div>
+          </div>
+          <div class="row">
+            <div><div class="label">符號面板的文字觸發</div><div class="desc">打兩個冒號就打開，不需要任何熱鍵。<kbd>Tab</kbd> 換到希臘字母、數學、箭頭、顏文字……
+              不會在英文詞中間發動，所以 C++ 的 <code>std::vector</code> 照常打得出來。</div></div>
+            <div class="seg" role="group" aria-label="符號面板文字觸發" data-cfg="palette_trigger">
+              <button data-value="::">::</button><button data-value="">關閉</button>
             </div>
           </div>
           <div class="row">
@@ -512,6 +520,14 @@
             <div><div class="label">片語</div><div class="desc">打 <kbd>;</kbd><kbd>;</kbd> 叫出片語清單。</div></div>
             <div class="seg" role="group" aria-label="片語觸發" data-cfg="snippet_trigger">
               <button data-value=";;">;;</button><button data-value="">關閉</button>
+            </div>
+          </div>
+          <div class="row">
+            <div><div class="label">送出並換行的 <kbd>Enter</kbd></div><div class="desc">組字中按它會先送出文字，再把這個鍵交給程式換行。
+              預設關閉：<kbd>Shift</kbd>+<kbd>Enter</kbd> 在大部分編輯器裡本來就有自己的意思，交出去會改變它們的行為。
+              不管選哪個，符號面板「常用」分頁的 <kbd>⏎</kbd> 都可以換行。</div></div>
+            <div class="seg" role="group" aria-label="換行的 Enter" data-cfg="newline_enter">
+              <button data-value="off">關閉</button><button data-value="shift">Shift</button><button data-value="right-shift">右 Shift</button><button data-value="ctrl">Ctrl</button>
             </div>
           </div>
           <div class="row">
