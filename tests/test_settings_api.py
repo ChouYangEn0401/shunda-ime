@@ -182,6 +182,11 @@ def test_update_state_reads_the_cache_without_going_online(monkeypatch):
 def test_version_comparison():
     from smartime import update as upd
 
-    assert upd.version_tuple("v0.10.0") > upd.version_tuple("0.9.9")
+    v = upd.version_tuple
+    assert v("v0.10.0") > v("0.9.9")
+    # a release is newer than every pre-release of itself, and a pre-release
+    # of the next version is newer than the one before it
+    assert v("0.8.0-alpha.3") < v("0.8.0-rc.1") < v("0.8.0")
+    assert v("0.7.0") < v("0.8.0-alpha.1")
     assert not upd.Release(version="0.0.1").newer
     assert upd.Release(version="99.0.0").newer

@@ -48,7 +48,8 @@ def test_version_is_the_same_everywhere():
     spec = importlib.util.spec_from_file_location("set_version", ROOT / "tools" / "set_version.py")
     tool = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(tool)
-    assert set(tool.current().values()) == {smartime.__version__}
+    assert tool.agree(tool.current()), tool.current()
+    assert tool.current()['src/smartime/__init__.py'] == smartime.__version__
 
 
 def test_installer_scripts_are_ascii():

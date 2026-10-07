@@ -11,6 +11,10 @@ So the check is the smallest thing that can work:
   no identifier beyond the User-Agent below (which names the product and
   version so a maintainer can see what is in the field);
 * at most once a day, and only when ``Config.update_check`` says so;
+* against ``releases/latest``, which GitHub defines as the newest release
+  *not* marked as a pre-release — so an alpha build never offers itself to
+  anybody, and somebody running one is still told when the real release
+  lands (see ``version_tuple``);
 * it never installs anything by itself. It reports, the user decides
   (``download`` fetches the installer and ``run_installer`` starts it, with
   the usual elevation prompt).
@@ -61,13 +65,27 @@ class Release:
         return bool(self.version) and version_tuple(self.version) > version_tuple(__version__)
 
 
+PRE_RANK = {"alpha": 0, "a": 0, "beta": 1, "b": 1, "rc": 2}
+
+
 def version_tuple(v: str) -> tuple:
-    """"0.10.2" -> (0, 10, 2). Anything unparsable sorts first."""
-    out = []
-    for part in v.strip().lstrip("vV").split("."):
+    """Sortable form of a version, pre-releases included.
+
+    ``0.8.0-alpha.3`` < ``0.8.0-rc.1`` < ``0.8.0``, so somebody running a
+    test build is told about the real release when it lands. Anything
+    unparsable sorts first rather than claiming to be newer.
+    """
+    base, _, pre = v.strip().lstrip("vV").partition("-")
+    nums = []
+    for part in base.split("."):
         digits = "".join(c for c in part if c.isdigit())
-        out.append(int(digits) if digits else 0)
-    return tuple(out + [0] * (3 - len(out)))[:3]
+        nums.append(int(digits) if digits else 0)
+    nums = (nums + [0, 0, 0])[:3]
+    if not pre:
+        return (*nums, 9, 0)  # a release is newer than every pre-release of it
+    kind, _, n = pre.partition(".")
+    digits = "".join(c for c in n if c.isdigit())
+    return (*nums, PRE_RANK.get(kind.rstrip("0123456789").lower(), 0), int(digits) if digits else 0)
 
 
 def cache_path() -> Path:
