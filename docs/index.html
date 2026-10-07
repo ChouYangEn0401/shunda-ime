@@ -174,10 +174,10 @@ footer a { color: var(--muted); }
     <h1>順打輸入法</h1>
     <span class="latin">Shunda IME · Windows 10 / 11</span>
   </div>
-  <p class="thesis"><em>順著打，不用切換。</em></p>
+  <p class="thesis"><em>打錯了，它自己會對。</em></p>
   <p class="lede" style="margin-top:18px">
-    注音和英文混在同一句裡直接打。字母先出現、旁邊提示注音，按聲調鍵才變成中文。
-    打反的注音、快打時多按的鍵、中英誤判，整句重新解碼時一起處理掉。
+    中英順著打，不用切換。注音打反、手滑多按一鍵、中英誤判——每按一鍵，整句話重新
+    解碼一次，這些是在同一個判斷裡一起處理掉的，不是等你回頭刪掉重打。
   </p>
 
   <figure class="decode">
@@ -187,11 +187,11 @@ footer a { color: var(--muted); }
       <tr class="r-text"><th>國字</th><td>今</td><td>天</td><td>的</td><td style="font-family:var(--mono);font-size:19px">deadline</td><td>我</td><td>來</td><td>處</td><td></td><td>理<span class="caret"></span></td></tr>
     </table>
     <figcaption>
-      打「今天的 deadline 我來處理」時實際發生的事：
-      <span style="color:var(--fix)">順序打反的 k27 讀成 ㄉㄜ˙</span>、
-      <span style="color:var(--drop)">手滑多按的 e 被略過</span>、
-      deadline 自己留在英文。一次都沒有切換過，也沒有回頭刪掉重打。
-      這張表在修正模式裡隨時叫得出來，而且可以直接在上面改。
+      這一句是一口氣打完的，中間沒有按過任何切換鍵，也沒有回頭刪掉重打。
+      <span style="color:var(--fix)">ㄉㄜ˙ 的兩個鍵打反了（k27，應該是 2k7）</span>、
+      <span style="color:var(--drop)">手指蹭到的 e 被認出來是手滑</span>、
+      deadline 自己留在英文——都是在同一次解碼裡決定的。
+      這張表在修正模式裡隨時叫得出來，而且可以直接在上面改字。
     </figcaption>
   </figure>
 
@@ -314,8 +314,11 @@ footer a { color: var(--muted); }
     <div class="scene">
       <div>
         <h3>符號、片語、顏文字都不用離開鍵盤</h3>
-        <p>打 <code>::</code> 開符號面板，<kbd>Tab</kbd> 換到希臘字母、數學、箭頭、單位、顏文字；
-          打 <code>;;</code> 加關鍵字叫出自己存的罐頭訊息，選中時先預覽全文再打出去。</p>
+        <p><b>連打兩個冒號 <code>::</code></b>（<kbd>Shift</kbd>+<kbd>;</kbd> 兩下）就開符號面板，
+          <kbd>Tab</kbd> 換到括號、希臘字母、數學、箭頭、單位、顏文字。
+          <b>連打兩個分號 <code>;;</code></b> 叫出自己存的罐頭訊息，可以接關鍵字（<code>;;addr</code>），
+          選中時先預覽全文再打出去。兩個都不用記熱鍵，也不會在英文詞中間誤觸——
+          C++ 的 <code>std::vector</code> 照常打得出來。</p>
       </div>
       <figure>
         <img src="images/palette.png" alt="符號面板的格子排列，分類籤在上方">
