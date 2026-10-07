@@ -1,184 +1,116 @@
-# 順打輸入法 Shunda IME
+<div align="center">
 
-**免切換、一路順著打的中英混打注音輸入法（Windows 10/11）。**
-*A Zhuyin (Bopomofo) + English input method for Windows: type Chinese and English in one go, no mode switching.*
+# 順打輸入法
 
-注音和英文直接混著打，不用切換：字母先出現、旁邊顯示注音提示、按聲調鍵轉成中文、Tab 接續。
-底層是「整句重新解碼」的 lattice 解碼器，從根本解決注音順序打反、快打多按雜鍵、中英誤判等問題；
-會記住你的用詞，學錯了也能刪。另有本機語音輸入（按住右 Ctrl 說話），聲音不會上傳。
+**中文和英文順著打下去就好，不用切換。**
+Windows 10 / 11 的注音＋英文混打輸入法
 
-> 狀態：**0.6.0**。已完成：混打解碼與容錯、三種輸入模式、我的詞庫與學習記憶、Vim 式修正模式、
-> 符號面板、設定頁、大千／倚天鍵盤、單一安裝檔、本機語音輸入、拼音與倉頡五代、片語與顏文字。
->
-> 打字手感參考華碩智慧輸入法；本專案是獨立開發的開源專案，與華碩無關。
+[**下載安裝檔**](https://github.com/ChouYangEn0401/shunda-ime/releases/latest) ·
+[專案首頁](https://chouyangen0401.github.io/shunda-ime/) ·
+[按鍵表](docs/keys.md) ·
+[安裝說明](docs/install.md) ·
+[給工程師](CONTRIBUTING.md)
 
-## 安裝（Windows 10/11）
+</div>
 
-1. 到 [Releases](https://github.com/ChouYangEn0401/shunda-ime/releases) 下載 `ShundaIME-Setup-<版本>.exe`，按兩下執行（會跳出系統管理員權限確認）。
-   安裝檔還沒有數位簽章，Windows 可能顯示「Windows 已保護您的電腦」：按「其他資訊」→「仍要執行」。
-2. 安裝程式會註冊輸入法、加到你的語言清單，最後自動打字測試一次。不需要網路，也不用另外裝 Python 或 PIME：
-   順打是建在 [PIME](https://github.com/EasyIME/PIME) 輸入法框架上，安裝檔只帶 PIME 的核心（不會多出新酷音等其他輸入法）。
-   如果電腦上已經裝了 PIME 官方版，會和它共用；安裝時可以勾選「移除 PIME 官方版附帶的其他輸入法」，只留下順打。
-3. 按 `Win + Space` 切換到「順打輸入法」。
+---
 
-- 設定：開始功能表「順打輸入法 設定」，或系統匣輸入法圖示按右鍵 →「設定…」。
-- 移除：Windows 設定 → 應用程式 → 順打輸入法（PIME 核心是順打裝的就一起移除；PIME 官方版與它的輸入法會保留）。
-- 個人資料（設定、我的詞庫、學習記憶）在 `%APPDATA%\SmartIME`，安裝／移除都不會動到；
-  換電腦用設定頁「資料與隱私」匯出成一個 `.smartime` 檔，在新電腦匯入（合併，不會覆蓋）。
+注音和英文混在同一句裡直接打。字母先出現、旁邊提示注音，按聲調鍵才變成中文。
+每按一鍵都把整段重新解碼一次，所以**注音打反、快打多按的雜鍵、中英誤判**，
+是在同一個判斷裡一起處理掉的，而不是事後補救。
 
-## 怎麼打
+```
+按鍵   ji3    e      e/4    dj94    k27      python
+注音   ㄨㄛˇ  略過    ㄍㄥˋ  ㄎㄨㄞˋ  ㄉㄜ˙↺   英文
+國字   我             更     快      的       python
+            ↑ 多按的鍵被略過        ↑ 順序打反，讀成 ㄉㄜ˙
+```
 
-| 動作 | 按鍵 |
-|------|------|
-| 打中文 | 直接用注音打（大千或倚天），按聲調鍵轉成中文 |
-| 打英文 | 直接打，不用切換；未完成的注音會以原字母顯示，旁邊提示注音 |
-| 選字 | `↓` 或 `↑` 叫出候選；`1–9`（上排或右邊數字鍵盤）直接選，`↑↓` 移動、`Enter` 確認、`←→` 翻頁、`Esc` 取消。候選依序分組：**我的詞庫 → 學過 → 詞庫 → 其他讀法 → 原始按鍵**（綠色＝自己的詞），`Tab` 只看某一組；設定「多欄」後 `→` 打開下一欄、在第一欄按 `←` 收回 |
-| 換成別種解讀 | 候選窗跨類別：英文 `mvp` 可換成「勳」、`i␣`（喔）可換回英文 `i`、任何中文都可換回「原始按鍵」 |
-| 修改前面的字 | `←` `→` 把游標移到字前面，提示框用［ ］標出正在改的字（「今天［針］對　ㄓㄣ ⌨ 5p」），再按 `↑`/`↓` 換字；或用下面的修正模式 |
-| 接續詞 | 旁邊出現「xx ⇥Tab」時按 `Tab`；`Shift+Tab` 列出全部接續詞 |
-| 符號面板 | 單按一下右 `Ctrl`（按住則是語音；設定頁可改成右 `Alt`）：常用標點、括號、希臘字母、數學、箭頭、單位……；格子排列，方向鍵移動、`1–9` 選這一列、`Tab` 換分類 |
-| 片語（罐頭訊息） | 打 `;;`（可接關鍵字，例如 `;;addr`）叫出自己存的片語，選中時面板先預覽全文，`Enter` 打出；也在符號面板的「片語」分頁。片語在設定頁「片語與顏文字」管理 |
-| 顏文字 | 符號面板的「顏文字」分頁（`Shift+Tab` 一下就到）：依心情分組，最近用過的排前面 |
-| 加到我的詞庫 | `Ctrl+D`：把游標前的中文（例如剛打好的朋友名字）加進我的詞庫；候選窗中按則加入目前這個候選 |
-| 刪掉學錯的詞 | 候選窗停在那個詞上按 `Delete` |
-| 送出 | `Enter`，或打句讀標點（，。？！：；）時自動送出 |
-| 刪除 | `Backspace` 刪掉游標前「看得到的一個字」（未完成的注音則刪一鍵），連同緊貼著它、被略過的雜鍵；其他字不會跟著改變 |
-| 復原 | 組字中 `Ctrl+Z` 復原上一步（打字以一個字／詞為一步）、`Ctrl+Y` 重做；沒在組字時照常交給程式 |
-| 貼上、其他快捷鍵 | 組字中按 `Ctrl+V`、`Ctrl+S`、`Ctrl+Enter`、F 鍵等輸入法不處理的鍵，或點了滑鼠：先把組字送出，再交給程式 |
-| 切換模式 | 單按右 `Shift`：自動 → 純中文 → 純英文 輪流；系統匣圖示按右鍵直接選模式 |
+這張表不只是說明圖——組字中按 <kbd>Esc</kbd> 就會出現，而且可以直接在上面改字。
 
-### 修正模式（Vim 式）
+<p align="center">
+  <img src="docs/images/correction.png" width="640" alt="修正模式的解碼面板：琥珀色外框，三列對齊顯示按鍵、注音、國字">
+</p>
 
-組字中按 `Esc` 進入，字不會送出，按鍵變成指令。旁邊會出現**琥珀色外框的解碼面板**，
-三列對齊顯示「按鍵 → 注音 → 國字」：被當雜鍵略過的鍵以紅色刪除線標出、順序打反而被
-修正的音節以琥珀色 ↺ 標出、自己選過的字有藍色底線、我的詞庫／學過的字有綠點。
-只有明確的指令才會離開修正模式（`i`／`Esc`／`Enter`／`D D`），其他鍵不會不小心打出字。
+---
 
-| 鍵 | 作用 | 鍵 | 作用 |
-|----|------|----|------|
-| `h` `l` | 左右移動 | `j` `k` | 換成下一個／上一個候選 |
-| `v` | 游標走：國字 → 注音 → 按鍵 | `x` | 刪除（按鍵檢視中刪一鍵，可清掉雜鍵） |
-| `e` | 這個字在中文／英文／原始按鍵之間切換 | `r` | 重打這個字（打完自動回到修正模式） |
-| `a` | 加到我的詞庫 | `u` | 復原（和 `Ctrl+Z` 同一份紀錄） |
-| `i` 或 `Esc` | 回到打字（字都還在） | `Enter` | 送出 |
-| `D` `D` | 清除整段（按兩次才算，不會送出） | | |
+## 往哪裡走
 
-面板也可以設定成打字時一直顯示（設定 `panel_decode`："always"）。
+| 你是 | 從這裡開始 |
+|------|-----------|
+| 想知道這是什麼 | [**專案首頁**](https://chouyangen0401.github.io/shunda-ime/) — 五個畫面看完整個輸入法在做什麼 |
+| 想裝來用 | [**安裝說明**](docs/install.md) — 一個安裝檔，不用先裝 Python 或 PIME |
+| 已經在用 | [**按鍵表**](docs/keys.md) — 打字、選字、修正模式、標點四種按法 |
+| 想改它 | [**CONTRIBUTING.md**](CONTRIBUTING.md) — 環境、測試、重現 bug、出版本 |
+| 想懂它怎麼想 | [**docs/architecture.md**](docs/architecture.md) — 解碼器、session、PIME 協定，和每個決定的理由 |
+| 想散佈它 | [**docs/licenses.md**](docs/licenses.md) · [NOTICE](NOTICE) — 詞庫、元件各自的授權 |
 
-### 標點
+---
 
-每個符號鍵有四種按法，**同一個鍵的四種按法不會打出一樣的字**（預設「鍵帽上的符號」風格）：
+## 它會做什麼
 
-| 按法 | 打出 | 例子 |
-|------|------|------|
-| 單按、`Shift` | 鍵帽上印的符號（半形） | `Shift+,` → `<`、`Shift+/` → `?`、`[` → `[` |
-| `Ctrl` | 中文標點 | `Ctrl+,` ，`Ctrl+.` 。`Ctrl+;` ；`Ctrl+'` 、`Ctrl+/` …`Ctrl+-` —`Ctrl+[` `]` 「」 |
-| `Ctrl+Shift` | 上排符號的全形 | `Ctrl+Shift+/` ？`Ctrl+Shift+1` ！`Ctrl+Shift+;` ：`Ctrl+Shift+,` `.` 《》`Ctrl+Shift+9` `0` （）`Ctrl+Shift+[` `]` 『』 |
+**打字**　不用切換中英．注音順序打反也認得（`k27` → 的）．快打多按的鍵會被略過，
+而且救得回來．空白就是你的分隔記號（`第 i 項`）．注音、拼音、倉頡五代，共用一份詞庫
 
-- 設定頁「標點與符號」有完整的對照表（每個鍵 × 四種按法），`Ctrl`、`Ctrl+Shift` 每一格都可以改，
-  清空就把那個組合還給程式；也可以改回「微軟相容」（`Shift+,` 也打 ，）或逐鍵自訂全形／半形。
-- `Ctrl` 組合只在中英自動與純中文模式有效；純英文模式時照常交給程式（例如 VS Code 的 `Ctrl+,`）。
-  `Ctrl+\`、`Ctrl+Shift+`` ` 刻意不用（VS Code 的分割編輯器、新終端機）。
-- 打錯寬度時，游標停在標點後按 `↓`：全形、半形與相關符號都在候選裡。
+**選字**　候選依來源分組上色：我的詞庫 → 學過 → 詞庫 → 其他讀法 → 原始按鍵．
+<kbd>←</kbd><kbd>→</kbd> 在分類之間走．英文和中文在同一個清單裡換．
+<kbd>Tab</kbd> 接續詞
 
-### 模式
+**改字**　<kbd>Esc</kbd> 進修正模式，鍵盤變成 Vim 式指令．
+三種檢視（國字／注音／按鍵）．<kbd>R</kbd> 重新判定一段．
+只有明確的指令會離開，不會不小心打出字
 
-| 模式 | 圖示 | 說明 |
-|------|------|------|
-| 中英自動（預設） | 自 | 不用切換，依整句判斷每段是中文還是英文；中文用設定頁選的注音、拼音或倉頡 |
-| 純注音 | 中 | 每個鍵都是注音（傳統注音輸入法的行為）；數字請用數字鍵盤 |
-| 純英文 | 英 | 按鍵直接交給應用程式 |
-| 純拼音 | 拼 | 漢語拼音（預設不在 Shift 輪流裡，設定頁勾選） |
-| 純倉頡 | 倉 | 倉頡五代（預設不在 Shift 輪流裡，設定頁勾選） |
+**記憶**　只從你明確的選擇學習．改錯字時連同前後文記成「詞」．
+學錯了選字框按 <kbd>Delete</kbd> 就忘掉．資料只存在這台電腦，可以匯出合併到別台
 
-右 `Shift` 預設在 自動 → 純注音 → 純英文 之間輪流，輪流哪些模式可以在設定頁勾選；也可以改成「兩段」（英文 ⇄ 上次用的中文模式）。
-系統匣圖示按右鍵可以直接選任何模式。
+**還有**　符號面板（打 `::`）．片語罐頭訊息（打 `;;addr`）．顏文字．
+每個符號鍵四種按法、每一格都能改．按住右 <kbd>Ctrl</kbd> 的本機語音輸入
 
-### 拼音與倉頡
+完整清單見[按鍵表](docs/keys.md)。
 
-中英自動一次混用一種中文（同一個字母在注音、拼音、倉頡意思不同）；在設定頁「中英自動混用的中文」選。三種打法共用同一份詞庫與學習記憶。
+---
 
-- **拼音**：連著打，不用打聲調（`women` → 我們、`jintiantianqihenhao` → 今天天氣很好）；要指定聲調時在音節後打 `1`–`5`（`ma3` → 馬，5 是輕聲）；
-  ü 打 `v`（`lv` → 綠）；`'` 分開音節（`xi'an`）；空白結束一個詞。中英自動時可以直接混打：`women de deadline shi mingtian` → 我們的 deadline 是明天
-- **倉頡五代**：打碼後按空白出字（`hqi` ␣ → 我），連打的字會用詞頻挑重碼字（`hqi` ␣ `oan` ␣ → 我們）；還沒按空白時，提示框顯示字根與會出的字（竹手戈 → 我）。
-  碼表來自「倉頡五代補完計劃」（MIT），重碼依台灣常用字排序
+## 狀態
 
-### 打字容錯
+**0.6.0**。已完成：混打解碼與容錯、三種輸入模式、我的詞庫與學習記憶、
+Vim 式修正模式、符號與片語面板、設定頁、大千／倚天鍵盤、單一安裝檔、
+本機語音輸入、拼音與倉頡五代。
 
-- 同一個字的注音按鍵順序打反也能辨識（`k27` → 的、`8a3` → 碼），提示會顯示「將變成的」標準順序
-- 快打時多按、或修正時殘留的單一字母會被略過（`我e更快` → 我更快），提示框會說「略過 e」；被略過的鍵可從候選窗的「原始按鍵」找回
-- `i␣`、`o␣` 依前後文判斷：`i am a good guy` 維持英文，`你想我喔`、`喔！好酷！` 變成中文
-- 中文後面先打空白再打字母，會當成英文：`第 i 項`、`用 x 表示`（空白就是你的分隔記號）
+打字手感參考華碩智慧輸入法；本專案是獨立開發的開源專案，與華碩無關。
 
-### 我的詞庫與學習
+---
 
-- 只從你**明確的選擇**學習（候選窗選字、Tab 接受、修正模式最後停下的字），不會從自動送出的文字亂學
-- **修正會記成詞**：在句子裡只換掉一個字（打鬥號 → 打逗號），記住的是連同前後文的詞「逗號」，
-  不是單獨的「逗」（單字到處加分反而會造成新錯字）；下次同樣的句子就會對
-- 第一次記住某個詞時，提示框會說「記住了「…」」；選字框裡學過的詞標「學過」，自己加的詞標分類
-- 設定頁「我的詞庫」分兩區：**自動收集**（輸入法學到、還沒整理的，標出怎麼來的：選字／修正／接續）
-  和**我的詞庫**（有分類、自己維護的）；自動收集的詞給它一個分類就移過去。可依最近使用或用過次數排序
-- 學錯的詞：按 `↓` 打開選字框、移到那個詞上按 `Delete`；或在設定頁「我的詞庫」刪除、封鎖
-- 檔案隨「不同的詞」成長（同一個詞只加次數）；只用過一次、超過 4 個月沒再用的學習紀錄會自動清掉
-- 資料只存在這台電腦（`%APPDATA%\SmartIME\user.db`），可以從設定頁匯出帶到別台電腦
+## 隱私
 
-### 語音輸入（按住右 Ctrl 說話）
+- 打字、選字、學習**全部在這台電腦上**，不連網
+- 語音輸入在本機辨識，**聲音不會上傳**；只有按住右 <kbd>Ctrl</kbd> 時麥克風才開啟
+- 唯一的對外連線是設定頁的「檢查更新」：一個對 GitHub 公開 API 的 HTTPS 查詢，
+  不帶帳號、不帶任何可以認出你的識別碼。**在設定頁可以關掉**
+- 個人資料在 `%APPDATA%\SmartIME`，安裝和移除都不會動到
 
-1. 設定頁 →「語音輸入」：第一次先按「安裝語音元件」（不需要系統管理員權限；下載約 110 MB，有 NVIDIA 顯示卡再加約 1.3 GB 的 CUDA 元件）
-2. 下載模型：有 NVIDIA 顯示卡選 **Breeze-ASR-25**（3.1 GB，台灣華語與中英夾雜最準），沒有就選 **SenseVoice**（170 MB，CPU 也很快）
-3. 打開「使用語音輸入」，在任何程式按住右 `Ctrl` 說話、放開，文字就打在游標位置
-
-- 需要麥克風（藍牙耳機要先連上，Windows 才會有輸入裝置）；找不到時提示框會說明
-- 全部在這台電腦上辨識，聲音不會上傳；只有按住右 `Ctrl` 時麥克風才會開啟
-- 右 `Ctrl` 和其他鍵一起按（例如 `右Ctrl+C`）是一般快捷鍵，不會錄音
-- 我的詞庫裡自己加的詞（朋友名字、專案術語）會提示辨識器，英文詞照你的拼法輸出
-- 速度參考：RTX 4070 + Breeze-ASR-25，8.5 秒的話約 0.5 秒辨識完；i9-14900K + SenseVoice 約 0.15 秒
+---
 
 ## 開發
 
-需要 [python.org 的 Python 3.13](https://www.python.org/downloads/windows/)（裝給自己就好，不用勾 PATH）。
-套件版本全部固定在 `requirements.txt`（開發、測試、建置）與 `requirements-voice.txt`（語音輸入，選用，很大）。
-
 ```powershell
-py -3.13 -m venv .venv                                   # 建立本機環境（第一次）
-.venv\Scripts\python -m pip install -r requirements.txt  # 要開發語音輸入改裝 requirements-voice.txt
-.venv\Scripts\python tools\build_data.py                 # 建詞庫 -> data\generated\smartime.db
-.venv\Scripts\python -m pytest                           # 測試
-.venv\Scripts\python -m smartime.devtools.simulate --steps "ji3ap7{DOWN}"   # 不安裝也能模擬打字
-.venv\Scripts\python tools\build_installer.py            # 產生 dist\ShundaIME-Setup-<版本>.exe（需要 Inno Setup 6）
-.venv\Scripts\python tools\set_version.py [0.4.0]        # 看／改版本號（一次改好所有地方）
-.venv\Scripts\python -m smartime.settings                # 開設定頁（本機網頁）
-powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -Dev            # 開發模式安裝（PIME 直接連到這個 repo）
-powershell -ExecutionPolicy Bypass -File scripts\dev-reload.ps1 [-Rebuild]   # 讓開發模式的輸入法載入新程式／新詞庫
+py -3.13 -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python tools\build_data.py       # 建詞庫
+.venv\Scripts\python -m pytest
+.venv\Scripts\python -m smartime.devtools.simulate "ji3ap7{DOWN}"   # 不安裝也能試打字
 ```
 
-- 架構與交接說明：[docs/architecture.md](docs/architecture.md)
-- 第三方資料與元件授權：[docs/licenses.md](docs/licenses.md)
-- 版本紀錄：[CHANGELOG.md](CHANGELOG.md)
+細節見 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-## 專案結構
+---
 
-```
-src/smartime/engine/    輸入引擎（純標準函式庫）：注音、鍵盤配置、詞庫、使用者詞庫、解碼器、session、修正模式、符號
-src/smartime/pime/      PIME 後端協定（stdin/stdout JSON）與 text service 轉接
-src/smartime/settings/  設定頁：本機 HTTP 伺服器 + 網頁介面（Edge／Chrome App 視窗）
-src/smartime/ui/        輸入法自己畫的面板（解碼面板、分組候選窗、片語預覽）：GDI，貼在 PIME 的提示框下
-src/smartime/voice/     語音輸入：按住右 Ctrl 錄音、本機辨識、打到游標位置（獨立行程）
-src/smartime/devtools/  模擬器與實機測試（EDIT、RichEdit、Edge 打字；語音輸入）
-backend/                PIME 看到的後端資料夾（server.py、settings.py、ime.json、圖示）
-installer/              Inno Setup 安裝檔腳本與安裝時用的輔助程式
-tools/                  建置工具（詞庫、圖示、安裝檔）
-scripts/                開發用安裝 / 移除 / 重新載入腳本
-data/lexicon/           我們自己維護的詞表（例：中英夾雜常用英文詞）
-tests/                  pytest
-docs/                   調查、架構、授權、設計稿
-```
+<div align="center">
 
-內部代號是 `smartime`（Python 套件、PIME 後端資料夾、`%APPDATA%\SmartIME`），改名時刻意不動，舊版的設定與記憶都能沿用。
+開發者 [ChouYangEn0401](https://github.com/ChouYangEn0401)　·　
+問題與建議到 [Issues](https://github.com/ChouYangEn0401/shunda-ime/issues)　·　
+程式碼 [Apache License 2.0](LICENSE)
 
-## 開發者與授權
+詞庫來自 McBopomofo（MIT）．英文詞頻衍生自 wordfreq（CC BY-SA 4.0）．
+建在 [PIME](https://github.com/EasyIME/PIME)（LGPL 2.1）上
 
-開發者：[ChouYangEn0401](https://github.com/ChouYangEn0401)（個人開源專案）。問題與建議請到 [Issues](https://github.com/ChouYangEn0401/shunda-ime/issues)。
-
-程式碼採 [Apache License 2.0](LICENSE)，Copyright 2026 ChouYangEn0401。
-詞庫來自 McBopomofo（MIT）；英文詞頻表衍生自 wordfreq，以 CC BY-SA 4.0 授權。完整清單見 [NOTICE](NOTICE) 與 [docs/licenses.md](docs/licenses.md)。
+</div>
