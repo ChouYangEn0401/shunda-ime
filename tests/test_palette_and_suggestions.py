@@ -1,6 +1,7 @@
 """Symbol panel (a lone right-Ctrl tap) and continuation suggestions (Tab, Shift+Tab)."""
 
 from smartime.devtools.simulate import run
+from smartime.engine.session import Session
 from smartime.engine.symbols import CATEGORIES, SymbolPanel
 
 
@@ -77,7 +78,8 @@ def test_recent_symbols_come_first(tmp_path):
 def test_several_suggestions_and_shift_tab_list(session):
     _, v = run(session, "ao6u.3")
     assert v.composition == "沒有"
-    assert len(v.suggestions) == 3 and v.suggestions[0] == v.suggestion
+    assert len(v.suggestions) == session.cfg.suggestion_count == 5
+    assert v.suggestions[0] == v.suggestion
     _, v = run(session, "{S-TAB}")
     assert v.candidates[:3] == ["用", "的", "錢"]
     assert v.candidate_notes[0] == "沒有用"
@@ -103,3 +105,22 @@ def test_only_a_lone_right_alt_tap_opens_the_palette(session):
     session.filter_key_down(KeyInput(vk=VK_TAB, alt=True))
     assert not session.filter_key_up(KeyInput(vk=VK_MENU, extended=True))
     assert session.cand is None
+
+
+def test_the_strip_numbers_the_other_suggestions_the_way_the_list_does(session):
+    """Reported: 「tab 可以 apply 第一個建議，但我不知道如何 apply 更後面的內容」.
+
+    Tab takes the first one. The rest were shown as plain words with no way
+    to reach them; now they carry the number they have in the ⇧⇥ list, and
+    the strip names that key.
+    """
+    _, v = run(session, "ji3rup wu0 ")
+    panel = v.hint_panel
+    assert panel is not None and panel.suggestion and panel.others
+
+    # the numbers the strip shows (2, 3, 4 …) pick those same words
+    for i, wanted in enumerate(panel.others, start=2):
+        s = Session(session.engine)
+        run(s, "ji3rup wu0 {S-TAB}")
+        _, v2 = run(s, str(i))
+        assert v2.composition.endswith(wanted), f"{i} should take 「{wanted}」"

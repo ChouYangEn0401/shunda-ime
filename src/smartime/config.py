@@ -136,7 +136,7 @@ class Config:
     spelling_hint: bool = True  # show zhuyin of the unfinished syllable
     key_hint_on_move: bool = True  # cursor moved back: show 字 注音 ⌨ 按鍵
     autocomplete: bool = True  # Tab to accept a phrase continuation
-    suggestion_count: int = 3  # continuations shown next to the composition
+    suggestion_count: int = 5  # continuations shown next to the composition
     # Experimental (off by default): 超智慧推薦 — a second panel with longer
     # chains of what may come next and homophones of the word just typed.
     smart_suggest: bool = False

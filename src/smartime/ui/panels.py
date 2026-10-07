@@ -640,15 +640,23 @@ HINT_MIN_W = 56  # never smaller than PIME's anchor stub, which this covers
 GAP_HINT = 16  # between the zones of the strip
 
 
+def _hint_others(p: HintPanel) -> str:
+    """The suggestions after the first, numbered the way the ⇧⇥ list numbers
+    them — so "the second one" has a name and a key, instead of being a word
+    you can see and cannot take (reported: 「tab 可以 apply 第一個建議，但我不
+    知道如何 apply 更後面的內容」)."""
+    return "  ".join(f"{i} {text}" for i, text in enumerate(p.others, start=2))
+
+
 def _hint_suggest_width(c: Canvas, s: Styles, p: HintPanel, k: float) -> float:
     if not p.suggestion:
         return 0.0
     w = measure_mixed(c, p.suggestion + " ⇥", s.reading, s.symbol) + 14 * k
-    rest = " · ".join(p.others)
+    rest = _hint_others(p)
     if rest:
         w += c.measure(rest, s.small)[0] + 10 * k
-    if p.more:
-        w += measure_mixed(c, "⇧⇥", s.small, s.symbol) + 10 * k
+    if p.others:
+        w += measure_mixed(c, "⇧⇥ 更多", s.small, s.symbol) + 10 * k
     return w
 
 
@@ -712,12 +720,12 @@ def paint_hint(c: Canvas, t: Theme, p: HintPanel, size: float = 1.0, draw: bool 
             draw_mixed(c, x + 7 * k, y + 1 * k, p.suggestion + " ⇥", s.reading, s.symbol,
                        t.fg, symbol_color=t.accent)
             x += chip_w + 10 * k
-            rest = " · ".join(p.others)
+            rest = _hint_others(p)
             if rest:
                 c.text(x, y + 4 * k, rest, s.small, t.muted)
                 x += c.measure(rest, s.small)[0] + 10 * k
-            if p.more:
-                draw_mixed(c, x, y + 4 * k, "⇧⇥", s.small, s.symbol, t.faint)
+            if p.others:
+                draw_mixed(c, x, y + 4 * k, "⇧⇥ 更多", s.small, s.symbol, t.faint)
         y += HINT_ROW * k
     if p.notice:
         draw_mixed(c, HINT_PAD_X * k, y + 3 * k, p.notice, s.small, s.symbol, t.muted)
