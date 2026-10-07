@@ -1,0 +1,427 @@
+<title>順打輸入法</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+/* Layout: one column of scenes on a faint key-grid ground; the product's own
+   colour code (藍=游標 綠=我的詞 琥珀=輸入法改過 紅=略過) is the page palette. */
+:root {
+  --paper:      #FBFCFE;
+  --surface:    #FFFFFF;
+  --sunk:       #F2F5FA;
+  --line:       #DEE4EE;
+  --ink:        #141A24;
+  --muted:      #5A6578;
+  --faint:      #8B94A6;
+  --accent:     #2255D6;   /* 游標、選中 */
+  --accent-soft:#DEE8FD;
+  --memory:     #15803D;   /* 我的詞庫 */
+  --fix:        #A1570A;   /* 輸入法替你改的 */
+  --drop:       #B42318;   /* 被略過的鍵 */
+  --shadow:     0 1px 2px rgba(20,26,36,.05), 0 8px 24px -12px rgba(20,26,36,.18);
+  --display: "Noto Serif TC", "Source Han Serif TC", serif;
+  --body: "Noto Sans TC", "Microsoft JhengHei UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", Consolas, ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0E1218; --surface: #161C25; --sunk: #1B222D; --line: #2B3440;
+    --ink: #E8ECF3; --muted: #9BA6B8; --faint: #6D7889;
+    --accent: #7AA6FF; --accent-soft: #1C2B49;
+    --memory: #57D98A; --fix: #E6A94E; --drop: #FF9484;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 32px -14px rgba(0,0,0,.7);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0E1218; --surface: #161C25; --sunk: #1B222D; --line: #2B3440;
+  --ink: #E8ECF3; --muted: #9BA6B8; --faint: #6D7889;
+  --accent: #7AA6FF; --accent-soft: #1C2B49;
+  --memory: #57D98A; --fix: #E6A94E; --drop: #FF9484;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 32px -14px rgba(0,0,0,.7);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.75;
+  margin: 0;
+  padding-inline: 20px;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 980px; margin-inline: auto; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.3; margin: 0; }
+p { margin: 0; }
+a { color: var(--accent); }
+section { padding-block: 72px; border-top: 1px solid var(--line); }
+section:first-of-type { border-top: 0; }
+.eyebrow {
+  font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--faint); font-weight: 700; margin-bottom: 14px;
+}
+.stack { display: flex; flex-direction: column; gap: 18px; }
+.lede { font-size: 18px; color: var(--muted); max-width: 62ch; }
+
+/* ---------------------------------------------------------------- hero */
+.hero { padding-block: 64px 56px; }
+.wordmark { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.wordmark h1 { font-size: clamp(38px, 7vw, 58px); font-weight: 700; letter-spacing: .01em; }
+.wordmark .latin {
+  font-family: var(--mono); font-size: 14px; color: var(--faint);
+  letter-spacing: .14em; text-transform: uppercase;
+}
+.thesis { font-family: var(--display); font-size: clamp(20px, 3.4vw, 27px); font-weight: 500; max-width: 24ch; margin-top: 22px; }
+.thesis em { font-style: normal; color: var(--accent); }
+
+/* the signature of the product: keys -> zhuyin -> characters */
+.decode {
+  margin-top: 36px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: var(--shadow); padding: 18px 20px 16px;
+  overflow-x: auto;
+}
+.decode table { border-collapse: collapse; }
+.decode th {
+  font-family: var(--body); font-size: 11px; font-weight: 500; color: var(--faint);
+  text-align: left; padding-right: 18px; white-space: nowrap; vertical-align: middle;
+}
+.decode td { padding: 1px 9px; text-align: center; vertical-align: middle; }
+.r-keys td { font-family: var(--mono); font-size: 14px; color: var(--ink); }
+.r-read td { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.r-text td { font-size: 27px; line-height: 1.35; }
+.drop { color: var(--drop); }
+.r-keys .drop { background: color-mix(in srgb, var(--drop) 12%, transparent); border-radius: 4px; text-decoration: line-through; }
+.r-read .fix { color: var(--fix); }
+.caret { display: inline-block; width: 2px; height: 1.1em; background: var(--accent); vertical-align: -.15em; animation: blink 1.1s step-end infinite; }
+@keyframes blink { 50% { opacity: 0 } }
+@media (prefers-reduced-motion: reduce) { .caret { animation: none } }
+.decode figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+.cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 30px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+  font-weight: 500; font-size: 15px; padding: 11px 20px; border-radius: 8px;
+  border: 1px solid var(--line); color: var(--ink); background: var(--surface);
+  transition: border-color .15s, transform .15s;
+}
+.btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+:root[data-theme="dark"] .btn.primary, :root:not([data-theme="light"]) .btn.primary { color: #0B1220; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .btn.primary { color: #fff } }
+.cta small { color: var(--faint); font-size: 13px; }
+
+/* ---------------------------------------------------------------- doors */
+.doors { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-top: 36px; }
+.door {
+  display: block; text-decoration: none; color: inherit; background: var(--sunk);
+  border: 1px solid var(--line); border-radius: 10px; padding: 18px 18px 16px;
+  transition: border-color .15s, background .15s;
+}
+.door:hover { border-color: var(--accent); background: var(--surface); }
+.door b { display: block; font-family: var(--display); font-size: 17px; font-weight: 700; }
+.door span { display: block; font-size: 13.5px; color: var(--muted); line-height: 1.6; margin-top: 4px; }
+.door i { font-style: normal; color: var(--accent); font-size: 13px; font-weight: 500; }
+
+/* ---------------------------------------------------------------- scenes */
+.scene { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 36px; align-items: center; }
+.scene + .scene { margin-top: 56px; }
+.scene h3 { font-size: 21px; }
+.scene p { color: var(--muted); font-size: 15px; margin-top: 8px; }
+.scene figure { margin: 0; }
+.scene img { display: block; width: 100%; max-width: 100%; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); }
+.scene figcaption { font-size: 12.5px; color: var(--faint); margin-top: 8px; }
+@media (max-width: 760px) { .scene { grid-template-columns: 1fr; gap: 18px } .scene + .scene { margin-top: 44px } }
+
+/* ---------------------------------------------------------------- bits */
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13.5px; color: var(--muted); margin-top: 20px; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 2px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 28px; }
+.cell { background: var(--surface); padding: 18px 20px; }
+.cell b { font-size: 15px; display: block; }
+.cell span { display: block; font-size: 13.5px; color: var(--muted); line-height: 1.65; margin-top: 2px; }
+kbd {
+  font-family: var(--mono); font-size: 12.5px; background: var(--sunk); color: var(--ink);
+  border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px;
+}
+ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 28px 0 0; display: flex; flex-direction: column; gap: 18px; }
+ol.steps li { counter-increment: s; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 14px; }
+ol.steps li::before {
+  content: counter(s); font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--accent);
+  background: var(--accent-soft); border-radius: 6px; height: 28px; display: grid; place-items: center;
+}
+ol.steps b { font-weight: 500; }
+ol.steps span { display: block; color: var(--muted); font-size: 14.5px; }
+table.map { width: 100%; border-collapse: collapse; margin-top: 24px; font-size: 14.5px; }
+table.map th, table.map td { text-align: left; padding: 11px 14px 11px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.map th { font-family: var(--body); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
+table.map td:first-child { white-space: nowrap; font-weight: 500; }
+table.map td:last-child { color: var(--muted); }
+.scroll-x { overflow-x: auto; }
+code { font-family: var(--mono); font-size: .92em; background: var(--sunk); padding: 1px 5px; border-radius: 4px; }
+footer { border-top: 1px solid var(--line); padding-block: 36px 56px; color: var(--faint); font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+footer a { color: var(--muted); }
+.note { font-size: 13.5px; color: var(--faint); margin-top: 18px; }
+</style>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="wordmark">
+    <h1>順打輸入法</h1>
+    <span class="latin">Shunda IME · Windows 10 / 11</span>
+  </div>
+  <p class="thesis">中文和英文<em>順著打下去</em>就好，不用切換。</p>
+  <p class="lede" style="margin-top:18px">
+    注音和英文混在同一句裡直接打。字母先出現、旁邊提示注音，按聲調鍵才變成中文。
+    打反的注音、快打時多按的鍵、中英誤判，整句重新解碼時一起處理掉。
+  </p>
+
+  <figure class="decode">
+    <table>
+      <tr class="r-keys"><th>按鍵</th><td>ji3</td><td class="drop">e</td><td>e/4</td><td>dj94</td><td>k27</td><td>python</td></tr>
+      <tr class="r-read"><th>注音</th><td>ㄨㄛˇ</td><td class="drop">略過</td><td>ㄍㄥˋ</td><td>ㄎㄨㄞˋ</td><td class="fix">ㄉㄜ˙ ↺</td><td>英文</td></tr>
+      <tr class="r-text"><th>國字</th><td>我</td><td></td><td>更</td><td>快</td><td>的</td><td style="font-family:var(--mono);font-size:21px">python<span class="caret"></span></td></tr>
+    </table>
+    <figcaption>
+      一句話裡發生的事：<span style="color:var(--drop)">多按的 e 被略過</span>、
+      <span style="color:var(--fix)">順序打反的 k27 讀成 ㄉㄜ˙</span>、
+      python 自己留在英文。這張表在修正模式裡隨時叫得出來。
+    </figcaption>
+  </figure>
+
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/ChouYangEn0401/shunda-ime/releases/latest">下載安裝檔</a>
+    <a class="btn" href="https://github.com/ChouYangEn0401/shunda-ime">GitHub 原始碼</a>
+    <small>免費、開源（Apache-2.0）· 不需要網路 · 不上傳任何東西</small>
+  </div>
+
+  <div class="doors">
+    <a class="door" href="#how">
+      <b>先看它怎麼用</b>
+      <span>五個畫面看完整個輸入法在做什麼。</span>
+      <i>往下看 ↓</i>
+    </a>
+    <a class="door" href="#install">
+      <b>我想裝來用</b>
+      <span>一個安裝檔，三個步驟，資料全留在這台電腦。</span>
+      <i>安裝與設定 ↓</i>
+    </a>
+    <a class="door" href="#inside">
+      <b>我想看裡面</b>
+      <span>解碼器怎麼想、程式怎麼分、從哪裡開始改。</span>
+      <i>給工程師 ↓</i>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================ why -->
+<section id="why">
+  <p class="eyebrow">為什麼要再做一個注音輸入法</p>
+  <h2 style="font-size:clamp(24px,4vw,32px);max-width:20ch">中英混打的麻煩，幾乎都是「切換」造成的。</h2>
+  <p class="lede" style="margin-top:16px">
+    打到一半要插一個英文詞，傳統做法是切成英文、打完再切回來。忘記切、切錯、切太慢，
+    就得回頭刪掉重打。順打不切換：每個鍵都先當字母顯示，按下聲調鍵才結算成中文，
+    整句話重新解碼一次決定哪一段是中文、哪一段是英文。
+  </p>
+
+  <div class="grid">
+    <div class="cell"><b>打反了也認得</b><span>同一個字的注音鍵順序顛倒照樣出字（<code>k27</code> → 的、<code>8a3</code> → 碼），提示會顯示正確順序。</span></div>
+    <div class="cell"><b>多按的鍵會被略過</b><span>快打時蹭到的單一字母不會變成亂碼，提示框會說「略過 e」，按 <kbd>↓</kbd> 隨時救回來。</span></div>
+    <div class="cell"><b>會記住你的用詞</b><span>只從你明確的選擇學習。改錯字時連同前後文記成「詞」，下次同一句話就對了。</span></div>
+    <div class="cell"><b>學錯了刪得掉</b><span>選字框停在那個詞上按 <kbd>Delete</kbd>，或到設定頁的「自動收集」整批整理。</span></div>
+    <div class="cell"><b>按住右 Ctrl 說話</b><span>本機語音輸入，聲音不會離開這台電腦。RTX 4070 上 8.5 秒的話約 0.5 秒辨識完。</span></div>
+    <div class="cell"><b>注音、拼音、倉頡共用一份詞庫</b><span>三種打法學到的東西互通，中英自動模式一次混用一種。</span></div>
+  </div>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--accent)"></i>游標、選中的字</span>
+    <span><i class="dot" style="background:var(--memory)"></i>你自己的詞</span>
+    <span><i class="dot" style="background:var(--fix)"></i>輸入法替你改過</span>
+    <span><i class="dot" style="background:var(--drop)"></i>被略過的按鍵</span>
+  </div>
+  <p class="note">顏色只有這四種意思，面板上到處都一樣——這頁也用同一套。</p>
+</section>
+
+<!-- ============================================================ how -->
+<section id="how">
+  <p class="eyebrow">看它工作</p>
+  <h2 style="font-size:clamp(24px,4vw,32px)">畫面都是真的</h2>
+  <p class="lede" style="margin-top:14px">
+    下面每一張圖都由輸入法自己的繪圖程式產生（<code>tools/make_docs_images.py</code>），
+    不是示意圖。產品改了，這頁的圖下一次就跟著改。
+  </p>
+
+  <div style="margin-top:40px">
+    <div class="scene">
+      <div>
+        <h3>打字時只有一條細細的提示列</h3>
+        <p>還沒成字的注音在左邊，右邊靠齊的是按 <kbd>Tab</kbd> 會接上的詞。
+          右邊那一區位置固定，打字快的人可以整區無視它。沒話說的時候它縮成一個藍點，
+          提醒你這段字還沒送出去。</p>
+      </div>
+      <figure>
+        <img src="images/typing-suggestion.png" alt="提示列：淡藍小籤「的 ⇥」，後面接「在 · 是」">
+        <img src="images/typing-dropped.png" alt="提示列：紅色小籤「略過 e ↓」，右邊是注音 ㄍㄥ" style="margin-top:10px">
+        <figcaption>上：接續建議。下：有一個鍵被當成雜鍵略過了。</figcaption>
+      </figure>
+    </div>
+
+    <div class="scene">
+      <div>
+        <h3>候選字按來源分組、分色</h3>
+        <p>我的詞庫 → 學過 → 詞庫 → 其他讀法 → 原始按鍵，由近到遠。
+          <kbd>←</kbd> <kbd>→</kbd> 在上面那排分類籤之間走，一眼跳過整個不想要的群組；
+          <kbd>1</kbd>–<kbd>9</kbd> 直接選，數字鍵盤不管 NumLock 開不開都能用。</p>
+      </div>
+      <figure>
+        <img src="images/candidates.png" alt="候選字窗：分類籤、我的詞庫、學過、詞庫三個分組">
+        <figcaption>綠色是你自己的詞；標題列顯示正在改句子裡的哪一個字。</figcaption>
+      </figure>
+    </div>
+
+    <div class="scene">
+      <div>
+        <h3>英文和中文在同一個清單裡換</h3>
+        <p>打出來的 <code>mvp</code> 想換成「勳」，或是被判成中文的想換回原始按鍵，
+          都在同一個候選窗裡。任何一次誤判都離正確答案一個 <kbd>↓</kbd>。</p>
+      </div>
+      <figure>
+        <img src="images/candidates-english.png" alt="英文 mvp 的候選窗，同時列出中文讀法與原始按鍵">
+        <figcaption>跨類別的候選：英文、其他讀法、原始按鍵。</figcaption>
+      </figure>
+    </div>
+
+    <div class="scene">
+      <div>
+        <h3>修正模式：Vim 式的指令，字不會亂跑</h3>
+        <p>組字中按 <kbd>Esc</kbd>，鍵盤變成指令。<kbd>h</kbd> <kbd>l</kbd> 移動、
+          <kbd>j</kbd> <kbd>k</kbd> 換字、<kbd>R</kbd> 重新判定、<kbd>v</kbd> 切換「國字／注音／按鍵」三種檢視。
+          只有明確的指令會離開，其他鍵都不會不小心打出字。</p>
+      </div>
+      <figure>
+        <img src="images/correction.png" alt="修正模式的解碼面板，琥珀色外框，三列對齊顯示按鍵、注音、國字">
+        <img src="images/correction-keys.png" alt="按鍵檢視，游標停在一個被略過的鍵上" style="margin-top:10px">
+        <figcaption>下面那張是「按鍵」檢視，游標正停在被略過的 e 上——按 <kbd>e</kbd> 就是「我就是要這個鍵」。</figcaption>
+      </figure>
+    </div>
+
+    <div class="scene">
+      <div>
+        <h3>符號、片語、顏文字都不用離開鍵盤</h3>
+        <p>打 <code>::</code> 開符號面板，<kbd>Tab</kbd> 換到希臘字母、數學、箭頭、單位、顏文字；
+          打 <code>;;</code> 加關鍵字叫出自己存的罐頭訊息，選中時先預覽全文再打出去。</p>
+      </div>
+      <figure>
+        <img src="images/palette.png" alt="符號面板的格子排列，分類籤在上方">
+        <img src="images/snippets.png" alt="片語清單，選中的片語在下方預覽全文" style="margin-top:10px">
+        <figcaption>格子排列，方向鍵移動、<kbd>1</kbd>–<kbd>9</kbd> 選這一列。</figcaption>
+      </figure>
+    </div>
+
+    <div class="scene">
+      <div>
+        <h3>設定頁是一個本機網頁</h3>
+        <p>每種打字方式一張卡片；標點有完整的「每個鍵 × 四種按法」對照表，每一格都能改；
+          我的詞庫分成「自動收集」和「整理過的」兩區。資料全部在
+          <code>%APPDATA%\SmartIME</code>，可以匯出帶到別台電腦（合併，不會覆蓋）。</p>
+      </div>
+      <figure>
+        <img src="images/settings-general.png" alt="設定頁的一般頁面，每種輸入方式一張卡片">
+        <figcaption>開始功能表「順打輸入法 設定」，或系統匣圖示按右鍵。</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ install -->
+<section id="install">
+  <p class="eyebrow">安裝</p>
+  <h2 style="font-size:clamp(24px,4vw,32px)">一個安裝檔，不用先裝 Python 或 PIME</h2>
+  <ol class="steps">
+    <li><div><b>下載 <code>ShundaIME-Setup-&lt;版本&gt;.exe</code> 並執行</b>
+      <span>會跳出系統管理員權限確認。安裝檔還沒有數位簽章，Windows 可能顯示「已保護您的電腦」：按「其他資訊」→「仍要執行」。</span></div></li>
+    <li><div><b>等它自己裝完</b>
+      <span>註冊輸入法、加進語言清單，最後自動打字測試一次。不需要網路。
+        輸入法建在 <a href="https://github.com/EasyIME/PIME">PIME</a> 框架上，安裝檔只帶 PIME 的核心，不會多出新酷音等其他輸入法。</span></div></li>
+    <li><div><b>按 <kbd>Win</kbd> + <kbd>Space</kbd> 切到「順打輸入法」</b>
+      <span>第一次可以先到設定頁的「打字與選字」看一遍快捷鍵。</span></div></li>
+  </ol>
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/ChouYangEn0401/shunda-ime/releases/latest">到 Releases 下載</a>
+    <a class="btn" href="install.md">完整安裝說明與疑難排解</a>
+  </div>
+  <p class="note">
+    移除：Windows 設定 → 應用程式 → 順打輸入法。個人資料（設定、我的詞庫、學習記憶）放在
+    <code>%APPDATA%\SmartIME</code>，安裝和移除都不會動到它。
+  </p>
+</section>
+
+<!-- ============================================================ inside -->
+<section id="inside">
+  <p class="eyebrow">給工程師</p>
+  <h2 style="font-size:clamp(24px,4vw,32px)">核心是一個整句重新解碼的 lattice 解碼器</h2>
+  <p class="lede" style="margin-top:14px">
+    每一次按鍵都把整個組字區重新解碼一遍，而不是逐字決定。
+    把「這段鍵是中文還是英文」「這幾個鍵是哪個音節」「這個鍵是不是手滑」
+    放在同一個評分裡比較，所以順序打反、多按、中英誤判才有機會一起修好。
+    權重全部收在 <code>decoder.Weights</code>，改動必須讓
+    <code>tests/test_typing_corpus.py</code>（使用者真實鍵盤紀錄）保持綠燈。
+  </p>
+
+  <div class="scroll-x">
+    <table class="map">
+      <thead><tr><th>資料夾</th><th>負責什麼</th></tr></thead>
+      <tbody>
+        <tr><td><code>src/smartime/engine/</code></td><td>輸入引擎，純標準函式庫：注音、鍵盤配置、詞庫、使用者詞庫、解碼器、session、修正模式、符號</td></tr>
+        <tr><td><code>src/smartime/pime/</code></td><td>PIME 後端協定（stdin/stdout JSON）與 text service 轉接</td></tr>
+        <tr><td><code>src/smartime/ui/</code></td><td>輸入法自己畫的面板（GDI）：提示列、解碼面板、分組候選窗</td></tr>
+        <tr><td><code>src/smartime/settings/</code></td><td>設定頁：本機 HTTP 伺服器 + 網頁介面</td></tr>
+        <tr><td><code>src/smartime/voice/</code></td><td>語音輸入：按住右 Ctrl 錄音、本機辨識（獨立行程）</td></tr>
+        <tr><td><code>src/smartime/devtools/</code></td><td>模擬器、實機打字測試、面板截圖——重現 bug 回報的工具都在這</td></tr>
+        <tr><td><code>tools/</code> · <code>installer/</code></td><td>建詞庫、產生安裝檔（Inno Setup）、版本號、文件圖片</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="cta">
+    <a class="btn" href="architecture.md">架構與交接說明</a>
+    <a class="btn" href="https://github.com/ChouYangEn0401/shunda-ime/blob/main/CHANGELOG.md">版本紀錄</a>
+    <a class="btn" href="licenses.md">第三方資料與授權</a>
+  </div>
+  <p class="note">
+    內部代號是 <code>smartime</code>（Python 套件、PIME 後端資料夾、<code>%APPDATA%\SmartIME</code>）。
+    改名時刻意不動，舊版的設定與記憶都能沿用。
+  </p>
+</section>
+
+<!-- ============================================================ map -->
+<section id="docs">
+  <p class="eyebrow">文件導覽</p>
+  <h2 style="font-size:clamp(24px,4vw,32px)">接下來看哪一份</h2>
+  <div class="scroll-x">
+    <table class="map">
+      <thead><tr><th>文件</th><th>給誰</th><th>裡面有什麼</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://github.com/ChouYangEn0401/shunda-ime#readme">README</a></td><td>所有人</td><td>三十秒看完這個專案在做什麼，和往下走的岔路</td></tr>
+        <tr><td><a href="install.md">install.md</a></td><td>使用者</td><td>安裝、移除、換電腦搬資料、裝不起來時怎麼查</td></tr>
+        <tr><td><a href="keys.md">keys.md</a></td><td>使用者</td><td>每一個按鍵在做什麼：打字、選字、修正模式、標點四種按法</td></tr>
+        <tr><td><a href="architecture.md">architecture.md</a></td><td>工程師</td><td>解碼器、session、PIME 協定、面板、資料流，和每個決定的理由</td></tr>
+        <tr><td><a href="https://github.com/ChouYangEn0401/shunda-ime/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a></td><td>工程師</td><td>開發環境、測試怎麼跑、改了要驗什麼、怎麼出一版</td></tr>
+        <tr><td><a href="licenses.md">licenses.md</a></td><td>法務、散佈者</td><td>詞庫、字型、元件各自的授權與出處</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <span>順打輸入法 · Apache License 2.0</span>
+  <span>開發者 <a href="https://github.com/ChouYangEn0401">ChouYangEn0401</a></span>
+  <span>詞庫 McBopomofo（MIT）· 英文詞頻衍生自 wordfreq（CC BY-SA 4.0）· <a href="https://github.com/EasyIME/PIME">PIME</a>（LGPL 2.1）</span>
+  <span>打字手感參考華碩智慧輸入法；本專案獨立開發，與華碩無關。</span>
+</footer>
+
+</div>
