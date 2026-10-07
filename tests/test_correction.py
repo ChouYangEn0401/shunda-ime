@@ -14,7 +14,10 @@ def test_esc_enters_correction_and_esc_again_returns_to_typing(session):
 
 def test_d_twice_clears_everything(session):
     _, v = run(session, "ji3ap7{ESC}D")
-    assert v.composition == "我們" and v.correcting and "再按一次 D" in v.notice
+    # the panel's header turns red and asks; a blue line of text read as an
+    # error message (reported: 「D 按一下以後會出現一行藍色的字，感覺是錯誤的」)
+    assert v.composition == "我們" and v.correcting
+    assert v.panel is not None and v.panel.armed and not v.notice
     _, v = run(session, "D")
     assert v.composition == "" and not v.correcting
     # D then another key: not armed any more

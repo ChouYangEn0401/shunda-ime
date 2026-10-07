@@ -5,6 +5,7 @@ import pytest
 
 from smartime.devtools.simulate import run
 from smartime.engine.panel import candidate_panel
+from smartime.engine.symbols import TABS
 from smartime.engine.session import Session
 
 
@@ -75,45 +76,49 @@ def test_pageup_pagedown_turn_pages(session):
     assert cand.page == 0
 
 
-def test_arrows_turn_pages_in_the_symbol_panel(session):
-    # the panel has its own tabs on Tab, so ← → keep turning pages there
-    run(session, "ji3{RCTRL}{S-TAB}")  # 顏文字
-    cand = session.cand
-    assert cand.palette is not None and cand.pages > 1
-    run(session, "{RIGHT}")
-    assert cand.page == 1 and cand.filter == ""
+def test_grid_arrows_stay_on_their_own_axis(session):
+    """Reported: 「左右操作變成上下、上下操作變成左右」.
 
-
-def test_multi_column_opens_and_folds_columns(session):
-    session.cfg.candidate_multi_column = True
-    run(session, "u4{DOWN}")
+    The symbol panel is a grid, one page per row. Moving by ±1 ran off the
+    end of a row into the next one, so → behaved like "down"; ↑↓ moved by a
+    whole page and were blocked at the edges, so they looked dead.
+    """
+    run(session, "ji3{RCTRL}{TAB}{TAB}")  # 希臘字母, a grid
     cand = session.cand
-    row = cand.index % cand.page_size
-    run(session, "{S-RIGHT}{S-RIGHT}")
-    assert cand.columns == 3 and cand.first_page == 0 and cand.page == 2
-    assert cand.index % cand.page_size == row  # same row in the next column
-    _, v = run(session, "{S-LEFT}{S-LEFT}")
-    assert cand.page == 0 and cand.columns == 3
-    run(session, "{S-LEFT}")  # nothing more on the left: fold back to one column
-    assert cand.columns == 1
-    # digits pick in the column the selection is in
-    run(session, "{S-RIGHT}")
-    page = cand.page_items()
-    _, v = run(session, "2")
-    assert v.composition.endswith(page[1].text)
+    n = cand.page_size
+    assert cand.index == 0
+    run(session, "{LEFT}")
+    assert cand.index == 0, "← at the start of a row stays put"
+    run(session, "{DOWN}")
+    assert cand.index == n, "↓ goes straight down, same column"
+    run(session, "{RIGHT}{RIGHT}")
+    assert cand.index == n + 2
+    run(session, "{UP}")
+    assert cand.index == 2, "↑ comes back up the same column"
+    for _ in range(n + 3):
+        run(session, "{RIGHT}")
+    assert cand.index == n - 1, "→ stops at the end of its row"
 
 
 def test_palette_is_a_grid(session):
     run(session, "ji3{RCTRL}{TAB}{TAB}")  # 希臘字母
     cand = session.cand
     assert cand.columns > 1  # several rows at once
-    run(session, "{DOWN}{RIGHT}")
-    assert cand.index == cand.page_size + 1
     p = candidate_panel(session)
-    assert p.palette and p.chip == "希臘字母"
+    assert p.palette and p.layout == "grid" and p.chip == "希臘字母"
+    assert p.title == "符號 · 希臘字母"
     expected = cand.page_items()[2].text
     _, v = run(session, "3")  # third symbol of the selection's row
     assert v.composition == "我" + expected
+
+
+def test_tab_switches_the_symbol_category(session):
+    run(session, "ji3{RCTRL}")
+    assert session.cand.palette == 0
+    run(session, "{TAB}")
+    assert session.cand.palette == 1
+    run(session, "{S-TAB}{S-TAB}")
+    assert session.cand.palette == len(TABS) - 1  # wraps round to 顏文字
 
 
 @pytest.mark.parametrize("n", [1, 3, 5, 7, 9])

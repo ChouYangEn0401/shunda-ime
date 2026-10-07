@@ -380,17 +380,23 @@ def test_undo_in_correction_mode_shares_the_history(session):
     assert v.composition == "我" and v.correcting
 
 
-def test_shift_enter_commits_and_leaves_the_line_break_to_the_app(session):
-    """Reported: 「不是所有人都知道 shift+enter 很好用可以分行」 — and it did
-    not work here: Shift+Enter read as a plain Enter, so the text was sent
-    and the line break was eaten."""
+def test_shift_enter_is_a_plain_enter_unless_asked_otherwise(session):
+    """Handing Shift+Enter to the application was tried as the default and
+    taken back: 「我現在發現 shift+enter 會直接換行，不好，我不喜歡這樣」.
+    Most editors already do something with it."""
     from smartime.engine.keys import VK_RETURN, KeyInput
 
-    run(session, "ji3ap7")
     key = KeyInput(vk=VK_RETURN, shift=True)
+    run(session, "ji3ap7")
     handled = session.filter_key_down(key) and session.key_down(key)
-    assert not handled, "the application makes the line break, not us"
-    assert session.view().commit == "我們"  # but the text is sent first
+    assert handled and session.view().commit == "我們"  # sent, no line break
+    assert session.take_hand_back() is None
+
+    session.cfg.newline_enter = "shift"
+    run(session, "ji3ap7")
+    handled = session.filter_key_down(key) and session.key_down(key)
+    assert not handled, "now the application makes the line break"
+    assert session.view().commit == "我們"  # text still goes out first
     assert session.take_hand_back() is key  # IMM32 apps get it re-sent
 
 

@@ -53,6 +53,7 @@ class DecodePanel:
     title: str = ""
     help: str = ""
     notice: str = ""
+    armed: bool = False  # D pressed once: the next D clears everything
 
 
 @dataclass
@@ -156,7 +157,7 @@ def candidate_panel(session) -> CandidatePanel | None:
         panel.layout = "grid" if grid else "list"
         panel.chips = list(TABS)
         panel.chip = tab
-        panel.title = "符號"
+        panel.title = f"符號 · {tab}"
     elif cand.snippet_at is not None:
         panel.snippet = True
         panel.title = f"片語 · 關鍵字：{cand.query}" if cand.query else "片語 · 打關鍵字篩選"
@@ -231,6 +232,7 @@ def decode_panel(session) -> DecodePanel:
     panel = DecodePanel(columns, caret)
     if session.correcting:
         panel.mode = "correcting"
+        panel.armed = session._clear_armed
         panel.layer = session.layer
         visible = [i for i, c in enumerate(columns) if c.role != "drop" or session.layer == "keys"]
         inside = [i for i in visible if columns[i].start <= cursor < columns[i].end]

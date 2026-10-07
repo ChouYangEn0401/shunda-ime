@@ -165,7 +165,7 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
     body_w = GUTTER * k + (14 * k if more_left else 0) + cols_w + (14 * k if more_right else 0) + (4 * k)
     width = max(body_w, _help_width(c, s, help_items),
                 measure_mixed(c, p.notice, s.help, s.symbol),
-                (c.measure("修正模式", s.title)[0] + 160 * k) if correcting else 0) + 2 * PAD_X * k
+                (c.measure("清除整段？", s.title)[0] + 260 * k) if correcting else 0) + 2 * PAD_X * k
     rows_h = (ROW_KEYS + ROW_READING + ROW_TEXT) * k
     height = PAD_Y * k + header_h + rows_h + 6 * k + notice_h + footer_h + PAD_Y * k
     out = Painted(width, height)
@@ -181,12 +181,14 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
 
     y = PAD_Y * k
     if correcting:
-        chip = "修正模式"
+        chip = "清除整段？" if p.armed else "修正模式"
+        bg, fg = (t.drop_soft, t.drop) if p.armed else (t.fix_soft, t.fix)
         cw = c.measure(chip, s.title)[0] + 14 * k
-        c.fill(PAD_X * k, y, cw, 19 * k, t.fix_soft, radius=4 * k)
-        c.text(PAD_X * k + 7 * k, y + 2 * k, chip, s.title, t.fix)
-        view = f"{LAYER_NAME.get(p.layer, '')}檢視 · 字不會送出，i 或 Esc 回到打字"
-        c.text(PAD_X * k + cw + 8 * k, y + 3 * k, view, s.help, t.muted)
+        c.fill(PAD_X * k, y, cw, 19 * k, bg, radius=4 * k)
+        c.text(PAD_X * k + 7 * k, y + 2 * k, chip, s.title, fg)
+        view = ("再按一次 D 清除（不會送出）· 其他任何鍵取消" if p.armed else
+                f"{LAYER_NAME.get(p.layer, '')}檢視 · 字不會送出，i 或 Esc 回到打字")
+        c.text(PAD_X * k + cw + 8 * k, y + 3 * k, view, s.help, t.drop if p.armed else t.muted)
         y += header_h
 
     top = y
@@ -314,7 +316,14 @@ ROW_H, GROUP_H, LABEL_W = 29, 19, 16
 CAND_HELP_GROUPS = [("↑↓", "移動"), ("1–9", "選"), ("← →", "分類"), ("PgUp/PgDn", "翻頁"), ("Del", "忘記"),
                     ("Ctrl+D", "加詞")]
 CAND_HELP_PAGES = [("↑↓", "移動"), ("1–9", "選"), ("← →", "翻頁"), ("Del", "忘記"), ("Ctrl+D", "加詞")]
-PALETTE_HELP = [("1–9", "選"), ("Tab", "換分類"), ("→", "更多"), ("Esc", "關閉")]
+PALETTE_HELP = [("↑↓", "移動"), ("1–9", "選這一列"), ("Tab", "換分類"), ("← →", "翻頁"), ("Esc", "關閉")]
+GRID_HELP = [("↑↓ ← →", "移動"), ("1–9", "選這一列"), ("Tab", "換分類"), ("Esc", "關閉")]
+# Tab walks eleven categories whose contents are nothing like each other in
+# size (「，」 next to 「ヽ(✿ﾟ▽ﾟ)ノ」). A window that resizes under the cursor on
+# every Tab is exhausting to follow, so the symbol panel keeps one size for
+# all of them, grid tabs and list tabs alike.
+PALETTE_W = 520
+PALETTE_BODY_H = 9 * 29  # nine list rows; the grid fills the same box
 SNIPPET_HELP = [("字母", "篩選"), ("↑↓", "移動"), ("1–9", "選"), ("Enter", "打出"), ("Esc", "關閉（保留 ;;）")]
 PREVIEW_LINES = 8
 
@@ -376,11 +385,12 @@ def paint_palette(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, dra
     rows = _columns(p)  # pages shown = rows here
     grid_w = p.page_size * CELL_W * k
     chips_w = sum(c.measure(ch, s.small)[0] + 18 * k for ch in p.chips)
-    width = max(grid_w, min(chips_w, 560 * k), _help_width(c, s, PALETTE_HELP)) + 2 * PAD_X * k
+    width = max(grid_w, min(chips_w, 560 * k), _help_width(c, s, GRID_HELP),
+                PALETTE_W * k) + 2 * PAD_X * k
     chip_lines = _chip_lines(c, s, p.chips, width - 2 * PAD_X * k, k)
     title_h = 20 * k
     chips_h = 24 * k * len(chip_lines)
-    grid_h = len(rows) * CELL_H * k
+    grid_h = max(len(rows) * CELL_H * k, PALETTE_BODY_H * k)
     height = PAD_Y * k + title_h + chips_h + 6 * k + grid_h + 8 * k + 20 * k + PAD_Y * k
     out = Painted(width, height)
     if not draw:
@@ -388,7 +398,7 @@ def paint_palette(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, dra
     c.fill(0, 0, width, height, t.bg)
     c.stroke(0, 0, width, height, t.border, line=1)
     x0, y = PAD_X * k, PAD_Y * k
-    c.text(x0, y, f"符號 · {p.chip}", s.help, t.muted)
+    draw_mixed(c, x0, y, p.notice or p.title, s.help, s.symbol, t.accent if p.notice else t.muted)
     pages = f"{p.first_page + 1}–{p.first_page + len(rows)}/{p.pages}" if len(rows) > 1 else f"1/{p.pages}"
     if p.pages > 1:
         c.text(width - PAD_X * k - c.measure(pages, s.num)[0], y + 1 * k, pages, s.num, t.faint)
@@ -410,7 +420,7 @@ def paint_palette(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, dra
             c.text_center(cx, cy + 9 * k, CELL_W * k, item.text, s.cand, t.on_accent if selected else t.fg)
     fy = y + grid_h + 8 * k
     c.hline(x0, width - PAD_X * k, fy - 4 * k, t.border, 1)
-    _paint_help(c, s, t, x0, fy, PALETTE_HELP, width - PAD_X * k)
+    _paint_help(c, s, t, x0, fy, GRID_HELP, width - PAD_X * k)
     return out
 
 
@@ -469,6 +479,12 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
     width = max(cols_w, _help_width(c, s, help_items), title_w, min(chips_w, 560 * k),
                 360 * k if p.preview else 0) + 2 * PAD_X * k
     width = min(width, max(cols_w + 2 * PAD_X * k, 460 * k if p.preview else 420 * k))
+    if p.palette:
+        # Tab walks eleven categories whose contents are nothing like each
+        # other in width (「，」 vs 「ヽ(✿ﾟ▽ﾟ)ノ」). Letting the window resize
+        # under the cursor on every Tab is exhausting to follow, so the panel
+        # keeps one width for all of them.
+        width = max(width, PALETTE_W * k + 2 * PAD_X * k)
     chip_lines = _chip_lines(c, s, p.chips, width - 2 * PAD_X * k, k) if p.chips else []
     preview = wrap(c, p.preview, s.reading, width - 2 * PAD_X * k - 20 * k, PREVIEW_LINES) if p.preview else []
     preview_h = (len(preview) * 20 * k + 30 * k) if preview else 0
@@ -476,6 +492,8 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
     chips_h = 24 * k * len(chip_lines)
     body_h = max((sum(GROUP_H * k if kind == "group" else ROW_H * k for kind, _ in rows) for rows in col_rows),
                  default=ROW_H * k)
+    if p.palette:
+        body_h = max(body_h, PALETTE_BODY_H * k)  # one height too, for the same reason
     footer_h = 20 * k
     height = PAD_Y * k + title_h + chips_h + 4 * k + body_h + preview_h + 8 * k + footer_h + PAD_Y * k
     out = Painted(width, height)

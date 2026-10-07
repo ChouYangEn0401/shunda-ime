@@ -151,8 +151,9 @@ class CorrectionMixin:
                 self.exit_correction()
                 self._reset_buffer()
             else:
+                # the panel's header says so in red; a line of blue text read
+                # like an error message (「感覺是錯誤的」)
                 self._clear_armed = True
-                self._notice = "再按一次 D 清除整段（不會送出）"
             return True
         if vk == VK_TAB:
             return True

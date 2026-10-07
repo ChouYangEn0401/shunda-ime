@@ -77,6 +77,11 @@ class Config:
     # The hotkey alone was not discoverable, and right Alt never reaches an
     # input method in some applications.
     palette_trigger: str = "::"
+    # Which Enter sends the text and then lets the application break the
+    # line: "off" | "shift" | "ctrl" | "right-shift". Off by default —
+    # Shift+Enter already means something in most editors, and handing it
+    # over changed what they did. The symbol panel's ⏎ works either way.
+    newline_enter: str = "off"
 
     # Smart correction
     reorder_tolerance: bool = True  # ㄛㄨˇ typed for ㄨㄛˇ still gives 我
@@ -187,6 +192,8 @@ class Config:
             self.drop_stray_keys = "standard"
         if len(self.snippet_trigger) > 4 or self.snippet_trigger.strip() != self.snippet_trigger:
             self.snippet_trigger = ";;"
+        if self.newline_enter not in ("off", "shift", "ctrl", "right-shift"):
+            self.newline_enter = "off"
         if len(self.palette_trigger) > 4 or self.palette_trigger.strip() != self.palette_trigger:
             self.palette_trigger = "::"
         if self.palette_trigger and self.palette_trigger == self.snippet_trigger:

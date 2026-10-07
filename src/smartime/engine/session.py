@@ -415,10 +415,9 @@ class Session(CorrectionMixin):
             return True
         if key.ctrl or key.alt:
             return self._ctrl_punct(key) is None and not (key.ctrl and not key.alt and key.vk in (VK_D, VK_Y, VK_Z))
-        if key.vk == VK_RETURN and key.shift:
-            # Shift+Enter is the application's soft line break: send the text
-            # first, then let the key through. Treating it as a plain Enter
-            # committed the text and swallowed the line break.
+        if key.vk == VK_RETURN and self._newline_modifier(key):
+            # The configured line-break Enter: send the text first, then let
+            # the key through so the application makes the break itself.
             return True
         return not key.printable and key.vk not in _COMPOSING_NAV
 
@@ -1047,12 +1046,19 @@ class Session(CorrectionMixin):
         if vk == VK_TAB and cand.palette is not None:
             self._open_palette(cand.palette + (-1 if key.shift else 1))
             return True
-        if cand.palette is not None and TABS[cand.palette % len(TABS)] not in LIST_TABS and \
-                vk in (VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN):
-            # the symbol panel is a grid (a page per row): arrows move by cell / row
-            step = {VK_LEFT: -1, VK_RIGHT: +1, VK_UP: -cand.page_size, VK_DOWN: +cand.page_size}[vk]
-            if 0 <= cand.index + step < len(cand.shown) or abs(step) == 1:
-                cand.move(step)
+        if cand.palette is not None and TABS[cand.palette % len(TABS)] not in LIST_TABS and                 vk in (VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN):
+            # The symbol panel is a grid, one page per row. Moving by ±1 used
+            # to run off the end of a row into the next one, so → looked like
+            # "down" and ↑↓ looked like nothing (reported: 「左右操作變成上下、
+            # 上下操作變成左右」). Now each direction stays in its own axis.
+            row, col = divmod(cand.index, cand.page_size)
+            last_row = (len(cand.shown) - 1) // cand.page_size
+            if vk in (VK_LEFT, VK_RIGHT):
+                col = max(0, min(col + (1 if vk == VK_RIGHT else -1), cand.page_size - 1))
+            else:
+                row = max(0, min(row + (1 if vk == VK_DOWN else -1), last_row))
+            cand.index = min(row * cand.page_size + col, len(cand.shown) - 1)
+            cand._keep_visible()
             return True
         if vk == VK_TAB:
             # show one group at a time: 全部 -> 我的詞庫 -> 學過 -> 詞庫 -> …
@@ -1082,7 +1088,9 @@ class Session(CorrectionMixin):
             step = +1 if vk == VK_RIGHT else -1
             if key.shift and cand.multi:
                 cand.move_column(step)
-            elif cand.palette is None and len(cand.groups()) > 1:
+            elif cand.palette is not None:
+                cand.move_page(step)  # 片語 / 顏文字 are lists: ← → turn pages
+            elif len(cand.groups()) > 1:
                 cand.cycle_filter(step)
             else:
                 cand.move_page(step)
@@ -1477,6 +1485,26 @@ class Session(CorrectionMixin):
         self.cand = self._new_list(items, title="接續")
 
     # ============================================================ symbol panel
+    def _newline_modifier(self, key: KeyInput) -> bool:
+        """Does this Enter mean "send it and break the line"?
+
+        Off by default. Shift+Enter was tried as the default and taken back:
+        in most editors Shift+Enter already means something, and having the
+        input method hand it over changed what those editors did. The chooser
+        is in the settings page, and the symbol panel's ⏎ always works
+        whatever is set here.
+        """
+        want = self.cfg.newline_enter
+        if want == "off":
+            return False
+        if want == "shift":
+            return key.shift and not key.ctrl and not key.alt
+        if want == "ctrl":
+            return key.ctrl and not key.shift and not key.alt
+        if want == "right-shift":
+            return key.shift and not key.ctrl and not key.alt and key.scan in (SCAN_RSHIFT, 0)
+        return False
+
     def _is_palette_key(self, key: KeyInput) -> bool:
         hotkey = self.cfg.palette_hotkey
         if hotkey == "rctrl":
@@ -1518,10 +1546,9 @@ class Session(CorrectionMixin):
             items[0].annotation = f"{name} · Tab 換分類"
         self.cand = self._new_list(items, title=f"符號 {tabs} · Tab 換分類", palette=index)
         self.cand.multi = True
-        if name in LIST_TABS:
-            self.cand.columns = 1 if name == "片語" else min(self.cand.pages, 2)
-        else:
-            self.cand.columns = min(self.cand.pages, 4)  # rows of the grid shown at once
+        # open a few columns straight away: the point of the panel is seeing
+        # a lot at once. 片語 lines are long, so it stays at one.
+        self.cand.columns = 1 if name == "片語" else min(self.cand.pages, 2 if name in LIST_TABS else 6)
 
     # ============================================================ 片語 / 顏文字
     def _snippet_items(self, query: str) -> list[Candidate]:
