@@ -39,7 +39,7 @@ from .panel import (
     CandidatePanel, DecodePanel, HintPanel, SmartPanel, candidate_panel, decode_panel, smart_panel,
 )
 from .punct import ctrl_output
-from .symbols import CATEGORIES, LIST_TABS, TABS, SymbolPanel
+from .symbols import CATEGORIES, LIST_TABS, NEWLINE_SYMBOL, TABS, SymbolPanel
 
 VK_D = 0x44
 VK_Y = 0x59
@@ -415,6 +415,11 @@ class Session(CorrectionMixin):
             return True
         if key.ctrl or key.alt:
             return self._ctrl_punct(key) is None and not (key.ctrl and not key.alt and key.vk in (VK_D, VK_Y, VK_Z))
+        if key.vk == VK_RETURN and key.shift:
+            # Shift+Enter is the application's soft line break: send the text
+            # first, then let the key through. Treating it as a plain Enter
+            # committed the text and swallowed the line break.
+            return True
         return not key.printable and key.vk not in _COMPOSING_NAV
 
     def filter_key_up(self, key: KeyInput) -> bool:
@@ -1621,6 +1626,24 @@ class Session(CorrectionMixin):
             self.engine.symbols.used(c.symbol)
 
     def _insert_symbol(self, symbol: str) -> None:
+        if symbol == NEWLINE_SYMBOL:
+            # Remote desktops sometimes swallow the Shift of Shift+Enter, and
+            # not every application has another line-break key. Picking this
+            # sends the text and a newline after it.
+            at = self.cand.trigger_at if self.cand is not None else None
+            self.cand = None
+            if at is not None:
+                del self.keys[at:]
+                self.cursor = len(self.keys)
+                self.pins = [p for p in self.pins if p.end <= at]
+                self._redecode() if self.keys else self._reset_buffer()
+            self.engine.symbols.used(symbol)
+            self.commit_all()
+            self._commit += "\n"
+            return
+        return self._insert_symbol_at_cursor(symbol)
+
+    def _insert_symbol_at_cursor(self, symbol: str) -> None:
         at = self.cand.trigger_at if self.cand is not None else None
         self.cand = None
         self.engine.symbols.used(symbol)

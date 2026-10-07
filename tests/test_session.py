@@ -378,3 +378,28 @@ def test_undo_in_correction_mode_shares_the_history(session):
     assert v.composition == "我們" and v.correcting
     _, v = run(session, "{C-z}")  # Ctrl+Z works there too (and stays in correction mode)
     assert v.composition == "我" and v.correcting
+
+
+def test_shift_enter_commits_and_leaves_the_line_break_to_the_app(session):
+    """Reported: 「不是所有人都知道 shift+enter 很好用可以分行」 — and it did
+    not work here: Shift+Enter read as a plain Enter, so the text was sent
+    and the line break was eaten."""
+    from smartime.engine.keys import VK_RETURN, KeyInput
+
+    run(session, "ji3ap7")
+    key = KeyInput(vk=VK_RETURN, shift=True)
+    handled = session.filter_key_down(key) and session.key_down(key)
+    assert not handled, "the application makes the line break, not us"
+    assert session.view().commit == "我們"  # but the text is sent first
+    assert session.take_hand_back() is key  # IMM32 apps get it re-sent
+
+
+def test_newline_symbol_types_a_line_break(session):
+    """The fallback for remote desktops that swallow the Shift of
+    Shift+Enter: ⏎ in the symbol panel's 常用 tab."""
+    from smartime.engine.symbols import NEWLINE_SYMBOL
+
+    out, v = run(session, "ji3ap7::")
+    session.cand.index = next(i for i, c in enumerate(session.cand.shown) if c.text == NEWLINE_SYMBOL)
+    more, v = run(session, "{ENTER}")
+    assert out + more == "我們\n" and v.composition == ""

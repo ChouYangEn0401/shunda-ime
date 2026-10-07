@@ -12,8 +12,13 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
+# Picking this types a line break. Shift+Enter normally does it, but some
+# remote-desktop clients never deliver the Shift, and then there is no other
+# way to break a line from inside the input method.
+NEWLINE_SYMBOL = "⏎"
+
 CATEGORIES: list[tuple[str, str]] = [
-    ("常用", "，。、；：？！…—「」『』（）《》〈〉【】“”～"),
+    ("常用", "，。、；：？！…—「」『』（）《》〈〉【】“”～⏎"),
     ("括號引號", "「」『』（）《》〈〉【】〔〕｛｝“”‘’〝〞﹁﹂﹃﹄［］"),
     ("希臘字母", "αβγδεζηθικλμνξοπρστυφχψωΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ"),
     ("數學", "＋－×÷＝≠≈≒±∞√∑∏∫∂∆∇≤≥＜＞∈∉⊂⊃∩∪∴∵∀∃°′″‰％"),
