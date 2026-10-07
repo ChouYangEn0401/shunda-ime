@@ -28,7 +28,7 @@ from ctypes import wintypes
 
 from . import win32 as w
 from .canvas import Canvas, Fonts, Surface
-from .panels import paint_candidates, paint_decode, paint_smart
+from .panels import paint_candidates, paint_decode, paint_hint, paint_smart
 from .theme import Theme
 from .win32 import user32
 
@@ -43,7 +43,8 @@ FOLLOW_MS = 40
 LOST_ANCHOR_SECONDS = 0.6  # hide when the composition's window has been gone this long
 GAP = 4
 
-PAINTERS = {"decode": paint_decode, "candidates": paint_candidates, "smart": paint_smart}
+PAINTERS = {"decode": paint_decode, "candidates": paint_candidates, "smart": paint_smart,
+            "hint": paint_hint}
 
 
 def _rect(r: wintypes.RECT) -> tuple[int, int, int, int]:
@@ -60,9 +61,34 @@ def find_own(class_name: str) -> tuple[int, int, int, int] | None:
     return _rect(r)
 
 
-def find_anchor() -> tuple[int, int, int, int] | None:
-    """Screen rectangle of PIME's visible window(s) in the foreground app,
-    else in any app (UWP apps run inside ApplicationFrameHost)."""
+# A PIME window no wider/taller than this is its hint box, not its candidate
+# list (one space of DEFAULT_GUI_FONT plus a 5 px margin each side). Only the
+# hint box may be made invisible: the candidate list is what the user clicks.
+STUB_MAX_W, STUB_MAX_H = 64, 56
+
+
+def hide_stub(hwnd: int) -> None:
+    """Make PIME's hint box invisible without closing it.
+
+    We need the window: PIME puts it right under the caret and moves it on
+    every composition update, which is the only way this process can know
+    where the text is. We do not want to *see* it — it is a Windows 95
+    tooltip (pale yellow, 3-D border) that PIME destroys and recreates on
+    every change. Layering it at alpha 0 leaves the anchor exactly where it
+    is and draws nothing.
+    """
+    try:
+        ex = user32.GetWindowLongW(hwnd, w.GWL_EXSTYLE)
+        if not ex & w.WS_EX_LAYERED:
+            user32.SetWindowLongW(hwnd, w.GWL_EXSTYLE, ex | w.WS_EX_LAYERED | w.WS_EX_TRANSPARENT)
+        user32.SetLayeredWindowAttributes(hwnd, 0, 0, w.LWA_ALPHA)
+    except Exception:  # noqa: BLE001 - a visible stub is better than no typing
+        log.debug("cannot hide PIME's hint box", exc_info=True)
+
+
+def find_anchor() -> tuple[tuple[int, int, int, int], int] | None:
+    """(screen rectangle, window) of PIME's visible window in the foreground
+    app, else in any app (UWP apps run inside ApplicationFrameHost)."""
     fg = user32.GetForegroundWindow()
     fg_pid = wintypes.DWORD()
     if fg:
@@ -81,13 +107,13 @@ def find_anchor() -> tuple[int, int, int, int] | None:
             continue
         pid = wintypes.DWORD()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-        (mine if pid.value == fg_pid.value else anywhere).append(_rect(r))
-    rects = mine or anywhere
-    if not rects:
+        (mine if pid.value == fg_pid.value else anywhere).append((_rect(r), hwnd))
+    found = mine or anywhere
+    if not found:
         return None
     # the message window sits under the caret; when the candidate window is
     # open too, dock under whichever is lower
-    return max(rects, key=lambda r: r[3])
+    return max(found, key=lambda x: x[0][3])
 
 
 def caret_rect() -> tuple[int, int, int, int] | None:
@@ -143,9 +169,11 @@ class Overlay:
     def available(self) -> bool:
         return self._hwnd is not None and not self._failed
 
-    def show(self, owner, kind: str, model, theme: Theme, size: float = 1.0) -> None:
+    def show(self, owner, kind: str, model, theme: Theme, size: float = 1.0, cover: bool = False) -> None:
+        """``cover``: sit exactly where PIME's hint box is (and hide it)
+        instead of docking under it — the hint box is then only an anchor."""
         with self._lock:
-            self._want = (owner, kind, model, theme, size)
+            self._want = (owner, kind, model, theme, size, cover)
             self._owner = owner
         self._post(WM_UPDATE)
 
@@ -253,7 +281,7 @@ class Overlay:
             self._update()
 
     def _measure(self, scale: float) -> tuple[int, int]:
-        _, kind, model, theme, size = self._shown
+        _, kind, model, theme, size, _cover = self._shown
         surf = Surface(4, 4)
         try:
             painted = PAINTERS[kind](Canvas(surf.hdc, scale, self._fonts), theme, model, size, draw=False)
@@ -264,10 +292,26 @@ class Overlay:
     def _place(self, resize: bool) -> bool:
         """Position (and with ``resize`` size + repaint) next to the anchor.
         Returns whether an anchor was found."""
-        anchor = (find_own(self.dock_under) if self.dock_under else None) or find_anchor()
+        cover = bool(self._shown and self._shown[5])
+        anchor = find_own(self.dock_under) if self.dock_under else None
+        if anchor is not None:
+            cover = False  # docking under our own other panel
+        else:
+            found = find_anchor()
+            if found is None:
+                anchor = None
+            else:
+                anchor, anchor_hwnd = found
+                is_stub = (anchor[2] - anchor[0] <= STUB_MAX_W * (self._scale or 1.0)
+                           and anchor[3] - anchor[1] <= STUB_MAX_H * (self._scale or 1.0))
+                if cover and is_stub:
+                    hide_stub(anchor_hwnd)
+                else:
+                    cover = False  # PIME's candidate list: never cover or hide it
         below = True
         if anchor is None:
             anchor = caret_rect()
+            cover = False
             if anchor is None:
                 if resize and self._pos is not None:
                     self._resize_and_paint()
@@ -284,7 +328,8 @@ class Overlay:
         if resize:
             self._size = self._measure(scale)
         width, height = self._size
-        x, y = anchor[0], anchor[3] + GAP
+        # covering: the stub already sits right under the caret line
+        x, y = anchor[0], (anchor[1] if cover else anchor[3] + GAP)
         if y + height > area[3]:
             # no room below: above the composition line (the anchor sits one
             # line below the caret, about its own height)
@@ -314,7 +359,7 @@ class Overlay:
         try:
             if self._shown is None or self._fonts is None:
                 return
-            _, kind, model, theme, size = self._shown
+            _, kind, model, theme, size, _cover = self._shown
             width, height = self._size
             surf = Surface(width, height, hdc)
             canvas = Canvas(surf.hdc, self._scale, self._fonts)

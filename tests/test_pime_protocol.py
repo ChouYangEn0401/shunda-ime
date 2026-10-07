@@ -329,3 +329,40 @@ def test_click_while_composing_commits_before_the_next_key(engine, monkeypatch):
     assert r[61]["commitString"] == "我們"
     assert r[61]["compositionString"] == "j"
     assert "showMessage" not in r[61]  # this reply starts a new composition
+
+
+class _FakeOverlay:
+    """Stands in for smartime.ui.overlay when there is no desktop."""
+
+    available = True
+
+    def __init__(self):
+        self.shown = []  # (kind, cover)
+
+    def show(self, owner, kind, model, theme, size=1.0, cover=False):
+        self.shown.append((kind, cover))
+
+    def hide(self, owner=None):
+        self.shown.append((None, False))
+
+
+def test_our_panel_turns_pime_s_hint_box_into_a_silent_anchor(engine, monkeypatch):
+    """The yellow box blinked because PIME destroys and recreates its message
+    window on every change. When we draw the strip ourselves, the message is
+    one unchanging space: PIME builds the window once per composition and
+    only moves it, and smartime.ui.overlay covers it."""
+    from smartime.pime import text_service as ts
+
+    overlay = _FakeOverlay()
+    monkeypatch.setattr(ts, "_panel_window", lambda create, second=False: None if second else overlay)
+    replies = exchange(engine, [
+        {"method": "init", "seqNum": 1, "id": "{61AA71DB-BB8C-4C7D-9BD7-C324464DF341}",
+         "isWindows8Above": True, "isMetroApp": False, "isUiLess": False, "isConsole": False},
+        {"method": "onActivate", "seqNum": 2, "isKeyboardOpen": True},
+        *typing(10, "ji3ap7rup wu0 "),
+        {"method": "close"},
+    ])
+    messages = [r["showMessage"]["message"] for r in replies if "showMessage" in r]
+    assert messages == [ts.ANCHOR_MESSAGE], "the hint box must be set once and never change"
+    kinds = [k for k, _ in overlay.shown if k]
+    assert "hint" in kinds and all(cover for k, cover in overlay.shown if k)

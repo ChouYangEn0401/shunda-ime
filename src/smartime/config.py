@@ -100,6 +100,10 @@ class Config:
     # The candidate window drawn as a panel: groups in colour (我的詞庫, 學過,
     # 詞庫 …), Tab filters a group. Off = PIME's plain list.
     panel_candidates: bool = True
+    # Draw the hint strip ourselves instead of PIME's message window (a pale
+    # yellow Windows 95 tooltip that PIME rebuilds on every change, so it
+    # blinked on every keystroke). Off falls back to PIME's own box.
+    panel_hint: bool = True
 
     # Memory (my dictionary)
     learn: bool = True  # remember candidates I pick and continuations I accept

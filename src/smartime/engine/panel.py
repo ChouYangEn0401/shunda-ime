@@ -79,6 +79,7 @@ class CandidatePanel:
     layout: str = "list"  # list | grid (the symbol categories)
     snippet: bool = False  # the ;; list (letters filter it)
     preview: str = ""  # the selected 片語's whole text
+    notice: str = ""  # one-off feedback, shown in place of the title
 
 
 @dataclass

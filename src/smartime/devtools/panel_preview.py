@@ -41,9 +41,9 @@ def render(panel, theme, scale: float, path: Path, kind: str = "decode") -> None
     from PIL import Image
 
     from ..ui.canvas import Canvas, Fonts, Surface
-    from ..ui.panels import paint_candidates, paint_decode, paint_smart
+    from ..ui.panels import paint_candidates, paint_decode, paint_hint, paint_smart
 
-    paint = {"candidates": paint_candidates, "smart": paint_smart}.get(kind, paint_decode)
+    paint = {"candidates": paint_candidates, "smart": paint_smart, "hint": paint_hint}.get(kind, paint_decode)
     fonts = Fonts(scale)
     probe = Surface(4, 4)
     size = paint(Canvas(probe.hdc, scale, fonts), theme, panel, draw=False)
@@ -83,7 +83,8 @@ def main() -> int:
         for name, script in samples:
             session = Session(engine)
             run(session, script)
-            panel = decode_panel(session)
+            view = session.view()  # so one-off notices ride on the panel
+            panel = view.panel or decode_panel(session)
             for theme in themes:
                 path = out / f"decode-{name}-{'dark' if theme.dark else 'light'}.png"
                 render(panel, theme, args.scale, path)

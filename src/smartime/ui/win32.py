@@ -30,6 +30,9 @@ WM_NCHITTEST, WM_MOUSEACTIVATE, WM_APP, WM_QUIT = 0x0084, 0x0021, 0x8000, 0x0012
 HTTRANSPARENT, MA_NOACTIVATE = -1, 3
 WS_POPUP = 0x80000000
 WS_EX_TOPMOST, WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE, WS_EX_TRANSPARENT = 0x8, 0x80, 0x08000000, 0x20
+WS_EX_LAYERED = 0x00080000
+GWL_EXSTYLE = -20
+LWA_ALPHA = 0x2
 CS_DROPSHADOW = 0x00020000
 SW_HIDE, SW_SHOWNOACTIVATE = 0, 4
 SWP_NOACTIVATE, SWP_SHOWWINDOW, SWP_NOZORDER = 0x0010, 0x0040, 0x0004
@@ -131,6 +134,13 @@ _decl(user32, "MonitorFromRect", H, ctypes.POINTER(wintypes.RECT), wintypes.DWOR
 _decl(user32, "GetMonitorInfoW", wintypes.BOOL, H, ctypes.POINTER(MONITORINFO))
 _decl(user32, "GetDpiForWindow", wintypes.UINT, wintypes.HWND)
 _decl(user32, "FillRect", ctypes.c_int, wintypes.HDC, ctypes.POINTER(wintypes.RECT), wintypes.HBRUSH)
+# Making another process's window fully transparent (PIME's hint box, which we
+# keep alive only as an anchor): style changes other than GWLP_WNDPROC are
+# allowed across processes, and LWA_ALPHA needs no access to its DC.
+_decl(user32, "GetWindowLongW", wintypes.LONG, wintypes.HWND, ctypes.c_int)
+_decl(user32, "SetWindowLongW", wintypes.LONG, wintypes.HWND, ctypes.c_int, wintypes.LONG)
+_decl(user32, "SetLayeredWindowAttributes", wintypes.BOOL, wintypes.HWND, wintypes.COLORREF,
+      wintypes.BYTE, wintypes.DWORD)
 try:
     _decl(user32, "SetThreadDpiAwarenessContext", ctypes.c_void_p, ctypes.c_void_p)
 except AttributeError:  # pragma: no cover - before Windows 10 1607

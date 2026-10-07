@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ..engine.panel import CandidatePanel, Column, DecodePanel, SmartPanel
+from ..engine.panel import CandidatePanel, Column, DecodePanel, HintPanel, SmartPanel
 from .canvas import Canvas
 from .theme import Theme
 
@@ -22,7 +22,8 @@ WORD_GAP, CHAR_GAP = 9, 2
 LAYER_NAME = {"text": "國字", "zhuyin": "注音", "keys": "按鍵"}
 TYPING_HELP = [("Esc", "修正模式"), ("Ctrl+Z", "復原"), ("↓", "選字")]
 CORRECTING_HELP = [("h l", "移動"), ("j k", "換字"), ("x", "刪"), ("e", "中⇄英"), ("r", "重打"),
-                   ("v", "檢視"), ("u", "復原"), ("i/Esc", "打字"), ("Enter", "送出"), ("DD", "清除")]
+                   ("R", "重新判定"), ("v", "檢視"), ("u", "復原"), ("i/Esc", "打字"), ("Enter", "送出"),
+                   ("DD", "清除")]
 
 
 @dataclass
@@ -155,6 +156,7 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
     help_items = CORRECTING_HELP if correcting else TYPING_HELP
     header_h = 24 * k if correcting else 0
     footer_h = 20 * k
+    notice_h = 19 * k if p.notice else 0
     room = MAX_WIDTH * k - 2 * PAD_X * k - GUTTER * k - 2 * 14 * k
     anchor = p.focus if p.focus is not None else max(0, p.caret - 1)
     lo, hi = _visible_range(widths, gaps, anchor, room)
@@ -162,9 +164,10 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
     more_left, more_right = lo > 0, hi < len(p.columns)
     body_w = GUTTER * k + (14 * k if more_left else 0) + cols_w + (14 * k if more_right else 0) + (4 * k)
     width = max(body_w, _help_width(c, s, help_items),
+                measure_mixed(c, p.notice, s.help, s.symbol),
                 (c.measure("修正模式", s.title)[0] + 160 * k) if correcting else 0) + 2 * PAD_X * k
     rows_h = (ROW_KEYS + ROW_READING + ROW_TEXT) * k
-    height = PAD_Y * k + header_h + rows_h + 6 * k + footer_h + PAD_Y * k
+    height = PAD_Y * k + header_h + rows_h + 6 * k + notice_h + footer_h + PAD_Y * k
     out = Painted(width, height)
     if not draw:
         return out
@@ -289,9 +292,12 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
     if more_right:
         c.text(end_x + 4 * k, top + ROW_KEYS * k + 2 * k, "…", s.reading, t.faint)
 
-    # footer: key help
+    # footer: one-off feedback (it used to live in PIME's box), then key help
     fy = top + rows_h + 6 * k
     c.hline(PAD_X * k, width - PAD_X * k, fy - 3 * k, t.border, 1)
+    if p.notice:
+        draw_mixed(c, PAD_X * k, fy + 1 * k, p.notice, s.help, s.symbol, t.accent)
+        fy += notice_h
     _paint_help(c, s, t, PAD_X * k, fy + 1 * k, help_items, width - PAD_X * k)
     out.regions = {"columns": col_x, "visible": (lo, hi)}
     return out
@@ -457,7 +463,7 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
     cols_w = sum(col_w) + gap * max(0, len(col_w) - 1)
     help_items = SNIPPET_HELP if p.snippet else PALETTE_HELP if p.palette else (
         CAND_HELP if p.multi else CAND_HELP_SINGLE)
-    title_w = c.measure(p.title, s.help)[0] + 60 * k
+    title_w = measure_mixed(c, p.notice or p.title, s.help, s.symbol) + 60 * k
     chips_w = sum(c.measure(ch, s.small)[0] + 18 * k for ch in p.chips)
     width = max(cols_w, _help_width(c, s, help_items), title_w, min(chips_w, 560 * k),
                 360 * k if p.preview else 0) + 2 * PAD_X * k
@@ -480,7 +486,7 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
     x0, y = PAD_X * k, PAD_Y * k
     # title: what is being chosen, and where we are
     pages = f"{p.first_page + 1}–{p.first_page + len(cols)}/{p.pages}" if len(cols) > 1 else f"{p.index // p.page_size + 1}/{p.pages}"
-    c.text(x0, y, p.title, s.help, t.muted)
+    draw_mixed(c, x0, y, p.notice or p.title, s.help, s.symbol, t.accent if p.notice else t.muted)
     pw = c.measure(pages, s.num)[0]
     if p.pages > 1:
         c.text(width - PAD_X * k - pw, y + 1 * k, pages, s.num, t.faint)
@@ -594,4 +600,95 @@ def paint_smart(c: Canvas, t: Theme, p: SmartPanel, size: float = 1.0, draw: boo
     fy = y + 8 * k
     c.hline(x0, width - PAD_X * k, fy - 4 * k, t.border, 1)
     _paint_help(c, s, t, x0, fy, SMART_HELP, width - PAD_X * k)
+    return out
+
+
+# ======================================================================== hint
+# The strip right under the text while typing: what the half-typed keys will
+# become, what Tab would take, and one-off feedback. It replaces PIME's own
+# message window — a Windows 95 tooltip (pale yellow, 3D border, system font)
+# that PIME destroys and rebuilds on every change, so it blinked on every
+# keystroke. One calm surface, and each thing in it has its own place:
+#
+#     ㄊㄧㄢ        │  天氣 ⇥  其他 · 選項
+#     ^ reading        ^ what Tab takes, then the quieter alternatives
+#
+# A fast typist should be able to ignore the right-hand side completely, so
+# the suggestion is muted and only the ⇥ marker carries the accent colour.
+HINT_PAD_X, HINT_PAD_Y = 11, 7
+HINT_ROW = 22
+HINT_MIN_W = 56  # never smaller than PIME's anchor stub, which this covers
+GAP_HINT = 16  # between the zones of the strip
+
+
+def _hint_suggest_width(c: Canvas, s: Styles, p: HintPanel, k: float) -> float:
+    if not p.suggestion:
+        return 0.0
+    w = measure_mixed(c, p.suggestion + " ⇥", s.reading, s.symbol) + 14 * k
+    rest = " · ".join(p.others)
+    if rest:
+        w += c.measure(rest, s.small)[0] + 10 * k
+    if p.more:
+        w += measure_mixed(c, "⇧⇥", s.small, s.symbol) + 10 * k
+    return w
+
+
+def paint_hint(c: Canvas, t: Theme, p: HintPanel, size: float = 1.0, draw: bool = True) -> Painted:
+    s = Styles(c, t, size)
+    k = size
+
+    left = p.info or p.reading
+    left_font = s.small if p.info else s.reading_bold
+    left_w = measure_mixed(c, left, left_font, s.symbol) if left else 0.0
+    becomes = f"→ {p.becomes}  ␣" if p.becomes else ""
+    becomes_w = measure_mixed(c, becomes, s.small, s.symbol) + 8 * k if becomes else 0.0
+    dropped = f"略過 {p.dropped}  ↓" if p.dropped else ""
+    drop_w = measure_mixed(c, dropped, s.small, s.symbol) + 10 * k if dropped else 0.0
+    suggest_w = _hint_suggest_width(c, s, p, k)
+
+    parts = [w for w in (drop_w, left_w + becomes_w, suggest_w) if w]
+    body_w = sum(parts) + GAP_HINT * k * max(0, len(parts) - 1)
+    notice_w = measure_mixed(c, p.notice, s.small, s.symbol) if p.notice else 0.0
+    width = max(body_w, notice_w, HINT_MIN_W * k) + 2 * HINT_PAD_X * k
+    rows = (1 if parts else 0) + (1 if p.notice else 0)
+    height = max(1, rows) * HINT_ROW * k + 2 * HINT_PAD_Y * k
+    out = Painted(width, height)
+    if not draw:
+        return out
+
+    c.fill(0, 0, width, height, t.bg)
+    c.stroke(0, 0, width, height, t.border, line=1)
+    x, y = HINT_PAD_X * k, HINT_PAD_Y * k
+    if parts:
+        if dropped:
+            # red, because a key you typed is not on the screen
+            c.fill(x, y + 2 * k, drop_w - 2 * k, 18 * k, t.drop_soft, radius=4 * k)
+            draw_mixed(c, x + 5 * k, y + 4 * k, dropped, s.small, s.symbol, t.drop)
+            x += drop_w + GAP_HINT * k
+        if left:
+            draw_mixed(c, x, y + (3 if p.info else 1) * k, left, left_font, s.symbol,
+                       t.muted if p.info else t.fg)
+            x += left_w
+            if becomes:
+                draw_mixed(c, x + 8 * k, y + 4 * k, becomes, s.small, s.symbol, t.faint)
+                x += becomes_w
+            x += GAP_HINT * k
+        if suggest_w:
+            # right-aligned: a fast typist can ignore this side completely,
+            # so it keeps its own place instead of shifting with the reading
+            x = max(x, width - HINT_PAD_X * k - suggest_w)
+            chip_w = measure_mixed(c, p.suggestion + " ⇥", s.reading, s.symbol) + 14 * k
+            c.fill(x, y + 1 * k, chip_w, 20 * k, t.accent_soft, radius=5 * k)
+            draw_mixed(c, x + 7 * k, y + 1 * k, p.suggestion + " ⇥", s.reading, s.symbol,
+                       t.fg, symbol_color=t.accent)
+            x += chip_w + 10 * k
+            rest = " · ".join(p.others)
+            if rest:
+                c.text(x, y + 4 * k, rest, s.small, t.muted)
+                x += c.measure(rest, s.small)[0] + 10 * k
+            if p.more:
+                draw_mixed(c, x, y + 4 * k, "⇧⇥", s.small, s.symbol, t.faint)
+        y += HINT_ROW * k
+    if p.notice:
+        draw_mixed(c, HINT_PAD_X * k, y + 3 * k, p.notice, s.small, s.symbol, t.muted)
     return out

@@ -33,6 +33,13 @@ MODE_ICONS = {Mode.AUTO: "auto.ico", Mode.CHINESE: "chinese.ico", Mode.ENGLISH: 
               Mode.PINYIN: "pinyin.ico", Mode.CANGJIE: "cangjie.ico"}
 
 MESSAGE_DURATION = 3600  # seconds; we hide the message explicitly
+# What we put in PIME's own message window when we draw the hint ourselves.
+# The window has to exist: PIME places it right under the caret and moves it
+# on every composition update, which is how this process learns where the
+# text is (TSF's GetTextExt lives in the application's process). One space
+# makes it as small as it goes; smartime.ui.overlay then makes it invisible
+# and puts our own strip in its place.
+ANCHOR_MESSAGE = " "
 SELECTION_KEYS = "123456789"
 
 
@@ -290,8 +297,15 @@ class SmartTextService:
         if not v.composition:
             message = ""
         self._show_smart(v)
-        if self._show_panel(v, panel_kind) == "decode" and v.correcting and not v.notice:
-            # the panel shows everything; the hint box stays as its anchor
+        shown = self._show_panel(v, panel_kind)
+        if shown and not self._showing_candidates:
+            # Our own panel says all of this, in our own colours. PIME's
+            # window stays alive underneath purely as the anchor, with one
+            # space in it, so it is created once per composition instead of
+            # being destroyed and rebuilt on every keystroke (which is what
+            # made the yellow box blink).
+            message = ANCHOR_MESSAGE
+        elif shown == "decode" and v.correcting and not v.notice:
             message = "修正模式 · Esc 回到打字"
         elif panel_kind == "candidates" and not v.notice:
             message = ("符號 · Esc 關閉" if v.candidate_panel.palette else
@@ -340,6 +354,8 @@ class SmartTextService:
             return "candidates" if _panel_window(create=True) is not None else ""
         if v.panel is not None:
             return "decode"
+        if v.hint_panel is not None and cfg.panel_hint:
+            return "hint" if _panel_window(create=True) is not None else ""
         return ""
 
     def _show_panel(self, v, kind: str) -> str:
@@ -353,8 +369,9 @@ class SmartTextService:
         cfg = self.engine.config
         from ..ui.theme import pick
 
-        model = v.candidate_panel if kind == "candidates" else v.panel
-        overlay.show(self, kind, model, pick(cfg.panel_theme), cfg.candidate_font_size / 16)
+        model = {"candidates": v.candidate_panel, "decode": v.panel, "hint": v.hint_panel}[kind]
+        overlay.show(self, kind, model, pick(cfg.panel_theme), cfg.candidate_font_size / 16,
+                     cover=not self._showing_candidates)
         return kind
 
     def _clear_ui(self, reply: dict, composition: bool = True) -> None:

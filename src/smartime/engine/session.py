@@ -223,6 +223,7 @@ class View:
     panel: "DecodePanel | None" = None  # decode panel to draw (see engine.panel), if wanted
     candidate_panel: "CandidatePanel | None" = None  # the candidate window as a panel
     smart_panel: "SmartPanel | None" = None  # 超智慧推薦 (experimental)
+    hint_panel: "HintPanel | None" = None  # the strip under the text (see engine.panel)
 
 
 @dataclass
@@ -335,7 +336,26 @@ class Session(CorrectionMixin):
             if not v.hint and self.suggestion is not None:
                 v.suggestion = self.suggestion.text
                 v.suggestions = [x.text for x in self.suggestions[:self.cfg.suggestion_count]]
+        v.hint_panel = self._hint_panel(v)
+        # One-off feedback used to live in PIME's message window; now that we
+        # draw everything ourselves it has to ride on whichever panel is up,
+        # or it would never be seen.
+        if v.notice:
+            if v.candidate_panel is not None:
+                v.candidate_panel.notice = v.notice
+            elif v.panel is not None:
+                v.panel.notice = v.notice
         return v
+
+    def _hint_panel(self, v: View) -> HintPanel | None:
+        """The strip we draw ourselves instead of PIME's yellow tooltip."""
+        if self.cand is not None or self.correcting:
+            return None  # those panels say everything already
+        reading, becomes, dropped, info = self._hint_parts()
+        panel = HintPanel(reading=reading, becomes=becomes, dropped=dropped, info=info,
+                          suggestion=v.suggestion, others=list(v.suggestions[1:]),
+                          more=len(self.suggestions) > len(v.suggestions), notice=v.notice)
+        return panel or None
 
     def filter_key_down(self, key: KeyInput) -> bool:
         if key.vk == VK_SHIFT:
@@ -1197,34 +1217,45 @@ class Session(CorrectionMixin):
         self._notice = f"已加入詞庫：{phrase}（{category}）"
 
     # ========================================================= assistance
-    def _hint(self) -> str:
+    def _hint_parts(self) -> tuple[str, str, str, str]:
+        """(reading, becomes, dropped, info) — the hint box's content, apart,
+        so the panel can lay it out and ``_hint`` can still make one string
+        for PIME's own message window."""
         if not self.decoding.segments:
-            return ""
+            return "", "", "", ""
         layout = self.engine.layout
         last = self.decoding.segments[-1]
         if self.cursor == len(self.keys):
-            hint = ""
-            if last.kind is Kind.PENDING and self.cfg.spelling_hint and self.scheme == "cangjie":
+            pending = last.kind is Kind.PENDING and self.cfg.spelling_hint
+            if pending and self.scheme == "cangjie":
                 # 字根 of the code so far, and the character it would give
                 radicals = "".join(CANGJIE_RADICALS.get(c, c) for c in last.text)
                 chars = self.engine.lexicon.cangjie_chars(last.text)
-                return radicals + (f" → {chars[0]}（空白鍵）" if chars else "")
-            if last.kind is Kind.PENDING and self.cfg.spelling_hint and self.scheme == "zhuyin":
+                return radicals, (chars[0] if chars else ""), "", ""
+            reading = ""
+            if pending and self.scheme == "zhuyin":
                 # Show what the keys will become, in canonical order (k2 -> ㄉㄜ).
                 canon = bopomofo.canonical(layout.symbol(c) or "" for c in last.text)
-                hint = canon or layout.symbols_for_keys(last.text)
-            dropped = self._recent_drops()
-            if dropped:
-                # A key just typed was treated as a stray and is not shown
-                # (pup -> up): say so, so a wrong guess is not silent.
-                hint = f"（略過 {dropped}，↓ 可還原）" + hint
-            return hint
+                reading = canon or layout.symbols_for_keys(last.text)
+            # A key just typed was treated as a stray and is not shown
+            # (pup -> up): say so, so a wrong guess is not silent.
+            return reading, "", self._recent_drops(), ""
         # Cursor moved back to fix something: annotate the character after
         # the cursor with its reading and the keys behind it, so stray
         # letters and wrong guesses are easy to spot.
         if not self.cfg.key_hint_on_move:
-            return ""
-        return self._unit_info()
+            return "", "", "", ""
+        return "", "", "", self._unit_info()
+
+    def _hint(self) -> str:
+        reading, becomes, dropped, info = self._hint_parts()
+        if info:
+            return info
+        if becomes:
+            return reading + f" → {becomes}（空白鍵）"
+        if dropped:
+            return f"（略過 {dropped}，↓ 可還原）" + reading
+        return reading
 
     def _recent_drops(self, window: int = 4) -> str:
         """Keys among the last ``window`` typed that the decoder dropped."""
