@@ -119,10 +119,30 @@ PIMELauncher、做完事再用 `explorer.exe` 重新啟動它（這樣它不屬�
 
 ## 6. 出一版
 
+### 版本號怎麼取
+
+正式版是乾淨的 `0.8.0`。**還在測的東西不要佔用那個號碼**，用前置版本：
+
+```
+0.8.0-alpha.1   自己或使用者在試的建置，可能一天好幾個
+0.8.0-alpha.2
+0.8.0-rc.1      準備要發了，只差最後確認
+0.8.0           正式版
+```
+
+- 在 GitHub 發佈前置版本時**一定要勾「Set as a pre-release」**。
+  `releases/latest` 的定義就是「最新的、沒有被標成 pre-release 的版本」，
+  所以設定頁的「檢查更新」不會把 alpha 推給一般使用者；而跑 alpha 的人在正式版
+  出來時照樣會被通知（`update.version_tuple` 的排序：
+  `0.7.0 < 0.8.0-alpha.3 < 0.8.0-rc.1 < 0.8.0`）。
+- `pyproject.toml` 會自動寫成 Python 工具認得的拼法（`0.8.0a1`），其他地方維持
+  SemVer 的寫法。`set_version.py` 會處理，不用自己改。
+- CHANGELOG 的小節用正式版號（`## 0.8.0`），alpha 階段一直往那一節裡補。
+
 ```powershell
-.venv\Scripts\python tools\set_version.py              # 看目前版本
-.venv\Scripts\python tools\set_version.py 0.7.0        # 一次改好所有地方
-.venv\Scripts\python tools\build_installer.py          # -> dist\ShundaIME-Setup-0.7.0.exe（需 Inno Setup 6）
+.venv\Scripts\python tools\set_version.py                  # 看目前版本
+.venv\Scripts\python tools\set_version.py 0.8.0-alpha.1    # 一次改好所有地方
+.venv\Scripts\python tools\build_installer.py              # -> dist\ShundaIME-Setup-<版本>.exe（需 Inno Setup 6）
 ```
 
 `build_installer.py` 會下載並用 SHA-256 核對釘住的第三方檔案
