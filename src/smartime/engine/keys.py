@@ -21,8 +21,11 @@ VK_LEFT = 0x25
 VK_UP = 0x26
 VK_RIGHT = 0x27
 VK_DOWN = 0x28
+VK_CLEAR = 0x0C  # the numeric keypad's 5 with NumLock off
+VK_INSERT = 0x2D
 VK_DELETE = 0x2E
 VK_NUMPAD0 = 0x60
+VK_NUMPAD9 = 0x69
 VK_DIVIDE = 0x6F
 VK_NUMLOCK = 0x90
 VK_PACKET = 0xE7  # a Unicode character sent by a program (voice input, paste tools)
@@ -54,6 +57,16 @@ INJECTED_TAG = 0x534D4954  # "SMIT"
 SCAN_LSHIFT = 0x2A
 SCAN_RSHIFT = 0x36
 
+# With NumLock off the numeric keypad sends navigation keys instead of digits.
+# They arrive *non-extended*, while the dedicated Insert/Home/End/arrow block
+# is extended, so the two can still be told apart — which matters because
+# PIME's KeyEvent::scanCode() is broken (it forgets to shift lParam right by
+# 16 and so always returns 0), leaving isExtended as the only signal.
+NUMPAD_NAV_DIGIT = {
+    VK_INSERT: "0", VK_END: "1", VK_DOWN: "2", VK_NEXT: "3", VK_LEFT: "4",
+    VK_CLEAR: "5", VK_RIGHT: "6", VK_HOME: "7", VK_UP: "8", VK_PRIOR: "9",
+}
+
 
 @dataclass(frozen=True)
 class KeyInput:
@@ -69,6 +82,24 @@ class KeyInput:
     @property
     def numpad(self) -> bool:
         return VK_NUMPAD0 <= self.vk <= VK_DIVIDE
+
+    @property
+    def digit(self) -> str:
+        """``"0"``–``"9"`` for the top row and for the numeric keypad, whether
+        or not NumLock is on; ``""`` for any other key.
+
+        Selecting a candidate with the keypad must work either way: with
+        NumLock off the keypad sends Insert/End/↓/PageDown…, and dropping
+        those on the floor closed the candidate window and typed into the
+        document instead.
+        """
+        if len(self.char) == 1 and self.char in "0123456789":
+            return self.char
+        if VK_NUMPAD0 <= self.vk <= VK_NUMPAD9:
+            return chr(ord("0") + self.vk - VK_NUMPAD0)
+        if not self.extended:
+            return NUMPAD_NAV_DIGIT.get(self.vk, "")
+        return ""
 
     @property
     def printable(self) -> bool:

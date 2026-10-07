@@ -980,8 +980,9 @@ class Session(CorrectionMixin):
             # show one group at a time: 全部 -> 我的詞庫 -> 學過 -> 詞庫 -> …
             cand.cycle_filter(-1 if key.shift else +1)
             return True
-        if key.char and key.char in SELECTION_DIGITS:  # top row or numpad
-            i = SELECTION_DIGITS.index(key.char)
+        digit = key.digit  # top row, or the keypad with NumLock either way
+        if digit and digit in SELECTION_DIGITS:
+            i = SELECTION_DIGITS.index(digit)
             page = cand.page_items()  # the column the selection is in
             if i < len(page):
                 self._choose(page[i])

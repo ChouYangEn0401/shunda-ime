@@ -5,6 +5,7 @@ import pytest
 
 from smartime.devtools.simulate import run
 from smartime.engine.panel import candidate_panel
+from smartime.engine.session import Session
 
 
 @pytest.fixture
@@ -89,3 +90,25 @@ def test_palette_is_a_grid(session):
     expected = cand.page_items()[2].text
     _, v = run(session, "3")  # third symbol of the selection's row
     assert v.composition == "我" + expected
+
+
+@pytest.mark.parametrize("n", [1, 3, 5, 7, 9])
+def test_numeric_keypad_selects_with_numlock_either_way(session, n):
+    """Reported: 「旁邊的 number 鍵就會壞掉」.
+
+    With NumLock off the keypad sends Insert/End/↓/PageDown/Clear instead of
+    digits; those fell through the candidate handler, which closed the window
+    and typed into the document. Both spellings must pick the same candidate.
+    """
+    run(session, "ji35p {DOWN}")
+    wanted = session.cand.page_items()[n - 1].text
+    for keys in (f"{n}", f"{{NUM{n}}}", f"{{KP{n}}}"):
+        s = Session(session.engine)
+        run(s, "ji35p {DOWN}" + keys)
+        assert s.view().composition == "我" + wanted, keys
+
+
+def test_arrow_keys_still_move_the_selection(session):
+    # the dedicated arrow block is "extended": it must not read as keypad 2/8
+    _, v = run(session, "ji35p {DOWN}{DOWN}")
+    assert v.candidates is not None and session.cand.index == 1
