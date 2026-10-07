@@ -381,27 +381,37 @@ def type_script(tap, script: str) -> None:
 
 # (script, expected). expected=None means "whatever the engine simulator
 # produces for the same keys": the real app must behave exactly like the
-# simulation (this is what catches TSF/PIME integration bugs).
+# simulation (this is what catches TSF/PIME integration bugs). A tuple means
+# any of those texts is right — the candidate order depends on what this
+# machine's dictionary has learned, and the test reads the real one.
 CASES = [
     ("ji3ap7{ENTER}", "我們"),  # first syllable must convert too (regression)
-    ("su3cl3{C-.}", "你好。"),  # clause punctuation commits
+    # clause punctuation sends the sentence; the mark itself stays in the
+    # composition (so ↓ can still change its width), hence the Enter
+    ("su3cl3{C-.}{ENTER}", "你好。"),
     ("su3cl3<{ENTER}", "你好<"),  # Shift+, types what is on the key (punct_style "keycap")
     ("mvp {ENTER}", "mvp "),
     ("ji3m/4python vu,3{ENTER}", "我用python 寫"),
     ("ji3ap7{BS}{ENTER}", "我"),  # backspace removes a whole syllable
-    ("ji3a87{LEFT}{UP}2{ENTER}", "我嘛"),  # candidate for the char after the cursor
+    # candidate for the char after the cursor. 嗎/嘛 swap places once one of
+    # them is learned, so this checks that *a* different character arrived,
+    # not which one — the real dictionary is the user's, and it moves.
+    ("ji3a87{LEFT}{UP}2{ENTER}", ("我嘛", "我嗎")),
     ("ao6u.3{TAB}{ENTER}", "沒有用"),  # Tab completion
     # lone right Shift taps cycle 自動 -> 純注音 -> 純英文 -> 自動 (the default)
     ("{RSHIFT}{RSHIFT}abc{RSHIFT}ji3{ENTER}", "abc我"),
     ("k27{ENTER}", "的"),  # keys out of order (fast typing)
     ("2; ji3rup wu0 t;6g4283{ENTER}", "當我今天嘗試打"),  # 283 is 打, not a number
-    ("su3cl3{C-,}", "你好，"),  # Ctrl+, full-width comma
+    # Ctrl+, types the full-width comma and sends the sentence; the mark
+    # itself stays in the composition so its width is still changeable, so
+    # the test has to commit before reading the field.
+    ("su3cl3{C-,}{ENTER}", "你好，"),
     ("{C-[}ji3{C-]}{ENTER}", "「我」"),
     ("cl3dj4i {ENTER}", "好酷喔"),  # i␣ is ㄛ (喔), not the word "i"
     ("ji3ee/4dj94{ENTER}", "我更快"),  # stray key left by fast typing is dropped
     ("mvp {DOWN}4{ENTER}", "勳"),  # English token -> Chinese reading (␣ is its tone key)
     ('ji3ap7"python"{ENTER}', '我們"python"'),  # " stays half-width
-    ("ji3a87{ESC}j{ENTER}", "我嘛"),  # correction mode: j swaps the candidate in place
+    ("ji3a87{ESC}j{ENTER}", ("我嘛", "我嗎")),  # correction mode: j swaps the candidate in place
     ("mvp {ESC}e{ENTER}", "勳"),  # correction mode: e turns raw keys into Chinese
     ("ji3ee/4dj94{ESC}vv{HOME}lllxv{ENTER}", "我更快"),  # 按鍵 view: delete one stray key
     ("ji3{RCTRL}{TAB}{TAB}1{ENTER}", "我α"),  # symbol panel: a lone right-Ctrl tap
@@ -628,7 +638,10 @@ def main() -> int:
                     restart_ime()
             if "SHIFT}" in script:
                 restart_ime()
-            ok = got == expected
+            # a tuple of expectations means "any of these" — for cases whose
+            # candidate order depends on what this machine's dictionary has
+            # learned (the test reads the user's real memory)
+            ok = got in expected if isinstance(expected, tuple) else got == expected
             failures += not ok
             label = script if len(script) <= 34 else script[:31] + "..."
             print(f"{'PASS' if ok else 'FAIL'}  {label!r:36} -> {got!r}" + ("" if ok else f"  (expected {expected!r})"))

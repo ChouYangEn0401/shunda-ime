@@ -3,8 +3,9 @@
 Types into a real text box with the IME active (same harness and safety as
 tsf_typing_test: waits until the computer is idle, stops at any real key or
 click, restores the previous input method and the user's memory), then
-checks that our panel window is visible and docked next to PIME's hint box,
-and saves a screenshot of each case:
+checks that our panel window is visible and sitting on PIME's hint box
+(which is kept alive, transparent, only as the anchor that says where the
+caret is), and saves a screenshot of each case:
 
     python -m smartime.devtools.panel_check out_dir [--richedit]
 
@@ -21,6 +22,10 @@ from pathlib import Path
 from . import tsf_typing_test as t
 
 CASES = [
+    # the strip we draw instead of PIME's yellow hint box
+    ("typing-reading", "ji3rup wu0 wu0"),
+    ("typing-suggestion", "ji3rup wu0 "),
+    ("typing-dot", "ji3ap7"),
     ("correcting", "ji3ee/4dj94k27{ESC}h"),
     ("keys-view", "ji3ee/4dj94k27{ESC}vv{HOME}lll"),
     ("long", "b06c.4283tj x96k27y4b/6b06j6z83fm4u/ jp6k27jp4{ESC}hhh"),
@@ -141,10 +146,18 @@ def main() -> int:
                 problems.append("no PIME hint window")
             if panel and anchors:
                 a = max(anchors, key=lambda r: r[3])
+                # PIME's hint box is kept alive only as the anchor: it is a
+                # transparent stub a couple of characters wide, and our panel
+                # sits exactly on it. (Below it, when there is no room under
+                # the caret, the panel goes above the whole line instead.)
+                stub = (a[2] - a[0]) <= 80 and (a[3] - a[1]) <= 70
+                covers = panel[0] == a[0] and panel[1] == a[1] and panel[2] >= a[2] and panel[3] >= a[3]
                 docked_below = 0 <= panel[1] - a[3] <= 12
                 docked_above = panel[3] <= a[1]
-                if not (docked_below or docked_above) or abs(panel[0] - a[0]) > 400:
-                    problems.append(f"panel {panel} not next to the hint box {a}")
+                if not (covers or docked_below or docked_above) or abs(panel[0] - a[0]) > 400:
+                    problems.append(f"panel {panel} is neither on nor next to the hint box {a}")
+                elif stub and not covers:
+                    problems.append(f"panel {panel} should cover the hint stub {a}, not dock beside it")
             shot = [r for r in [panel, edit, *anchors] if r]
             if shot:
                 box = (min(r[0] for r in shot) - 8, min(r[1] for r in shot) - 8,
