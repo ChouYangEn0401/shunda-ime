@@ -33,3 +33,6 @@ Desktop.ini
 
 # Private Python runtime downloaded by scripts/install.ps1
 backend/runtime/
+
+# bug report 草稿，不進版本控制
+bug_fix.txt

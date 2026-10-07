@@ -116,11 +116,6 @@ I_O_CONTEXT = [
     ("m/4 x 1ul3g4", "用 x 表示"),
     ("cl3 i ", "好 i "),
     ("su3 e ", "你 e "),  # a deliberate key after a space is not dropped
-    # A lone letter with a space on each side is the user's own separator,
-    # so it stays English and the space after it is not a first-tone key.
-    # Reported: 「第 i 項」 -> 「第 喔 項」, 「第 u 項」 -> 「第 一項」.
-    ("2u4 i vu;4", "第 i 項"),
-    ("2u4 u vu;4", "第 u 項"),  # ㄧ (一) is frequent enough to win without the rule
     ("ji3ap7 e cl3", "我們 e 好"),
     pytest.param("o cl3dj4", "欸好酷",
                  marks=pytest.mark.xfail(reason="欸 lacks the colloquial reading ㄟ in the lexicon", strict=True)),
@@ -132,10 +127,19 @@ def test_i_o_context(decoder, keys, expected):
     assert decode(decoder, keys) == expected
 
 
-def test_letter_between_spaces_after_chinese_is_english(decoder):
+@pytest.mark.parametrize("letter", list("iueoaklm"))
+def test_letter_between_spaces_after_chinese_is_english(decoder, letter):
     # 第/項 vs 地/相 is a homophone choice (learned once picked); the point
-    # here is that " i " stays English instead of becoming 喔
-    assert " i " in decode(decoder, "2u4 i vu;4")
+    # here is that the letter stays English instead of becoming a character
+    # and eating the space after it as a first tone. Reported: 「第 i 項」 ->
+    # 「第 喔 項」; 「第 u 項」 came out 「第 一項」 (ㄧ is frequent enough to win).
+    assert f" {letter} " in decode(decoder, f"2u4 {letter} vu;4")
+
+
+def test_lone_letter_without_a_space_before_is_still_zhuyin(decoder):
+    # no separator at the start of the buffer: "o␣" is ㄟ, not the letter o
+    assert decode(decoder, "o ") == "ㄟ"
+    assert decode(decoder, "su3vu;3ji3i ") == "你想我喔"
 
 
 @pytest.mark.parametrize("keys, expected", ENGLISH)
