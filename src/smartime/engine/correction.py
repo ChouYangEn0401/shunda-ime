@@ -34,7 +34,7 @@ from .keys import (
 
 LAYERS = ("text", "zhuyin", "keys")
 LAYER_LABEL = {"text": "國字", "zhuyin": "注音", "keys": "按鍵"}
-HELP = "h l 移動 · j k 換字 · v 檢視 · x 刪 · e 中英 · r 重打 · a 加詞 · u 復原 · i／Esc 打字 · D D 清除"
+HELP = ("h l 移動 · j k 換字 · v 檢視 · x 刪 · e 中英 · r 重打 · R 重新判定 · a 加詞 · u 復原 · i／Esc 打字 · D D 清除")
 
 
 @dataclass
@@ -54,6 +54,7 @@ class CorrectionMixin:
         self._cycle: _Cycle | None = None
         self._clear_armed = False  # D pressed once: the next D clears everything
         self._retype_at: int | None = None  # r: typing one replacement character here
+        self._redecide_span = 0  # R pressed in a row: how many extra units it covers
 
     def enter_correction(self) -> None:
         self.correcting = True
@@ -61,6 +62,7 @@ class CorrectionMixin:
         self._cycle = None
         self._clear_armed = False
         self._retype_at = None
+        self._redecide_span = 0
         self.suggestion = None
         # at the end: the last real character (not a trailing space, so
         # "mvp␣" + Esc lands on mvp)
@@ -120,6 +122,8 @@ class CorrectionMixin:
     def _correction_key(self, key: KeyInput) -> bool:
         vk, ch = key.vk, key.char
         armed, self._clear_armed = self._clear_armed, False
+        if ch != "R":
+            self._redecide_span = 0  # a run of R presses ended
         if key.ctrl and not key.alt and vk in (0x59, 0x5A):  # Ctrl+Y / Ctrl+Z
             self._restore(redo=vk == 0x59 or key.shift)
             return True
@@ -185,6 +189,8 @@ class CorrectionMixin:
             self._toggle_kind()
         elif ch == "r":
             self._retype()
+        elif ch == "R":
+            self._redecide()
         elif ch == "a":
             self._add_word_here()
         elif ch == "u":
@@ -291,6 +297,40 @@ class CorrectionMixin:
         self._snapshot()
         self._apply_pin(pin)
 
+    def _redecide(self) -> None:
+        """R: throw away the choices made over this stretch and decode it again.
+
+        Picking characters one by one pins them, and a pin the decoder has to
+        honour can strand a key next to the syllable it belongs to: ``e`` is
+        left as English in 「至 e 灣」 when ``ej0␣`` on its own is 關. Nothing
+        in the mode could join them again — j/k offered no Chinese for a lone
+        ``e``, and x would have thrown the key away.
+
+        Each press in a row takes one more character in, so the span can be
+        grown until the decoder sees enough context.
+        """
+        self._finish_cycle()
+        units = self.decoding.units()
+        t = self._target()
+        if t is None or not units:
+            self._notice = "沒有東西可以重新判定"
+            return
+        here = units.index(t)
+        self._redecide_span += 1
+        last = min(len(units) - 1, here + self._redecide_span)
+        a, b = units[here][0], units[last][1]
+        if not any(p.start < b and p.end > a for p in self.pins):
+            if last == len(units) - 1 and here == 0:
+                self._notice = "這一段沒有選過的字，解碼器本來就是這樣讀的"
+                return
+        self._snapshot()
+        self.pins = [p for p in self.pins if p.end <= a or p.start >= b]
+        self._redecode()
+        self.cursor = a
+        self._snap_to_unit()
+        span = "".join(u[2] for u in self.decoding.units() if a <= u[0] < b)
+        self._notice = f"重新判定「{span}」· 再按一次 R 多納入一個字"
+
     def _add_word_here(self) -> None:
         """Add the run of Chinese characters around the cursor (≤ 8)."""
         self._finish_cycle()
@@ -337,7 +377,15 @@ class CorrectionMixin:
             start = self._current_index(items)  # j/k walk away from what is on screen
             self._cycle = _Cycle(t[0], items, start, current, t[2])
         c = self._cycle
-        c.index = (c.index + step) % len(c.items)
+        # Step past candidates that would leave the screen looking the same.
+        # The list holds both the word and its first character (今天 and 今),
+        # so a plain +1 could pin a different span and change nothing visible
+        # — which read as "the shortcut does not work".
+        for _ in range(len(c.items)):
+            c.index = (c.index + step) % len(c.items)
+            cand = c.items[c.index]
+            if cand.pin is not None and cand.text != self._text_over(cand.pin.start, cand.pin.end):
+                break
         self._apply_pin(c.items[c.index].pin)
         self._cycle.start = self.cursor
 
