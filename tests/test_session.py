@@ -32,12 +32,17 @@ def test_double_quote_is_halfwidth(session):
     assert v.composition == '我們"python"'
 
 
-def test_clause_punctuation_commits(session):
+def test_clause_punctuation_commits_everything_before_it(session):
+    # The sentence is sent as soon as the clause ends, but the mark itself
+    # stays in the composition: it is the one character you may still want
+    # to change the width of (↓ offers ，/,), and committing it made that
+    # impossible. Reported: 「標點沒辦法透過『下』去操作」.
     out, v = run(session, "su3cl3<")
-    assert out == "你好，"
-    assert v.composition == ""
-    out, _ = run(session, "?")
-    assert out == "？"
+    assert out == "你好" and v.composition == "，"
+    _, v = run(session, "{DOWN}")
+    assert "," in v.candidates
+    out, v = run(session, "{ESC}?")
+    assert out + v.composition == "，？"
 
 
 def test_punctuation_variants_in_candidates(session):
@@ -224,13 +229,12 @@ def test_ctrl_punctuation_commits_clause(session):
     # 微軟新注音 / 華碩 convention; previously passed to the app (VS Code
     # opened Settings on Ctrl+, and Quick Fix on Ctrl+.)
     out, v = run(session, "su3cl3{C-,}")
-    assert out == "你好，"
-    assert v.composition == ""
+    assert out == "你好" and v.composition == "，"
 
 
 def test_ctrl_punctuation_when_idle_and_with_shift(session):
-    out, _ = run(session, "{C-.}{CS-/}{CS-1}")
-    assert out == "。？！"
+    out, v = run(session, "{C-.}{CS-/}{CS-1}")
+    assert out + v.composition == "。？！"
 
 
 def test_ctrl_bracket_stays_in_composition(session):

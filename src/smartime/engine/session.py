@@ -21,7 +21,8 @@ from pathlib import Path
 from ..config import Config
 from . import bopomofo
 from .decoder import (
-    CANGJIE_RADICALS, CLAUSE_PUNCT, FULLWIDTH_PUNCT, PLAIN_PUNCT, PUNCT_VARIANTS, Decoder, Decoding, Key, Kind,
+    CANGJIE_RADICALS, CLAUSE_PUNCT, FULLWIDTH_PUNCT, PLAIN_PUNCT, PUNCT_ALTERNATIVES, PUNCT_VARIANTS,
+    Decoder, Decoding, Key, Kind,
     Segment,
 )
 from .keys import (
@@ -643,9 +644,25 @@ class Session(CorrectionMixin):
         if self.cfg.commit_on_clause_punct and self.cursor == len(self.keys):
             last = self.decoding.segments[-1] if self.decoding.segments else None
             if last is not None and last.kind is Kind.PUNCT and last.text in CLAUSE_PUNCT:
-                self.commit_all()
+                # The sentence is settled, so send it — but keep the mark
+                # itself in the composition, so ↓ can still swap its width
+                # (，<->, 。<->.). Committing the mark too made it the one
+                # character that could never be corrected.
+                self._commit_up_to(last.start)
                 return
         self._commit_overflow()
+
+    def _commit_up_to(self, pos: int) -> None:
+        """Commit every segment that ends at or before key ``pos``."""
+        while self.decoding.segments:
+            first = self.decoding.segments[0]
+            if first.end > pos:
+                break
+            self._commit += first.text
+            self._delete_keys(0, first.end)
+            pos -= first.end
+            self._forget_history()
+            self._redecode()
 
     def _delete_keys(self, a: int, b: int) -> None:
         del self.keys[a:b]
@@ -953,6 +970,9 @@ class Session(CorrectionMixin):
             options += [FULLWIDTH_PUNCT[raw], raw, *PUNCT_VARIANTS.get(raw, "")]
         elif raw in PLAIN_PUNCT:  # pinyin / Cangjie: , . ; are punctuation keys
             options += [PLAIN_PUNCT[raw], raw]
+        # Ctrl+, inserts 「，」 as the key itself, so there is no keycap to look
+        # the variants up by: index them by the symbol as well.
+        options += PUNCT_ALTERNATIVES.get(seg.text, "")
         return [Candidate(o, replace(seg, text=o, pinned=True), group="標點") for o in dict.fromkeys(options)]
 
     def _candidate_key(self, key: KeyInput) -> bool:

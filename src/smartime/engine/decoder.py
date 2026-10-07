@@ -124,6 +124,17 @@ PUNCT_VARIANTS = {
     '"': "“”「」；", "'": "‘’", "<": "《〈", ">": "》〉", "[": "【〔", "]": "】〕",
     "{": "｛", "}": "｝", "?": "", "!": "", ":": "", "(": "", ")": "", "~": "", "\\": "",
 }
+# Punctuation that was typed as itself rather than through a keycap — Ctrl+,
+# inserts 「，」 as the key — has no ASCII key to look the variants up by, so
+# every form of a symbol is also indexed by the symbol. Pressing ↓ on it then
+# still offers the other width and the related marks (reported: 「標點沒辦法
+# 透過『下』去操作」).
+PUNCT_FORMS = [
+    "，,", "。.", "？?", "！!", "：:", "；;", "、\\", "＂\"“”", "＇'‘’",
+    "「『【〔［[", "」』】〕］]", "（(｛{", "）)｝}", "《<〈", "》>〉",
+    "～~", "＼\\", "—－-", "…‥·",
+]
+PUNCT_ALTERNATIVES = {ch: forms for forms in PUNCT_FORMS for ch in forms}
 # Keys that may be dropped as accidental: lowercase letters plus the layout's
 # own non-letter zhuyin keys (大千 , . / ; -  倚天 , . / ; ' - =). Never
 # digits, spaces, capitals or shifted symbols.

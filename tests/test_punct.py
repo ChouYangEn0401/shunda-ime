@@ -33,7 +33,9 @@ def test_keycap_style_types_what_is_printed(styled):
     assert "，" in v.candidates  # the full-width form is one ↓ away
     s = styled()
     out, v = run(s, "su3cl3{C-,}")
-    assert out == "你好，"  # Chinese punctuation comes from Ctrl
+    # Chinese punctuation comes from Ctrl; the sentence is sent and the mark
+    # stays in the composition so its width is still changeable
+    assert out == "你好" and v.composition == "，"
     s = styled()
     _, v = run(s, "ji3[ji3]")
     assert v.composition == "我[我]"
@@ -41,8 +43,8 @@ def test_keycap_style_types_what_is_printed(styled):
 
 def test_fullwidth_style_is_the_older_behaviour(styled):
     s = styled(punct_style="fullwidth")
-    out, _ = run(s, "su3cl3<")
-    assert out == "你好，"
+    out, v = run(s, "su3cl3<")
+    assert out + v.composition == "你好，"
 
 
 def test_ctrl_cells_can_be_changed_or_given_back_to_the_app(styled):
