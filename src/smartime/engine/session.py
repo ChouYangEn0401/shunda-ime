@@ -34,7 +34,9 @@ from .layouts import Layout
 from .lexicon import Lexicon
 from .userdict import UserDict
 from .correction import CorrectionMixin
-from .panel import CandidatePanel, DecodePanel, SmartPanel, candidate_panel, decode_panel, smart_panel
+from .panel import (
+    CandidatePanel, DecodePanel, HintPanel, SmartPanel, candidate_panel, decode_panel, smart_panel,
+)
 from .punct import ctrl_output
 from .symbols import CATEGORIES, LIST_TABS, TABS, SymbolPanel
 

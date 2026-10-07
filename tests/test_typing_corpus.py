@@ -116,6 +116,12 @@ I_O_CONTEXT = [
     ("m/4 x 1ul3g4", "用 x 表示"),
     ("cl3 i ", "好 i "),
     ("su3 e ", "你 e "),  # a deliberate key after a space is not dropped
+    # A lone letter with a space on each side is the user's own separator,
+    # so it stays English and the space after it is not a first-tone key.
+    # Reported: 「第 i 項」 -> 「第 喔 項」, 「第 u 項」 -> 「第 一項」.
+    ("2u4 i vu;4", "第 i 項"),
+    ("2u4 u vu;4", "第 u 項"),  # ㄧ (一) is frequent enough to win without the rule
+    ("ji3ap7 e cl3", "我們 e 好"),
     pytest.param("o cl3dj4", "欸好酷",
                  marks=pytest.mark.xfail(reason="欸 lacks the colloquial reading ㄟ in the lexicon", strict=True)),
 ]

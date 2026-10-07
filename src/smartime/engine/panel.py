@@ -82,6 +82,31 @@ class CandidatePanel:
 
 
 @dataclass
+class HintPanel:
+    """The thin strip right under the text: what the half-typed keys will
+    become, what ``Tab`` would take, and one-off feedback.
+
+    PIME's own hint box is a Windows 95 tooltip (pale yellow, 3D border,
+    system font) and it is destroyed and rebuilt on every change, so it
+    blinks on every keystroke. We draw this instead and keep PIME's window
+    alive, empty and invisible, only as the anchor that tells us where the
+    caret is (see smartime.ui.overlay).
+    """
+
+    reading: str = ""  # the unfinished syllable: ㄊㄧㄢ, or 倉頡 radicals 竹手戈
+    becomes: str = ""  # 倉頡: the character that code would give
+    dropped: str = ""  # keys just typed that were skipped as strays
+    info: str = ""  # cursor moved back: 今天［針］對　ㄓㄣ ⌨ 5p
+    suggestion: str = ""  # what Tab takes
+    others: list[str] = field(default_factory=list)  # further continuations
+    more: bool = False  # there are more than these; Shift+Tab lists them all
+    notice: str = ""  # one-off feedback ("記住了「…」")
+
+    def __bool__(self) -> bool:
+        return bool(self.reading or self.dropped or self.info or self.suggestion or self.notice)
+
+
+@dataclass
 class SmartPanel:
     """超智慧推薦 (experimental): [(number in the Shift+Tab list, text)]."""
 

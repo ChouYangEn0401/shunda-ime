@@ -75,6 +75,11 @@ class Weights:
     en_unknown_per_char: float = -1.0
     en_digit: float = -2.0  # each digit inside an English token (y94vscode...)
     en_single_letter: float = -3.0  # one-letter words other than "a" / capital "I"
+    # ... unless it stands alone between spaces (第 i 項, 用 x 表示, P 和 Q).
+    # There the space is the user's own separator, so the letter is English
+    # and the space after it is not a first-tone key: without this, frequent
+    # one-syllable words win (u -> 一, i -> 喔) and eat the separator.
+    en_delimited_letter: float = 4.0  # replaces en_single_letter when delimited
     # Digit keys are also ㄅㄉㄓㄚㄞㄢ and the tones, so 283 can be 打 or the
     # number 283. Numbers must not be cheaper than real Chinese syllables.
     num: float = -5.5
@@ -547,7 +552,11 @@ class Decoder:
                     break
                 if has_letter:
                     word = "".join(x.char for x in keys[i:j])
-                    yield Segment(i, j, word, Kind.EN, self._en_score(word))
+                    # "delimited": the user put a space on each side themselves.
+                    # Only a real space counts — at the start of the buffer
+                    # there is no separator, so "o␣" is still ㄟ.
+                    delimited = i > 0 and keys[i - 1].char == " " and (j >= n or keys[j].char == " ")
+                    yield Segment(i, j, word, Kind.EN, self._en_score(word, delimited))
 
         # --- Numbers (純注音: numeric keypad only; top-row digits are zhuyin).
         numbers_ok = allow_english or not zhuyin
@@ -667,15 +676,16 @@ class Decoder:
                     if nxt_end <= limit:
                         stack.append((nxt_end, readings + (syl,), bounds + (nxt_end,), cost + nxt_cost))
 
-    def _en_score(self, word: str) -> float:
+    def _en_score(self, word: str, delimited: bool = False) -> float:
         w = self.w
         score = self.lex.en_score(word.lower())
         if score is not None:
             score += w.en_offset
             if len(word) == 1 and word != "I" and word.lower() != "a":
                 # A lone lowercase letter (o, i, e, u ...) is far more often
-                # zhuyin (ㄟ, ㄛ = 喔) or a stray key than an English word.
-                score += w.en_single_letter
+                # zhuyin (ㄟ, ㄛ = 喔) or a stray key than an English word —
+                # unless it stands between spaces the user typed on purpose.
+                score += w.en_delimited_letter if delimited else w.en_single_letter
             return score
         # Unknown token. Digits inside letters (y94vscode, k27) are typical of
         # zhuyin typed in mixed mode, not of English, so each one costs extra.
