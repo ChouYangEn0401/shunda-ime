@@ -646,9 +646,20 @@ def paint_hint(c: Canvas, t: Theme, p: HintPanel, size: float = 1.0, draw: bool 
     drop_w = measure_mixed(c, dropped, s.small, s.symbol) + 10 * k if dropped else 0.0
     suggest_w = _hint_suggest_width(c, s, p, k)
 
+    # Nothing to say but text is still being composed: a dot, so the state
+    # is visible in editors that do not underline the composition.
+    dot = not (left or dropped or p.suggestion or p.notice) and p.composing
     parts = [w for w in (drop_w, left_w + becomes_w, suggest_w) if w]
     body_w = sum(parts) + GAP_HINT * k * max(0, len(parts) - 1)
     notice_w = measure_mixed(c, p.notice, s.small, s.symbol) if p.notice else 0.0
+    if dot:
+        width = height = 18 * k
+        out = Painted(width, height)
+        if draw:
+            c.fill(0, 0, width, height, t.bg)
+            c.stroke(0, 0, width, height, t.border, line=1)
+            c.fill(6 * k, 6 * k, 6 * k, 6 * k, t.accent, radius=3 * k)
+        return out
     width = max(body_w, notice_w, HINT_MIN_W * k) + 2 * HINT_PAD_X * k
     rows = (1 if parts else 0) + (1 if p.notice else 0)
     height = max(1, rows) * HINT_ROW * k + 2 * HINT_PAD_Y * k

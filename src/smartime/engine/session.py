@@ -354,7 +354,8 @@ class Session(CorrectionMixin):
         reading, becomes, dropped, info = self._hint_parts()
         panel = HintPanel(reading=reading, becomes=becomes, dropped=dropped, info=info,
                           suggestion=v.suggestion, others=list(v.suggestions[1:]),
-                          more=len(self.suggestions) > len(v.suggestions), notice=v.notice)
+                          more=len(self.suggestions) > len(v.suggestions), notice=v.notice,
+                          composing=bool(self.keys) and self.cfg.composing_indicator)
         return panel or None
 
     def filter_key_down(self, key: KeyInput) -> bool:

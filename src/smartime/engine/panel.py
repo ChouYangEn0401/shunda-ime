@@ -102,9 +102,11 @@ class HintPanel:
     others: list[str] = field(default_factory=list)  # further continuations
     more: bool = False  # there are more than these; Shift+Tab lists them all
     notice: str = ""  # one-off feedback ("記住了「…」")
+    composing: bool = False  # text is still in the composition (not committed yet)
 
     def __bool__(self) -> bool:
-        return bool(self.reading or self.dropped or self.info or self.suggestion or self.notice)
+        return bool(self.reading or self.dropped or self.info or self.suggestion or self.notice
+                    or self.composing)
 
 
 @dataclass

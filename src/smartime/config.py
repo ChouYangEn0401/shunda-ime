@@ -104,6 +104,11 @@ class Config:
     # yellow Windows 95 tooltip that PIME rebuilds on every change, so it
     # blinked on every keystroke). Off falls back to PIME's own box.
     panel_hint: bool = True
+    # Keep the strip on screen for as long as there is a composition, even
+    # with nothing to say, as a dot. Some editors (Sublime Text) draw no
+    # underline under composing text, so a click elsewhere could drop a whole
+    # sentence with no warning.
+    composing_indicator: bool = True
 
     # Memory (my dictionary)
     learn: bool = True  # remember candidates I pick and continuations I accept

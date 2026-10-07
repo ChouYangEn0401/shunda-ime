@@ -99,3 +99,44 @@ def test_panels_render_offscreen(session, script):
         canvas.close()
         surf.close()
         fonts.close()
+
+
+def test_the_strip_stays_as_a_dot_while_composing(session):
+    """Reported: in editors that draw no underline under composing text
+    (Sublime Text) a click elsewhere dropped a whole sentence with no
+    warning. Something has to stay on screen for as long as text is not
+    committed yet."""
+    from smartime.ui.theme import LIGHT
+
+    from smartime.engine.panel import HintPanel
+
+    v = run_view(session, "ji3ap7")
+    assert v.hint_panel is not None and v.hint_panel.composing
+
+    size = measure_hint(HintPanel(composing=True), LIGHT)
+    assert size.width < 30 and size.height < 30, "with nothing to say it is only a dot"
+    bigger = measure_hint(HintPanel(composing=True, reading="ㄊㄧㄢ"), LIGHT)
+    assert bigger.width > size.width  # and it grows into the strip when there is
+
+    v = run_view(session, "{ENTER}")
+    assert v.hint_panel is None  # committed: nothing left on screen
+
+
+def run_view(session, script):
+    from smartime.devtools.simulate import run
+
+    _, v = run(session, script)
+    return v
+
+
+def measure_hint(panel, theme):
+    from smartime.ui.canvas import Canvas, Fonts, Surface
+    from smartime.ui.panels import paint_hint
+
+    fonts = Fonts(1.0)
+    surf = Surface(4, 4)
+    try:
+        return paint_hint(Canvas(surf.hdc, 1.0, fonts), theme, panel, draw=False)
+    finally:
+        surf.close()
+        fonts.close()
