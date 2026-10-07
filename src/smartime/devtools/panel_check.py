@@ -145,7 +145,10 @@ def main() -> int:
             if not anchors:
                 problems.append("no PIME hint window")
             if panel and anchors:
-                a = max(anchors, key=lambda r: r[3])
+                # PIME leaves hint windows of other applications lying around
+                # (one per process that ever composed), so pick the one the
+                # overlay would have picked: the nearest to where the panel is.
+                a = min(anchors, key=lambda r: abs(r[0] - panel[0]) + abs(r[1] - panel[1]))
                 # PIME's hint box is kept alive only as the anchor: it is a
                 # transparent stub a couple of characters wide, and our panel
                 # sits exactly on it. (Below it, when there is no room under
