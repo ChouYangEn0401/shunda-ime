@@ -173,3 +173,37 @@ def test_a_key_the_decoder_threw_away_can_be_kept(session):
     assert text(session) == "我e更快"
     out, _ = run(session, "{ENTER}")
     assert out == "我e更快"
+
+
+# ---------------------------------------------------------------- wrong reading
+def test_a_tone_key_fixes_the_reading(session):
+    """Reported: 「當我注音打錯字以後，我用修改模式也無法去改注音」, with
+    檢位 → 鍵位 and 科能 → 可能 as the examples. Both are one tone key out,
+    and nothing in the mode could say so: j/k only walk characters that share
+    the reading that is already there."""
+    run(session, "ru03jo4")  # ㄐㄧㄢˇ ㄨㄟˋ
+    assert text(session) == "檢位"
+    run(session, "{ESC}h")  # onto 檢
+    run(session, "4")  # ...make it the fourth tone
+    assert text(session).endswith("位") and text(session) != "檢位"
+    assert decode_panel(session).columns[0].reading == "ㄐㄧㄢˋ"
+    # then j/k walks the homophones of the *new* reading, to the one meant
+    for _ in range(8):
+        if text(session) == "鍵位":
+            break
+        run(session, "j")
+    assert text(session) == "鍵位"
+
+
+def test_the_reported_ke_neng_case(session):
+    run(session, "dk s/6")  # ㄎㄜ (科) ㄋㄥˊ
+    assert text(session) == "科能"
+    run(session, "{ESC}h3")  # onto 科, third tone
+    assert text(session) == "可能"
+
+
+def test_a_tone_key_on_something_that_is_not_zhuyin_says_so(session):
+    run(session, "mvp {ESC}")
+    _, v = run(session, "4")
+    assert session.correcting and v.composition == "mvp "
+    assert "改不了聲調" in v.notice

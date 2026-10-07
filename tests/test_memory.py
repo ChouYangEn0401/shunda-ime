@@ -118,8 +118,10 @@ def test_blocked_phrase_is_never_suggested(mem_session):
     _, v = run(mem_session, "{DEL}")
     assert v.notice == "不再建議「打鬥」（可在設定頁還原）"
     assert "打鬥" not in [c.text for c in mem_session.cand.items]
-    run(mem_session, "{ESC}{ESC}")
-    _, v = run(mem_session, "2832.4cl4")
+    run(mem_session, "{ESC}")  # close the list
+    # the same keys now read without the blocked word, here and next time
+    assert mem_session.view().composition == "打逗號"
+    _, v = run(Session(mem_session.engine), "2832.4cl4")
     assert v.composition == "打逗號"
 
 

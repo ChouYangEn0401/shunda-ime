@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
-from .decoder import Kind, Segment
+from .decoder import Key, Kind, Segment
 from .keys import (
     VK_BACK, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE, VK_HOME, VK_LEFT, VK_RETURN, VK_RIGHT, VK_TAB, VK_UP,
     KeyInput,
@@ -34,7 +34,7 @@ from .keys import (
 
 LAYERS = ("text", "zhuyin", "keys")
 LAYER_LABEL = {"text": "國字", "zhuyin": "注音", "keys": "按鍵"}
-HELP = ("h l 移動 · j k 換字 · v 檢視 · x 刪 · e 中英 · r 重打 · R 重新判定 · a 加詞 · u 復原 · i／Esc 打字 · D D 清除")
+HELP = ("h l 移動 · j k 換字 · 聲調鍵 改聲調 · v 檢視 · x 刪 · e 中英 · r 重打 · R 重新判定 · a 加詞 · u 復原 · i／Esc 打字 · D D 清除")
 
 
 @dataclass
@@ -196,6 +196,8 @@ class CorrectionMixin:
             self._add_word_here()
         elif ch == "u":
             self._restore()
+        elif self._retone(ch):
+            pass  # a tone key: change this character's tone
         else:
             self._notice = "修正模式：" + HELP
         return True
@@ -236,6 +238,51 @@ class CorrectionMixin:
             self._reset_buffer()
             return
         self._snap_to_unit()
+
+    def _retone(self, ch: str) -> bool:
+        """A tone key in correction mode re-tones the character under the
+        cursor: 檢 (ㄐㄧㄢˇ) + ˋ -> 鍵.
+
+        Reported: 「我發現當我注音打錯字以後，我用修改模式也無法去改注音」, with
+        檢位 -> 鍵位 and 科能 -> 可能 as the examples. Both are one tone key
+        out. Nothing in the mode could say so: j/k only walk characters that
+        share the reading that is already there, and r meant retyping the
+        whole syllable. The tone keys did nothing at all here, so they are
+        free to mean the obvious thing.
+        """
+        if self.scheme != "zhuyin" or not ch:
+            return False
+        layout = self.engine.layout
+        tone = layout.tone(ch)
+        if tone is None:
+            return False
+        t = self._target()
+        if t is None:
+            return False
+        a, b, _, seg_idx = t
+        seg = self.decoding.segments[seg_idx]
+        if seg.kind is not Kind.ZH:
+            self._notice = "這裡不是注音打出來的字，改不了聲調"
+            return True
+        if layout.tone(self.keys[b - 1].char) is None:
+            self._notice = "這個字沒有打聲調鍵"  # 瘋狂模式 guessed it
+            return True
+        self._finish_cycle()
+        self._snapshot()
+        self.keys[b - 1] = Key(ch)
+        self.pins = [p for p in self.pins if p.end <= a or p.start >= b]
+        self._redecode()
+        self.cursor = a
+        self._snap_to_unit()
+        reading = ""
+        for u in self.decoding.units():
+            if u[0] == a:
+                seg2 = self.decoding.segments[u[3]]
+                if seg2.kind is Kind.ZH:
+                    reading = seg2.readings[seg2.bounds.index(a)]
+                break
+        self._notice = f"改成 {reading}" if reading else "改了聲調"
+        return True
 
     def _retype(self) -> None:
         """Delete this character's keys and type it again; when the new
