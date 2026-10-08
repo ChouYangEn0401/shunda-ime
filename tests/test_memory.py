@@ -319,3 +319,45 @@ def test_a_pair_that_survives_to_the_end_is_kept(mem_session, user):
     kept = learned_phrases(user)
     assert kept, "the correction itself must still be remembered"
     assert all(p in final for p in kept)
+
+
+# ------------------------------------------------------------- 我的符號 (custom symbols)
+def test_custom_symbols_paste_one_per_line(user):
+    """Kaomoji that contain their own internal spaces — "( ͡° ͜ʖ ͡°)" — rule
+    out splitting a paste on whitespace too; one line is one symbol."""
+    n = user.add_custom_symbols("( ͡° ͜ʖ ͡°)\n★\n\n☆")
+    assert n == 3
+    assert user.custom_symbols() == ["( ͡° ͜ʖ ͡°)", "★", "☆"]
+
+
+def test_custom_symbols_paste_is_additive_and_deduplicates(user):
+    user.add_custom_symbols("★\n☆")
+    n = user.add_custom_symbols("★\n♥")  # ★ already there
+    assert n == 1
+    assert user.custom_symbols() == ["★", "☆", "♥"]
+
+
+def test_custom_symbols_reject_an_improbable_single_line(user):
+    # someone pasted a whole blob with no newlines: not one symbol
+    n = user.add_custom_symbols("x" * 50)
+    assert n == 0
+    assert user.custom_symbols() == []
+
+
+def test_remove_custom_symbol(user):
+    user.add_custom_symbols("★\n☆")
+    assert user.remove_custom_symbol("★") is True
+    assert user.remove_custom_symbol("★") is False  # already gone
+    assert user.custom_symbols() == ["☆"]
+
+
+def test_custom_symbols_are_merged_additively_on_import(user, tmp_path):
+    user.add_custom_symbols("★\n☆")
+    backup = tmp_path / "backup.db"
+    user.backup_to(backup)
+
+    other = UserDict(tmp_path / "other" / "user.db")
+    other.add_custom_symbols("☆\n♥")  # ☆ already there, from a different PC
+    other.merge_from(backup)
+    assert sorted(other.custom_symbols()) == sorted(["★", "☆", "♥"])
+    other.close()

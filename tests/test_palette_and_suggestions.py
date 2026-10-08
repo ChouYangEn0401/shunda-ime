@@ -24,7 +24,7 @@ def test_shift_tab_goes_back_and_hotkey_again_closes(session):
     _, v = run(session, "{RCTRL}{S-TAB}")
     from smartime.engine.symbols import TABS
 
-    assert session.cand.palette == len(TABS) - 1 and TABS[-1] == "顏文字"  # wraps to the last tab
+    assert session.cand.palette == len(TABS) - 1 and TABS[-1] == "搜尋符號"  # wraps to the last tab
     _, v = run(session, "{RCTRL}")
     assert v.candidates is None
 

@@ -114,6 +114,11 @@ class UserDict:
                 count INTEGER NOT NULL DEFAULT 0,
                 last_used REAL,
                 created REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS custom_symbols (
+                id INTEGER PRIMARY KEY,
+                text TEXT NOT NULL UNIQUE,
+                sort INTEGER NOT NULL DEFAULT 0,
+                created REAL NOT NULL);
             """
         )
         if c.execute("SELECT value FROM meta WHERE key='schema'").fetchone() is None:
@@ -439,6 +444,41 @@ class UserDict:
         self._con.execute("UPDATE snippets SET count = count + 1, last_used = ? WHERE id=?",
                           (time.time(), snippet_id))
 
+    # ------------------------------------------------------------ 我的符號
+    # Usage/recency is tracked by the engine's existing recent-symbols.json
+    # (the same pool every other symbol category already shares), not by a
+    # column here — one "what have you used lately" list, not two that can
+    # disagree. This table only remembers *which* symbols are yours.
+    def custom_symbols(self) -> list[str]:
+        return [r[0] for r in self._con.execute("SELECT text FROM custom_symbols ORDER BY sort, id")]
+
+    def add_custom_symbols(self, block: str) -> int:
+        """Paste-in box on the settings page: one symbol or kaomoji per
+        line (some kaomoji contain spaces of their own — "( ͡° ͜ʖ ͡°)" — so
+        splitting on whitespace too would tear them apart). Blank lines are
+        skipped; an improbably long "line" is almost certainly not one
+        symbol (someone pasted a whole paragraph) and is skipped rather than
+        stored as one giant token. Returns how many were actually new.
+        """
+        lines = block.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        lines = [ln.strip() for ln in lines]
+        lines = [ln for ln in lines if ln and len(ln) <= 40]
+        if not lines:
+            return 0
+        sort = self._con.execute("SELECT coalesce(max(sort), 0) FROM custom_symbols").fetchone()[0]
+        added = 0
+        now = time.time()
+        for text in dict.fromkeys(lines):  # de-dup within the paste, keep order
+            sort += 1
+            cur = self._con.execute(
+                "INSERT OR IGNORE INTO custom_symbols (text, sort, created) VALUES (?, ?, ?)", (text, sort, now))
+            added += cur.rowcount
+        return added
+
+    def remove_custom_symbol(self, text: str) -> bool:
+        cur = self._con.execute("DELETE FROM custom_symbols WHERE text=?", (text,))
+        return cur.rowcount > 0
+
     # ------------------------------------------------------------ export / import
     def backup_to(self, path: str | Path) -> None:
         dst = sqlite3.connect(path)
@@ -486,6 +526,14 @@ class UserDict:
                         self.add_snippet(body, title, keyword)
                         mine.add(body)
                         n += 1
+            has_custom_symbols = src.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='custom_symbols'").fetchone() is not None
+            if has_custom_symbols:
+                mine_symbols = set(self.custom_symbols())
+                for (text,) in src.execute("SELECT text FROM custom_symbols ORDER BY sort, id"):
+                    if text not in mine_symbols:
+                        n += self.add_custom_symbols(text)
+                        mine_symbols.add(text)
         finally:
             src.close()
         self._load()

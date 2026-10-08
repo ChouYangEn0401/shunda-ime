@@ -71,7 +71,9 @@ def test_trigger_can_be_turned_off(snip_session):
 def test_snippets_and_kaomoji_tabs_in_the_symbol_panel(snip_session):
     from smartime.engine.symbols import TABS
 
-    _, v = run(snip_session, "{RCTRL}{S-TAB}")  # the last tab: 顏文字
+    run(snip_session, "{RCTRL}")
+    for _ in range(TABS.index("顏文字")):
+        run(snip_session, "{TAB}")
     assert TABS[snip_session.cand.palette] == "顏文字"
     p = candidate_panel(snip_session)
     assert p.layout == "list" and p.chip == "顏文字"
@@ -79,10 +81,16 @@ def test_snippets_and_kaomoji_tabs_in_the_symbol_panel(snip_session):
     out, _ = run(snip_session, "{ENTER}")
     assert out == face
     # used once: listed first next time
-    run(snip_session, "{RCTRL}{S-TAB}")
+    run(snip_session, "{RCTRL}")
+    for _ in range(TABS.index("顏文字")):
+        run(snip_session, "{TAB}")
     assert snip_session.cand.items[0].text == face and snip_session.cand.items[0].group == "最近"
     run(snip_session, "{ESC}")
-    _, v = run(snip_session, "{RCTRL}{S-TAB}{S-TAB}")  # 片語
+    run(snip_session, "{RCTRL}")
+    for _ in range(TABS.index("片語")):
+        run(snip_session, "{TAB}")
+    v = snip_session.view()
+    assert TABS[snip_session.cand.palette] == "片語"
     assert v.candidates[0] == "我的地址"
 
 

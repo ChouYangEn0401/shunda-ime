@@ -1115,7 +1115,31 @@ class Session(CorrectionMixin):
             return True
         if key.ctrl or key.alt:
             return False
-        if cand.snippet_at is not None and self._snippet_key(key):
+        if (key.char == ":" and cand.palette is not None
+                and TABS[cand.palette % len(TABS)] != "搜尋符號"):
+            # One more ':' from anywhere in the symbol-panel family jumps
+            # straight into the searchable catalogue, ready to type a
+            # keyword. ":：" alone still opens the ordinary panel instantly
+            # (unchanged); a third ':' typed right after — or at any later
+            # point while browsing — pivots into search instead of becoming
+            # a literal colon. This is what makes a cold "：：：" land in the
+            # search tab: the first two open the panel via the existing
+            # trigger, and this is what the third one does once it's open.
+            self._open_emoji()
+            return True
+        if cand.palette is not None:
+            # Filtering by typing: gated on which tab is open, not on
+            # snippet_at (which only the ;; trigger used to set — so Tab-
+            # browsing to 片語 could not filter at all before this).
+            tab = TABS[cand.palette % len(TABS)]
+            if tab == "片語" and self._snippet_key(key):
+                return True
+            if tab == "搜尋符號" and self._emoji_key(key):
+                return True
+        elif cand.snippet_at is not None and self._snippet_key(key):
+            # the ;; trigger's own 片語 list never sets cand.palette (it was
+            # never a tab you Tab-cycle to in that path) — this is the
+            # common case, not a fallback for an edge case
             return True
         if vk == VK_TAB and cand.palette is not None:
             self._open_palette(cand.palette + (-1 if key.shift else 1))
@@ -1298,7 +1322,20 @@ class Session(CorrectionMixin):
             # of these used to crash the backend here (seg.kind on None) —
             # found while building the searchable symbol panel. Say why
             # instead, and leave the window open.
-            if c.group == "片語":
+            if c.group == "我的符號" and user is not None and c.symbol:
+                # the one group here that *is* the user's own content: let
+                # Delete remove it on the spot, the same as forgetting a
+                # learned word, instead of forcing a trip to Settings
+                if user.remove_custom_symbol(c.symbol):
+                    self._notice = f"已刪除「{c.symbol}」"
+                    keep_index = self.cand.index if self.cand else 0
+                    self.cand = None
+                    self._open_palette(TABS.index("我的符號"))
+                    if self.cand is not None:
+                        self.cand.index = min(keep_index, len(self.cand.shown) - 1)
+                else:
+                    self._notice = "已經刪除過了"
+            elif c.group == "片語":
                 self._notice = "片語要到設定頁「片語與顏文字」管理"
             elif c.suggestion is not None:
                 self._notice = "接續建議沒辦法忘記；不想看到就繼續打別的字"
@@ -1619,10 +1656,21 @@ class Session(CorrectionMixin):
         index %= len(TABS)
         name = TABS[index]
         tabs = " ".join(f"[{n}]" if i == index else n for i, n in enumerate(TABS))
+        # Carried across Tab-cycling: without this, Tab-ing from the panel
+        # "::" opened into any other category and picking something left the
+        # literal "::" sitting in the composition forever (_insert_symbol's
+        # cleanup only fires when trigger_at is not None, and _open_palette
+        # used to silently drop it on every call). Found while wiring up
+        # 搜尋符號 — reproduced with 'ji3::{TAB}1' leaving '我::「' behind.
+        trigger_at = self.cand.trigger_at if self.cand is not None else None
         if name == "片語":
             items = self._snippet_items("")
         elif name == "顏文字":
             items = self._kaomoji_items()
+        elif name == "我的符號":
+            items = self._my_symbol_items()
+        elif name == "搜尋符號":
+            items = self._emoji_items("")
         else:
             _, symbols = self.engine.symbols.category(index)
             items = [Candidate(sym, None, symbol=sym, group="符號") for sym in symbols]
@@ -1634,6 +1682,10 @@ class Session(CorrectionMixin):
         # open a few columns straight away: the point of the panel is seeing
         # a lot at once. 片語 lines are long, so it stays at one.
         self.cand.columns = 1 if name == "片語" else min(self.cand.pages, 2 if name in LIST_TABS else 6)
+        self.cand.trigger_at = trigger_at
+
+    def _open_emoji(self) -> None:
+        self._open_palette(TABS.index("搜尋符號"))
 
     # ============================================================ 片語 / 顏文字
     def _snippet_items(self, query: str) -> list[Candidate]:
@@ -1689,7 +1741,7 @@ class Session(CorrectionMixin):
                 self.cand.trigger_at = len(self.keys) - len(trig)
 
     def _snippet_key(self, key: KeyInput) -> bool:
-        """Keys while the ;; list is open: letters filter it, digits pick,
+        """Keys while the 片語 list is open: letters filter it, digits pick,
         Backspace edits the filter, Esc closes it keeping what was typed."""
         cand = self.cand
         vk = key.vk
@@ -1701,12 +1753,22 @@ class Session(CorrectionMixin):
                 self._refilter_snippets(cand.query[:-1])
             else:
                 self.cand = None
-                self._delete_unit(before=True)  # back to the first ";"
+                if cand.trigger_at is not None:
+                    self._delete_unit(before=True)  # back to the first ";"
+                # Tab-reached with no ";;" ever typed: nothing to delete —
+                # without this guard it deleted whatever character happened
+                # to sit before the cursor, unrelated to the panel at all.
             return True
         if vk == VK_ESCAPE:
             self.cand = None  # what was typed stays (;; can still be typed)
             return True
         if key.printable and not key.ctrl and not key.alt and key.char not in SELECTION_DIGITS and key.char != " ":
+            if cand.trigger_at is None:
+                # Tab-reached, no preceding ";;": the first filter letter is
+                # where cleanup-on-pick must start, or picking something
+                # would commit the typed-to-filter letters as if they were
+                # ordinary text in front of it.
+                cand.trigger_at = len(self.keys)
             self.keys.append(Key(key.char))
             self.cursor = len(self.keys)
             self._redecode()
@@ -1717,8 +1779,78 @@ class Session(CorrectionMixin):
     def _refilter_snippets(self, query: str) -> None:
         at = self.cand.snippet_at
         trigger = self.cand.trigger_at
-        self.cand = self._new_list(self._snippet_items(query), title="片語")
+        palette = self.cand.palette  # dropped here before: 2nd letter of a
+        # Tab-reached (not ;;-typed) filter had nothing left to route it to
+        # _snippet_key, since that path has no snippet_at either — it fell
+        # through to ordinary typing after exactly one letter
+        self.cand = self._new_list(self._snippet_items(query), title="片語", palette=palette)
         self.cand.snippet_at, self.cand.trigger_at, self.cand.query = at, trigger, query
+
+    # ============================================================ 搜尋符號 / 我的符號
+    def _emoji_items(self, query: str) -> list[Candidate]:
+        """The built-in searchable catalogue (symbols.EMOJI_SYMBOLS),
+        matched against its category label and search tags, most recently
+        used first within whatever matches."""
+        from .symbols import EMOJI_SYMBOLS
+
+        q = query.strip().lower()
+        recent = {sym: i for i, sym in enumerate(self.engine.symbols.recent)}
+        pool = EMOJI_SYMBOLS
+        if q:
+            pool = [e for e in pool if q in e[1].lower() or any(q in tag for tag in e[2])]
+        pool = sorted(pool, key=lambda e: recent.get(e[0], len(EMOJI_SYMBOLS) + 1))
+        if not pool:
+            note = f"沒有符合「{query}」的符號" if query else "沒有符號"
+            return [Candidate(f"（{note}）", None, group="搜尋符號")]
+        return [Candidate(sym, None, cat, symbol=sym, group="搜尋符號") for sym, cat, _tags in pool]
+
+    def _my_symbol_items(self) -> list[Candidate]:
+        """The user's own pasted symbols/kaomoji (settings page「片語與顏文字」），
+        most recently used first — the same shared recent-symbols tracking
+        every other category already uses, not a separate count of its own."""
+        user = self.engine.user
+        rows = user.custom_symbols() if user is not None else []
+        if not rows:
+            return [Candidate("（還沒有：到設定頁「片語與顏文字」貼上）", None, group="我的符號")]
+        recent = {sym: i for i, sym in enumerate(self.engine.symbols.recent)}
+        rows = sorted(rows, key=lambda t: recent.get(t, len(rows) + 1))
+        return [Candidate(text, None, symbol=text, group="我的符號") for text in rows]
+
+    def _emoji_key(self, key: KeyInput) -> bool:
+        """Keys while 搜尋符號 is open: letters filter it, digits pick,
+        Backspace edits the filter. Esc is not handled here on purpose — the
+        generic Esc/Backspace-with-nothing-typed fallback at the end of
+        _candidate_key already does exactly the right thing (close it)."""
+        cand = self.cand
+        vk = key.vk
+        if vk == VK_BACK:
+            if cand.query:
+                self.keys.pop()
+                self.cursor = len(self.keys)
+                self._redecode()
+                self._refilter_emoji(cand.query[:-1])
+            else:
+                self.cand = None
+                if cand.trigger_at is not None:
+                    self._delete_unit(before=True)
+            return True
+        if key.printable and not key.ctrl and not key.alt and key.char not in SELECTION_DIGITS and key.char != " ":
+            if cand.trigger_at is None:
+                cand.trigger_at = len(self.keys)
+            self.keys.append(Key(key.char))
+            self.cursor = len(self.keys)
+            self._redecode()
+            self._refilter_emoji(cand.query + key.char)
+            return True
+        return False
+
+    def _refilter_emoji(self, query: str) -> None:
+        trigger = self.cand.trigger_at
+        title = f"搜尋符號 · 關鍵字：{query}" if query else "搜尋符號 · 打關鍵字篩選"
+        self.cand = self._new_list(self._emoji_items(query), title=title, palette=TABS.index("搜尋符號"))
+        self.cand.multi = True
+        self.cand.columns = min(self.cand.pages, 2)
+        self.cand.trigger_at, self.cand.query = trigger, query
 
     def _type_text(self, c: Candidate) -> None:
         """Type a 片語 / 顏文字 as it is. The ;; that opened the list (and
