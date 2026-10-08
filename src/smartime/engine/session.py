@@ -1809,21 +1809,32 @@ class Session(CorrectionMixin):
 
     # ============================================================ 搜尋符號 / 我的符號
     def _emoji_items(self, query: str) -> list[Candidate]:
-        """The built-in searchable catalogue (symbols.EMOJI_SYMBOLS),
-        matched against its category label and search tags, most recently
-        used first within whatever matches."""
-        from .symbols import EMOJI_SYMBOLS
+        """The built-in searchable catalogue (symbols.EMOJI_SYMBOLS), matched
+        against its category label and search tags.
+
+        Grouped the same way 顏文字 already is (see SymbolPanel.kaomoji):
+        recently used ones pulled into their own "最近" group up front, the
+        rest kept in their natural category group (星星, 愛心, …) — no text
+        next to each symbol. The symbol is the whole point of looking at it;
+        a label next to every single one was clutter 顏文字 never had either.
+        """
+        from .symbols import EMOJI_SYMBOLS, RECENT_KAOMOJI
 
         q = query.strip().lower()
-        recent = {sym: i for i, sym in enumerate(self.engine.symbols.recent)}
         pool = EMOJI_SYMBOLS
         if q:
             pool = [e for e in pool if q in e[1].lower() or any(q in tag for tag in e[2])]
-        pool = sorted(pool, key=lambda e: recent.get(e[0], len(EMOJI_SYMBOLS) + 1))
         if not pool:
             note = f"沒有符合「{query}」的符號" if query else "沒有符號"
             return [Candidate(f"（{note}）", None, group="搜尋符號")]
-        return [Candidate(sym, None, cat, symbol=sym, group="搜尋符號") for sym, cat, _tags in pool]
+        in_pool = {sym for sym, _cat, _tags in pool}
+        recent = [s for s in self.engine.symbols.recent if s in in_pool][:RECENT_KAOMOJI]
+        items = [Candidate(sym, None, symbol=sym, group="最近") for sym in recent]
+        # a few symbols are deliberately in more than one category (♥ is
+        # both 愛心 and 花色) — keep every occurrence, the same way flat()
+        # would for 顏文字, just skip the copies already shown under 最近
+        items += [Candidate(sym, None, symbol=sym, group=cat) for sym, cat, _tags in pool if sym not in recent]
+        return items
 
     def _my_symbol_items(self) -> list[Candidate]:
         """The user's own pasted symbols/kaomoji (settings page「片語與顏文字」），

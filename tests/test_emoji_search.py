@@ -123,6 +123,32 @@ def test_typed_keywords_match_the_zh_category_label_too(session):
     assert texts == [sym for sym, cat, _ in EMOJI_SYMBOLS if cat == "星座"]
 
 
+def test_items_carry_no_per_item_label_only_a_category_group(session):
+    """Reported: "emoji 旁邊不用放文字…用類似『顏文字』哪裡把東西分類好就好"
+    — grouped by category with a section header, like 顏文字's mood groups,
+    not a text annotation next to every single symbol."""
+    run(session, "ji3:::")
+    assert all(c.annotation == "" for c in session.cand.shown)
+    assert {c.group for c in session.cand.shown} >= {"星星", "愛心", "勾叉"}
+
+
+def test_a_symbol_in_two_categories_appears_once_per_category(session):
+    """♥ is deliberately tagged under both 愛心 and 花色 — the real heart
+    suit is also a heart. Grouping must not silently drop the duplicate."""
+    run(session, "ji3:::")
+    hearts = [c for c in session.cand.shown if c.text == "♥"]
+    assert {c.group for c in hearts} == {"愛心", "花色"}
+
+
+def test_recently_used_get_their_own_group_up_front(session):
+    run(session, "ji3:::")
+    picked = session.cand.shown[0].symbol
+    run(session, "{ENTER}")
+    run(session, "ji3:::")
+    first = session.cand.shown[0]
+    assert first.symbol == picked and first.group == "最近"
+
+
 def test_no_match_shows_a_placeholder_and_does_not_crash_on_pick(session):
     run(session, "ji3:::")
     run(session, "nosuchsymbolxyz")
