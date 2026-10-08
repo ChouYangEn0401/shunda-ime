@@ -46,7 +46,7 @@
     try { localStorage.setItem("smartime-view", id); } catch (e) { /* storage may be blocked */ }
     if (id === "dict") loadEntries();
     if (id === "voice") loadVoice();
-    if (id === "snippets") loadSnippets();
+    if (id === "snippets") { loadSnippets(); loadCustomSymbols(); }
   }
   rail.forEach(b => b.addEventListener("click", () => show(b.dataset.view)));
 
@@ -759,6 +759,50 @@
     } catch (err) { toast(err.message, true); }
   });
 
+  // ------------------------------------------------------------ 我的符號 (custom symbols)
+  // Pasted kaomoji/symbols the user collected elsewhere — one per line (see
+  // UserDict.add_custom_symbols for why not whitespace: some kaomoji carry
+  // their own internal spaces). Shown in the symbol panel's own tab,
+  // reachable with :: : (or :::), most recently used first.
+  async function loadCustomSymbols() {
+    let rows;
+    try { rows = await api("GET", "/api/custom-symbols"); } catch (e) { toast(e.message, true); return; }
+    const list = document.getElementById("sym-list");
+    document.getElementById("sym-count").textContent = rows.length ? `${rows.length} 個` : "";
+    list.innerHTML = "";
+    if (!rows.length) {
+      list.innerHTML = '<p class="note" style="margin:0">還沒有：上面貼上第一批，一行一個。</p>';
+      return;
+    }
+    rows.forEach(text => list.appendChild(symbolChip(text)));
+  }
+
+  function symbolChip(text) {
+    const chip = document.createElement("span");
+    chip.className = "sym-chip";
+    const label = document.createElement("span");
+    label.textContent = text;
+    const del = document.createElement("button");
+    del.type = "button"; del.textContent = "×"; del.setAttribute("aria-label", `刪除「${text}」`);
+    del.addEventListener("click", async () => {
+      try { await api("POST", "/api/custom-symbols/remove", { text }); loadCustomSymbols(); }
+      catch (e) { toast(e.message, true); }
+    });
+    chip.append(label, del);
+    return chip;
+  }
+
+  document.getElementById("sym-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const paste = document.getElementById("sym-paste");
+    try {
+      const r = await api("POST", "/api/custom-symbols", { block: paste.value });
+      toast(r.added ? `加入了 ${r.added} 個` : "沒有新的（可能都已經加過了）");
+      paste.value = "";
+      loadCustomSymbols();
+    } catch (err) { toast(err.message, true); }
+  });
+
   // ------------------------------------------------------------ shortcuts
   function renderShortcuts() {
     const D = ["done", "已完成"], S = ["plan", "即將推出"];
@@ -792,7 +836,8 @@
       ["模式", "系統匣圖示右鍵", "直接選任何模式、開啟設定", D],
       ["模式", "<kbd>Caps Lock</kbd>", "直接打英文大寫", D],
       ["標點", '<a href="#punct" data-goto="punct">見「標點與符號」</a>', "單按／Shift 打鍵帽上的符號，Ctrl／Ctrl+Shift 打中文標點", D],
-      ["符號", "<kbd>:</kbd><kbd>:</kbd> 或熱鍵", "符號面板：標點、希臘字母、數學、箭頭、單位、片語、顏文字（<kbd>Tab</kbd> 換分頁）", pal],
+      ["符號", "<kbd>:</kbd><kbd>:</kbd> 或熱鍵", "符號面板：標點、希臘字母、數學、箭頭、單位、片語、顏文字、我的符號、搜尋符號（<kbd>Tab</kbd> 換分頁）", pal],
+      ["符號", "<kbd>:</kbd><kbd>:</kbd><kbd>:</kbd>（面板開著時再打一個 <kbd>:</kbd> 也一樣）", "直接跳到「搜尋符號」，打關鍵字（star、heart、星座……）即時篩選", D],
       ["符號", "「常用」分頁的 <kbd>⏎</kbd>", "送出目前的字，再打一個換行（Shift+Enter 傳不過去時用）", D],
       ["語音", "按住右 <kbd>Ctrl</kbd>", "說話，放開後打到游標位置（右 Ctrl＋其他鍵＝一般快捷鍵，不錄音）", D],
     ];

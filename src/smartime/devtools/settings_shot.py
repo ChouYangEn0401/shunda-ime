@@ -35,6 +35,7 @@ def sample_data(app) -> None:
     u.block("鬥號", "ㄉㄡˋ-ㄏㄠˋ")
     u.add_snippet("範例市範例區示範路 100 號\n（請寄到這裡，謝謝）", "我的地址", "addr")
     u.add_snippet("感謝您的來信！我們已經收到，會在兩個工作天內回覆您。", "", "thanks")
+    u.add_custom_symbols("(=^・ω・^=)\n( ͡° ͜ʖ ͡°)\n★\n♥")
 
 
 def main() -> int:

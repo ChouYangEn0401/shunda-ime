@@ -316,6 +316,22 @@ class SettingsApp:
         self.user.delete_snippet(snippet_id)
         return {"ok": True}
 
+    # ---------------------------------------------------------- 我的符號 (custom_symbols)
+    def custom_symbols(self) -> list[str]:
+        return self.user.custom_symbols()
+
+    def add_custom_symbols(self, body: dict) -> dict:
+        block = str(body.get("block", ""))
+        if not block.strip():
+            raise ApiError(400, "請貼上至少一個符號")
+        if len(block) > 20000:
+            raise ApiError(400, "貼上的內容太長")
+        return {"added": self.user.add_custom_symbols(block)}
+
+    def remove_custom_symbol(self, body: dict) -> dict:
+        text = str(body.get("text", ""))
+        return {"ok": self.user.remove_custom_symbol(text)}
+
     def clear_learned(self) -> dict:
         return {"removed": self.user.clear_learned()}
 
@@ -551,6 +567,9 @@ class _Handler(BaseHTTPRequestHandler):
             ("POST", "/api/categories"): lambda: app.add_category(self._json_body()),
             ("GET", "/api/snippets"): app.snippets,
             ("POST", "/api/snippets"): lambda: app.add_snippet(self._json_body()),
+            ("GET", "/api/custom-symbols"): app.custom_symbols,
+            ("POST", "/api/custom-symbols"): lambda: app.add_custom_symbols(self._json_body()),
+            ("POST", "/api/custom-symbols/remove"): lambda: app.remove_custom_symbol(self._json_body()),
             ("POST", "/api/clear-learned"): app.clear_learned,
             ("POST", "/api/memory/tidy"): app.tidy_memory,
             ("POST", "/api/open-folder"): app.open_folder,

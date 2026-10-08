@@ -484,6 +484,21 @@
             <div class="kao-sample" id="kao-sample"></div>
           </div></div>
         </div>
+
+        <div class="group">
+          <h3>我的符號 <span class="note" style="letter-spacing:0" id="sym-count"></span></h3>
+          <div class="row"><div class="full">
+            <p style="margin-top:0">網路上收藏的顏文字、特殊符號，貼在這裡就能在打字時用——
+              <b>打 <kbd>:</kbd><kbd>:</kbd><kbd>:</kbd></b> 開啟符號面板後 <kbd>Tab</kbd> 到「我的符號」分頁選，
+              最近用過的排最前面。</p>
+            <form class="snipform" id="sym-form" autocomplete="off">
+              <textarea id="sym-paste" rows="4" placeholder="每行貼一個，例如：&#10;(=^・ω・^=)&#10;( ͡° ͜ʖ ͡°)&#10;★" aria-label="貼上符號"></textarea>
+              <div class="snip-edit-acts"><button class="btn primary" type="submit">加入</button></div>
+            </form>
+            <p class="note" style="margin-bottom:12px">一行一個——有些顏文字本身就帶空白，用空白分隔會拆散它。重複貼上的會自動略過。</p>
+            <div class="sym-list" id="sym-list"></div>
+          </div></div>
+        </div>
       </section>
 
       <!-- ============ 快捷鍵 ============ -->

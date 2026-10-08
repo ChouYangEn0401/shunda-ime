@@ -190,3 +190,19 @@ def test_version_comparison():
     assert v("0.7.0") < v("0.8.0-alpha.1")
     assert not upd.Release(version="0.0.1").newer
     assert upd.Release(version="99.0.0").newer
+
+
+def test_custom_symbols_add_list_remove(server):
+    status, r = call(server, "POST", "/api/custom-symbols", {"block": "★\n☆\n\n( ͡° ͜ʖ ͡°)"})
+    assert status == 200 and r["added"] == 3
+    rows = call(server, "GET", "/api/custom-symbols")[1]
+    assert rows == ["★", "☆", "( ͡° ͜ʖ ͡°)"]
+    # pasting the same block again adds nothing new
+    assert call(server, "POST", "/api/custom-symbols", {"block": "★"})[1]["added"] == 0
+    assert call(server, "POST", "/api/custom-symbols", {"block": "   "})[0] == 400
+    status, r = call(server, "POST", "/api/custom-symbols/remove", {"text": "☆"})
+    assert status == 200 and r["ok"] is True
+    assert call(server, "GET", "/api/custom-symbols")[1] == ["★", "( ͡° ͜ʖ ͡°)"]
+    # removing something already gone is not an error, just reports it
+    status, r = call(server, "POST", "/api/custom-symbols/remove", {"text": "☆"})
+    assert status == 200 and r["ok"] is False
