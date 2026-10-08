@@ -67,8 +67,21 @@ section:first-of-type { border-top: 0; }
 .lede { font-size: 18px; color: var(--muted); max-width: 62ch; }
 
 /* ---------------------------------------------------------------- hero */
-.hero { padding-block: 64px 56px; }
-.wordmark { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.hero { padding-block: 64px 56px; position: relative; }
+.hero::before {
+  /* the "faint key-grid ground" this file always meant to have: a nod to a
+     keyboard, not a generic dot pattern — it fades out before the fold.
+     No overflow:hidden on .hero: inset:0 already keeps this exactly inside
+     its padding box, and clipping the section would also have cut the
+     .decode card's drop-shadow off hard at the edge instead of fading. */
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image: radial-gradient(var(--line) 1px, transparent 1.5px);
+  background-size: 25px 25px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 30%, transparent 82%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 30%, transparent 82%);
+  opacity: .7;
+}
+.wordmark { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .wordmark h1 { font-size: clamp(38px, 7vw, 58px); font-weight: 700; letter-spacing: .01em; }
 .wordmark .latin {
   font-family: var(--mono); font-size: 14px; color: var(--faint);
@@ -112,18 +125,30 @@ section:first-of-type { border-top: 0; }
 :root[data-theme="dark"] .btn.primary, :root:not([data-theme="light"]) .btn.primary { color: #0B1220; }
 @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .btn.primary { color: #fff } }
 .cta small { color: var(--faint); font-size: 13px; }
+.badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500;
+  color: var(--muted); background: var(--sunk); border: 1px solid var(--line);
+  border-radius: 999px; padding: 5px 12px 5px 10px;
+}
+.badge .dot { width: 6px; height: 6px; }
 
 /* ---------------------------------------------------------------- doors */
 .doors { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-top: 36px; }
 .door {
-  display: block; text-decoration: none; color: inherit; background: var(--sunk);
+  display: flex; gap: 14px; text-decoration: none; color: inherit; background: var(--sunk);
   border: 1px solid var(--line); border-radius: 10px; padding: 18px 18px 16px;
   transition: border-color .15s, background .15s;
 }
 .door:hover { border-color: var(--accent); background: var(--surface); }
-.door b { display: block; font-family: var(--display); font-size: 17px; font-weight: 700; }
-.door span { display: block; font-size: 13.5px; color: var(--muted); line-height: 1.6; margin-top: 4px; }
-.door i { font-style: normal; color: var(--accent); font-size: 13px; font-weight: 500; }
+.door .keycap-sm { margin-top: 2px; }
+/* a dedicated wrapper + .desc class, not a bare "span" selector — the
+   keycap icon is also a <span> and a descendant selector would have
+   flattened it (display:block beats .keycap's inline-flex centring) */
+.door-text { display: flex; flex-direction: column; min-width: 0; }
+.door-text b { font-family: var(--display); font-size: 17px; font-weight: 700; }
+.door-text .desc { display: block; font-size: 13.5px; color: var(--muted); line-height: 1.6; margin-top: 4px; }
+.door-text i { font-style: normal; color: var(--accent); font-size: 13px; font-weight: 500; display: block; margin-top: 8px; }
 
 /* ---------------------------------------------------------------- scenes */
 .scene { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 36px; align-items: center; }
@@ -140,13 +165,27 @@ section:first-of-type { border-top: 0; }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
 .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 2px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 28px; }
-.cell { background: var(--surface); padding: 18px 20px; }
+.cell { background: var(--surface); padding: 18px 20px 18px 18px; border-left: 3px solid transparent; }
+.cell[data-accent="fix"] { border-left-color: var(--fix); }
+.cell[data-accent="drop"] { border-left-color: var(--drop); }
+.cell[data-accent="memory"] { border-left-color: var(--memory); }
 .cell b { font-size: 15px; display: block; }
 .cell span { display: block; font-size: 13.5px; color: var(--muted); line-height: 1.65; margin-top: 2px; }
 kbd {
   font-family: var(--mono); font-size: 12.5px; background: var(--sunk); color: var(--ink);
   border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px;
 }
+/* The brand mark is the same idea as <kbd> scaled up: a physical key, because
+   the product is a keyboard. One glyph per key — 順 for the product, one
+   character per doorway below — instead of a separate icon language. */
+.keycap {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  font-family: var(--mono); font-weight: 700; color: var(--accent);
+  background: var(--surface); border: 1px solid var(--line); border-bottom-width: 3px;
+  border-radius: 11px; box-shadow: var(--shadow);
+}
+.keycap-lg { width: 54px; height: 54px; font-size: 25px; }
+.keycap-sm { width: 34px; height: 34px; font-size: 15px; border-bottom-width: 2px; border-radius: 8px; }
 ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 28px 0 0; display: flex; flex-direction: column; gap: 18px; }
 ol.steps li { counter-increment: s; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 14px; }
 ol.steps li::before {
@@ -162,8 +201,9 @@ table.map td:first-child { white-space: nowrap; font-weight: 500; }
 table.map td:last-child { color: var(--muted); }
 .scroll-x { overflow-x: auto; }
 code { font-family: var(--mono); font-size: .92em; background: var(--sunk); padding: 1px 5px; border-radius: 4px; }
-footer { border-top: 1px solid var(--line); padding-block: 36px 56px; color: var(--faint); font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+footer { border-top: 1px solid var(--line); padding-block: 36px 56px; color: var(--faint); font-size: 13.5px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 22px; }
 footer a { color: var(--muted); }
+footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7px; margin-right: 4px; }
 .note { font-size: 13.5px; color: var(--faint); margin-top: 18px; }
 </style>
 
@@ -171,6 +211,7 @@ footer a { color: var(--muted); }
 
 <section class="hero">
   <div class="wordmark">
+    <span class="keycap keycap-lg" aria-hidden="true">順</span>
     <h1>順打輸入法</h1>
     <span class="latin">Shunda IME · Windows 10 / 11</span>
   </div>
@@ -198,24 +239,37 @@ footer a { color: var(--muted); }
   <div class="cta">
     <a class="btn primary" href="https://github.com/ChouYangEn0401/shunda-ime/releases/latest">下載安裝檔</a>
     <a class="btn" href="https://github.com/ChouYangEn0401/shunda-ime">GitHub 原始碼</a>
-    <small>免費、開源（Apache-2.0）· 不需要網路 · 不上傳任何東西</small>
+  </div>
+  <div class="badges">
+    <span class="badge"><i class="dot" style="background:var(--memory);border-radius:50%"></i>免費・開源（Apache-2.0）</span>
+    <span class="badge"><i class="dot" style="background:var(--accent);border-radius:50%"></i>Windows 10 / 11</span>
+    <span class="badge"><i class="dot" style="background:var(--fix);border-radius:50%"></i>完全離線，不上傳任何東西</span>
   </div>
 
   <div class="doors">
     <a class="door" href="#how">
-      <b>先看它怎麼用</b>
-      <span>五個畫面看完整個輸入法在做什麼。</span>
-      <i>往下看 ↓</i>
+      <span class="keycap keycap-sm" aria-hidden="true">看</span>
+      <span class="door-text">
+        <b>先看它怎麼用</b>
+        <span class="desc">六個畫面看完整個輸入法在做什麼。</span>
+        <i>往下看 ↓</i>
+      </span>
     </a>
     <a class="door" href="#install">
-      <b>我想裝來用</b>
-      <span>一個安裝檔，三個步驟，資料全留在這台電腦。</span>
-      <i>安裝與設定 ↓</i>
+      <span class="keycap keycap-sm" aria-hidden="true">裝</span>
+      <span class="door-text">
+        <b>我想裝來用</b>
+        <span class="desc">一個安裝檔，三個步驟，資料全留在這台電腦。</span>
+        <i>安裝與設定 ↓</i>
+      </span>
     </a>
     <a class="door" href="#inside">
-      <b>我想看裡面</b>
-      <span>解碼器怎麼想、程式怎麼分、從哪裡開始改。</span>
-      <i>給工程師 ↓</i>
+      <span class="keycap keycap-sm" aria-hidden="true">碼</span>
+      <span class="door-text">
+        <b>我想看裡面</b>
+        <span class="desc">解碼器怎麼想、程式怎麼分、從哪裡開始改。</span>
+        <i>給工程師 ↓</i>
+      </span>
     </a>
   </div>
 </section>
@@ -223,19 +277,18 @@ footer a { color: var(--muted); }
 <!-- ============================================================ why -->
 <section id="why">
   <p class="eyebrow">為什麼要再做一個注音輸入法</p>
-  <h2 style="font-size:clamp(24px,4vw,32px);max-width:20ch">中英混打的麻煩，幾乎都是「切換」造成的。</h2>
+  <h2 style="font-size:clamp(24px,4vw,32px);max-width:20ch">不用懂它怎麼運作，照樣打得順。</h2>
   <p class="lede" style="margin-top:16px">
-    打到一半要插一個英文詞，傳統做法是切成英文、打完再切回來。忘記切、切錯、切太慢，
-    就得回頭刪掉重打。順打不切換：每個鍵都先當字母顯示，按下聲調鍵才結算成中文，
-    整句話重新解碼一次決定哪一段是中文、哪一段是英文。
+    不用學什麼新規則：中文照打、英文照打，中間不用按切換鍵；懶得打字就按住右 <kbd>Ctrl</kbd> 說話。
+    打快了、打反了、手滑多按一鍵，它自己會處理——細節在下面，但不用先弄懂細節才會用。
   </p>
 
   <div class="grid">
-    <div class="cell"><b>打反了也認得</b><span>同一個字的注音鍵順序顛倒照樣出字（<code>k27</code> → 的、<code>8a3</code> → 碼），提示會顯示正確順序。</span></div>
-    <div class="cell"><b>多按的鍵會被略過</b><span>快打時蹭到的單一字母不會變成亂碼，提示框會說「略過 e」，按 <kbd>↓</kbd> 隨時救回來。</span></div>
-    <div class="cell"><b>會記住你的用詞</b><span>只從你明確的選擇學習。改錯字時連同前後文記成「詞」，下次同一句話就對了。</span></div>
-    <div class="cell"><b>學錯了刪得掉</b><span>選字框停在那個詞上按 <kbd>Delete</kbd>，或到設定頁的「自動收集」整批整理。</span></div>
-    <div class="cell"><b>按住右 Ctrl 說話</b><span>本機語音輸入，聲音不會離開這台電腦。RTX 4070 上 8.5 秒的話約 0.5 秒辨識完。</span></div>
+    <div class="cell"><b>不想打字，用說的</b><span>按住右 <kbd>Ctrl</kbd> 說話，放開就打在游標位置。不用學新的打字方式，動動嘴就好——而且聲音不會離開這台電腦。</span></div>
+    <div class="cell" data-accent="fix"><b>打反了也認得</b><span>同一個字的注音鍵順序顛倒照樣出字（<code>k27</code> → 的、<code>8a3</code> → 碼），提示會顯示正確順序。</span></div>
+    <div class="cell" data-accent="drop"><b>多按的鍵會被略過</b><span>快打時蹭到的單一字母不會變成亂碼，提示框會說「略過 e」，按 <kbd>↓</kbd> 隨時救回來。</span></div>
+    <div class="cell" data-accent="memory"><b>會記住你的用詞</b><span>只從你明確的選擇學習。改錯字時連同前後文記成「詞」，下次同一句話就對了。</span></div>
+    <div class="cell" data-accent="memory"><b>學錯了刪得掉</b><span>選字框停在那個詞上按 <kbd>Delete</kbd>，或到設定頁的「自動收集」整批整理。</span></div>
     <div class="cell"><b>注音、拼音、倉頡共用一份詞庫</b><span>三種打法學到的東西互通，中英自動模式一次混用一種。</span></div>
   </div>
 
@@ -245,7 +298,7 @@ footer a { color: var(--muted); }
     <span><i class="dot" style="background:var(--fix)"></i>輸入法替你改過</span>
     <span><i class="dot" style="background:var(--drop)"></i>被略過的按鍵</span>
   </div>
-  <p class="note">顏色只有這四種意思，面板上到處都一樣——這頁也用同一套。</p>
+  <p class="note">顏色只有這四種意思，面板上到處都一樣——上面那幾格邊上的顏色，和這頁別的地方，用的是同一套。</p>
 </section>
 
 <!-- ============================================================ how -->
@@ -423,6 +476,7 @@ footer a { color: var(--muted); }
 </section>
 
 <footer>
+  <span class="keycap keycap-sm" aria-hidden="true">順</span>
   <span>順打輸入法 · Apache License 2.0</span>
   <span>開發者 <a href="https://github.com/ChouYangEn0401">ChouYangEn0401</a></span>
   <span>詞庫 McBopomofo（MIT）· 英文詞頻衍生自 wordfreq（CC BY-SA 4.0）· <a href="https://github.com/EasyIME/PIME">PIME</a>（LGPL 2.1）</span>
