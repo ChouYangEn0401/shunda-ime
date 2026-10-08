@@ -328,6 +328,35 @@ def test_a_corrected_character_is_remembered_with_its_neighbour(mem_session, use
     assert v.composition == "打逗號"
 
 
+def test_smart_suggest_also_remembers_the_three_characters_around_a_fix(mem_session, user):
+    """Asked for: 「把 OOX 修正以後只記了 OO 和 OX」 — a pair makes the same
+    sentence decode right, but is too short to come back as a continuation.
+    Behind the experimental 超智慧推薦 switch, the run around the fix is
+    remembered as a phrase too."""
+    mem_session.cfg.smart_suggest = True
+    try:
+        _, v = run(mem_session, "2832.4cl4{LEFT}{LEFT}{DOWN}4")  # 打鬥號 -> 打逗號
+        assert v.composition == "打逗號"
+        learned = {(r["phrase"], r["origin"]) for r in user.list(source="learned")}
+        assert learned == {("逗號", "fix"), ("打逗號", "fix")}
+        assert any(p == "打逗號" for p, _, _ in mem_session.engine.lexicon.completions("打逗"))
+    finally:
+        mem_session.cfg.smart_suggest = False
+
+
+def test_the_three_character_run_goes_again_if_the_sentence_moves_on(mem_session, user):
+    """Learned with the same provisional "fix" origin as the pairs, so a
+    later fix that leaves it out of the final sentence takes it back."""
+    mem_session.cfg.smart_suggest = True
+    try:
+        run(mem_session, "2832.4cl4{LEFT}{LEFT}{DOWN}4")  # 打逗號
+        final, _ = run(mem_session, "{ESC}{HOME}j{ENTER}")  # then fix the sentence again
+        assert "打逗號" not in final
+        assert "打逗號" not in learned_phrases(user)
+    finally:
+        mem_session.cfg.smart_suggest = False
+
+
 def test_picking_a_whole_word_is_remembered_as_it_is(mem_session, user):
     run(mem_session, "2832.4cl4{LEFT}{LEFT}{DOWN}1")  # 逗號 as one candidate
     assert {(r["phrase"], r["origin"]) for r in user.list(source="learned")} == {("逗號", "pick")}

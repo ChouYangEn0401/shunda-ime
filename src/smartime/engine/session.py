@@ -1332,6 +1332,42 @@ class Session(CorrectionMixin):
             return
         for ctx in contexts:
             self._learn(ctx, origin="fix")
+        if self.cfg.smart_suggest:
+            run = self._correction_run(pin)
+            if run is not None:
+                self._learn(run, origin="fix")
+
+    def _correction_run(self, pin: Segment) -> Segment | None:
+        """超智慧推薦 (experimental): the three characters around a corrected
+        one, remembered as a phrase too.
+
+        The two-character words above make the same sentence decode right
+        next time, but a pair is too short to suggest anything: fixing 「有
+        點滴」 left 有點 and 點滴 behind, never 有點滴 itself, so the phrase
+        could not come back as a continuation (asked for: 「OOX 修正以後只記
+        了 OO 和 OX」). Centred on the fix when both neighbours are Chinese,
+        otherwise the two on the side that has them. Learned with the same
+        "fix" origin, so a later fix in the sentence takes it back the same
+        way (_prune_learned) and an unused one is tidied like any other."""
+        units = self.decoding.units()
+        segs = self.decoding.segments
+        idx = next((i for i, u in enumerate(units) if u[0] == pin.start), None)
+        if idx is None:
+            return None
+
+        def zh(i):
+            return 0 <= i < len(units) and segs[units[i][3]].kind is Kind.ZH
+
+        for lo in (idx - 1, idx - 2, idx):
+            if all(zh(i) for i in range(lo, lo + 3)):
+                picked = units[lo:lo + 3]
+                break
+        else:
+            return None
+        readings = tuple(segs[si].readings[segs[si].bounds.index(a)] for a, _, _, si in picked)
+        bounds = (picked[0][0],) + tuple(b for _, b, _, _ in picked)
+        return Segment(picked[0][0], picked[-1][1], "".join(ch for _, _, ch, _ in picked), Kind.ZH, 0.0,
+                       readings, bounds, pinned=True)
 
     def _correction_contexts(self, pin: Segment) -> list[Segment]:
         """Two-character words made of the corrected character and its
