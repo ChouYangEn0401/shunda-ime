@@ -454,7 +454,7 @@ class SmartTextService:
         s, cfg = self.session, self.engine.config
         # every mode this lexicon supports, Shift cycle or not
         items: list[dict] = [
-            {"text": s.mode_label() if mode is Mode.AUTO else mode.label, "id": cid, "checked": s.mode is mode}
+            {"text": s.auto_label() if mode is Mode.AUTO else mode.label, "id": cid, "checked": s.mode is mode}
             for cid, mode in MODE_MENU_IDS.items() if s._available(mode)
         ]
         items.append({})

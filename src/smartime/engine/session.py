@@ -510,17 +510,27 @@ class Session(CorrectionMixin):
             return "cangjie"
         if self.mode is Mode.CHINESE:
             return "zhuyin"
+        return self._auto_scheme()
+
+    def _auto_scheme(self) -> str:
+        """The Chinese that 中英自動 mixes in, whichever mode is active now."""
         scheme = self.cfg.chinese_scheme
         if (scheme == "pinyin" and not self.engine.lexicon.has_pinyin) or (
                 scheme == "cangjie" and not self.engine.lexicon.has_cangjie):
             return "zhuyin"
         return scheme
 
+    def auto_label(self) -> str:
+        """The 中英自動 entry of the tray menu, saying which Chinese it mixes
+        in. Fixed to that mode: the menu lists every mode, and this entry
+        used to show whichever one was active (switch to 純拼音 and the top
+        line read 純拼音 too — reported with a screenshot)."""
+        scheme = self._auto_scheme()
+        return f"中英自動（{SCHEME_LABEL[scheme]}）" if scheme != "zhuyin" else Mode.AUTO.label
+
     def mode_label(self) -> str:
-        """For the tray: 中英自動 says which Chinese it mixes in."""
-        if self.mode is Mode.AUTO and self.scheme != "zhuyin":
-            return f"中英自動（{SCHEME_LABEL[self.scheme]}）"
-        return self.mode.label
+        """The mode active now, for the tray icon's tooltip."""
+        return self.auto_label() if self.mode is Mode.AUTO else self.mode.label
 
     def set_mode(self, mode: Mode) -> None:
         self.commit_all()

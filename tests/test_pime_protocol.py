@@ -397,6 +397,28 @@ def test_tray_menu_has_the_switches_people_actually_flip(engine):
         assert {x["id"] for x in sub["submenu"]} <= set(CHOICES)
 
 
+def test_tray_menu_mode_entries_keep_their_own_names(engine):
+    """Reported with a screenshot: after switching to 純拼音 the menu's top
+    entry read 純拼音 as well — 中英自動 had vanished from its own menu,
+    because that entry reused the tooltip's "mode active now" label."""
+    from smartime.engine.session import Mode
+    from smartime.pime.text_service import MODE_MENU_IDS, SmartTextService
+
+    svc = SmartTextService(engine, Path("icons"))
+    expected = None
+    for mode in (Mode.AUTO, Mode.PINYIN, Mode.CHINESE, Mode.ENGLISH):
+        if not svc.session._available(mode):
+            continue
+        svc.session.set_mode(mode)
+        names = {i["id"]: i["text"] for i in svc._menu() if i.get("id") in MODE_MENU_IDS}
+        expected = expected or names
+        assert names == expected, f"in {mode.label} the mode entries changed"
+        checked = [i["text"] for i in svc._menu() if i.get("id") in MODE_MENU_IDS and i["checked"]]
+        assert len(checked) == 1
+    auto_id = next(cid for cid, m in MODE_MENU_IDS.items() if m is Mode.AUTO)
+    assert expected[auto_id].startswith("中英自動")
+
+
 def test_tray_menu_choice_applies_and_is_saved(engine, tmp_path):
     from smartime.pime.text_service import CHOICES, SmartTextService
 
