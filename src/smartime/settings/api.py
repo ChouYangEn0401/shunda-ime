@@ -435,6 +435,8 @@ class SettingsApp:
             "current": __version__,
             "latest": release.version,
             "newer": release.newer,
+            # a test build ahead of the newest release (0.8.0-alpha.6 vs 0.6.0)
+            "ahead": bool(release.version) and upd.version_tuple(__version__) > upd.version_tuple(release.version),
             "url": release.url or upd.RELEASES_PAGE,
             "notes": release.notes,
             "published": release.published,

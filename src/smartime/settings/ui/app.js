@@ -1048,8 +1048,12 @@
     if (!u.latest) { status.textContent = "尚未檢查。"; return; }
     if (u.newer) {
       status.textContent = `有新版本 ${u.latest}${u.size ? "（" + fmtSize(u.size) + "）" : ""}。`;
+    } else if (u.ahead) {
+      // "已經是最新版本（GitHub 上也是 0.6.0）" while running 0.8.0-alpha.6
+      // read as a contradiction (reported). Say which way round it is.
+      status.textContent = `你用的 ${u.current} 比 GitHub 上最新的正式版 ${u.latest} 還新（測試版）；有更新的正式版時這裡會通知。`;
     } else {
-      status.textContent = `已經是最新版本（GitHub 上也是 ${u.latest}）。`;
+      status.textContent = `已經是最新版本（${u.latest}）。`;
     }
   }
 

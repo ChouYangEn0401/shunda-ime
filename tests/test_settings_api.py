@@ -218,6 +218,24 @@ def test_update_state_reads_the_cache_without_going_online(monkeypatch):
     app.close()
 
 
+def test_update_state_says_when_this_build_is_ahead_of_the_latest_release(monkeypatch):
+    """Reported: running 0.8.0-alpha.6 the page said 「已經是最新版本（GitHub
+    上也是 0.6.0）」, which reads as a contradiction. The page needs to know
+    which way round it is."""
+    from smartime import update as upd
+
+    app = SettingsApp()
+    monkeypatch.setattr(upd, "cached", lambda: upd.Release(version="0.0.1"))
+    state = app.update_state()
+    assert state["ahead"] is True and state["newer"] is False
+    monkeypatch.setattr(upd, "cached", lambda: upd.Release(version=smartime.__version__))
+    assert app.update_state()["ahead"] is False
+    monkeypatch.setattr(upd, "cached", lambda: upd.Release(version="99.0.0"))
+    state = app.update_state()
+    assert state["ahead"] is False and state["newer"] is True
+    app.close()
+
+
 def test_version_comparison():
     from smartime import update as upd
 
