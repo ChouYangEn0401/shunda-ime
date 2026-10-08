@@ -512,8 +512,13 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
     chips_h = 24 * k * len(chip_lines)
     body_h = max((sum(GROUP_H * k if kind == "group" else ROW_H * k for kind, _ in rows) for rows in col_rows),
                  default=ROW_H * k)
-    if p.palette:
-        body_h = max(body_h, PALETTE_BODY_H * k)  # one height too, for the same reason
+    # Height is *not* pinned the way width is. Only the four list tabs reach
+    # this function (the grid categories return to paint_palette above), and
+    # 片語 / 我的符號 usually hold a handful of entries: a fixed nine-row body
+    # left most of the window empty under them, which reads as a half-drawn
+    # window rather than a stable one (reported: 「片語視窗有時候沒有完全展開」).
+    # The ;;-triggered snippet window has always sized itself to its content;
+    # this makes the palette's own 片語 tab behave the same.
     footer_h = 20 * k
     height = PAD_Y * k + title_h + chips_h + 4 * k + body_h + preview_h + 8 * k + footer_h + PAD_Y * k
     out = Painted(width, height)

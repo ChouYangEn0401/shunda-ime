@@ -140,3 +140,49 @@ def measure_hint(panel, theme):
     finally:
         surf.close()
         fonts.close()
+
+
+def test_a_short_palette_list_tab_does_not_reserve_an_empty_nine_row_body(engine):
+    """Reported: 「片語視窗有時候沒有完全展開」.
+
+    Only the four list tabs reach paint_candidates (the symbol grids return
+    to paint_palette), so pinning the body to nine rows there left 片語 and
+    我的符號 — usually a handful of entries — sitting above a tall empty
+    area, which reads as a half-drawn window. They size to their content
+    now, the way the ;;-triggered snippet window always has."""
+    from smartime.engine.panel import candidate_panel
+    from smartime.engine.session import Session
+    from smartime.engine.symbols import TABS
+
+    user = engine.lexicon.user
+    if user is not None:
+        user.add_snippet("範例市範例區示範路 100 號", "我的地址", "addr")
+        engine.lexicon.invalidate()
+
+    def measure(tab: str):
+        s = Session(engine)
+        run(s, "ji3{RCTRL}")
+        for _ in range(TABS.index(tab)):
+            run(s, "{TAB}")
+        panel = candidate_panel(s)
+        assert panel.chip == tab
+        return measure_candidates(panel), panel
+
+    (short, short_panel), (full, full_panel) = measure("片語"), measure("顏文字")
+    assert len(short_panel.items) < short_panel.page_size < len(full_panel.items)
+    assert short.height < full.height, "a 3-row list must not be as tall as a 9-row one"
+    assert short.width == full.width, "width is still pinned, so Tab does not resize sideways"
+
+
+def measure_candidates(panel):
+    from smartime.ui.canvas import Canvas, Fonts, Surface
+    from smartime.ui.panels import paint_candidates
+    from smartime.ui.theme import LIGHT
+
+    fonts = Fonts(1.0)
+    surf = Surface(4, 4)
+    try:
+        return paint_candidates(Canvas(surf.hdc, 1.0, fonts), LIGHT, panel, draw=False)
+    finally:
+        surf.close()
+        fonts.close()
