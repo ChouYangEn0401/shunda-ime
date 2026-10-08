@@ -154,40 +154,47 @@ def test_pageup_pagedown_turn_pages(session):
     assert cand.page == 0
 
 
-def test_grid_arrows_stay_on_their_own_axis(session):
-    """Reported: 「左右操作變成上下、上下操作變成左右」.
+def test_every_symbol_panel_tab_moves_the_same_way(session):
+    """Reported: 「為什麼同樣是那一個框框裡面，操作的感覺彼此有差異」 — the
+    symbol categories were a grid (1–9 across a row, ← → along it) while
+    顏文字, 片語 and the rest were lists (1–9 down a column, ← → between
+    columns). Every tab is a list now, the 顏文字 way the report singled out
+    as the one that felt right."""
+    def walk(tab):
+        s = Session(session.engine)
+        run(s, "ji3{RCTRL}")
+        for _ in range(TABS.index(tab)):
+            run(s, "{TAB}")
+        cand, n, seen = s.cand, s.cand.page_size, []
+        run(s, "{DOWN}")
+        seen.append(cand.index)  # ↓ = the next one down the column
+        run(s, "{RIGHT}")
+        seen.append((cand.page, cand.index % n))  # → = the next column, same row
+        run(s, "{LEFT}")
+        seen.append((cand.page, cand.index % n))  # ← = back
+        return seen
 
-    The symbol panel is a grid, one page per row. Moving by ±1 ran off the
-    end of a row into the next one, so → behaved like "down"; ↑↓ moved by a
-    whole page and were blocked at the edges, so they looked dead.
-    """
-    run(session, "ji3{RCTRL}{TAB}{TAB}")  # 希臘字母, a grid
-    cand = session.cand
-    n = cand.page_size
-    assert cand.index == 0
-    run(session, "{LEFT}")
-    assert cand.index == 0, "← at the start of a row stays put"
-    run(session, "{DOWN}")
-    assert cand.index == n, "↓ goes straight down, same column"
-    run(session, "{RIGHT}{RIGHT}")
-    assert cand.index == n + 2
-    run(session, "{UP}")
-    assert cand.index == 2, "↑ comes back up the same column"
-    for _ in range(n + 3):
-        run(session, "{RIGHT}")
-    assert cand.index == n - 1, "→ stops at the end of its row"
+    assert walk("希臘字母") == walk("顏文字") == walk("emoji") == [1, (1, 1), (0, 1)]
 
 
-def test_palette_is_a_grid(session):
+def test_symbol_categories_are_grouped_lists(session):
     run(session, "ji3{RCTRL}{TAB}{TAB}")  # 希臘字母
     cand = session.cand
-    assert cand.columns > 1  # several rows at once
+    assert cand.columns > 1  # several columns straight away
+    assert [c.group for c in cand.shown[:1]] == ["小寫"] and cand.shown[-1].group == "大寫"
     p = candidate_panel(session)
-    assert p.palette and p.layout == "grid" and p.chip == "希臘字母"
-    assert p.title == "符號 · 希臘字母"
+    assert p.palette and p.chip == "希臘字母" and p.title == "符號 · 希臘字母"
+    assert all(i.note == "" for i in p.items), "the tab name is in the title, not beside α"
     expected = cand.page_items()[2].text
-    _, v = run(session, "3")  # third symbol of the selection's row
+    _, v = run(session, "3")  # third symbol of the selection's column
     assert v.composition == "我" + expected
+
+
+def test_recently_used_symbols_get_their_own_group_in_common(session):
+    run(session, "ji3{RCTRL}{TAB}{TAB}2")  # β, from 希臘字母
+    run(session, "{RCTRL}")
+    first = session.cand.shown[0]
+    assert (first.text, first.group) == ("β", "最近")
 
 
 def test_tab_switches_the_symbol_category(session):
@@ -219,3 +226,20 @@ def test_arrow_keys_still_move_the_selection(session):
     # the dedicated arrow block is "extended": it must not read as keypad 2/8
     _, v = run(session, "ji35p {DOWN}{DOWN}")
     assert v.candidates is not None and session.cand.index == 1
+
+
+def test_small_symbol_categories_spread_over_several_columns(session):
+    """At nine rows a column 箭頭 came out as two columns, each stretched
+    across the panel with one small glyph in it. Shorter columns keep every
+    category wide and low, the shape the old grid had."""
+    from smartime.engine.session import palette_rows
+
+    for tab in TABS[:TABS.index("片語")]:
+        s = Session(session.engine)
+        run(s, "ji3{RCTRL}")
+        for _ in range(TABS.index(tab)):
+            run(s, "{TAB}")
+        assert s.cand.columns >= 4, f"{tab}: {s.cand.columns} columns"
+        assert 5 <= s.cand.page_size <= 9
+    assert palette_rows(18, 9) == 5 and palette_rows(48, 9) == 8 and palette_rows(200, 9) == 9
+    assert palette_rows(18, 3) == 3, "never more rows than the user's own page size"

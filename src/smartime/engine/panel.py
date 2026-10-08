@@ -77,7 +77,6 @@ class CandidatePanel:
     chip: str = ""  # the active one
     multi: bool = False
     palette: bool = False
-    layout: str = "list"  # list | grid (the symbol categories)
     snippet: bool = False  # the ;; list (letters filter it)
     preview: str = ""  # the selected 片語's whole text
     notice: str = ""  # one-off feedback, shown in place of the title
@@ -145,8 +144,10 @@ def candidate_panel(session) -> CandidatePanel | None:
     from .symbols import LIST_TABS, TABS
 
     tab = TABS[cand.palette % len(TABS)] if cand.palette is not None else ""
-    grid = cand.palette is not None and tab not in LIST_TABS
-    items = [CandidateItem(c.text, c.annotation if c.annotation != c.group and not grid else "",
+    # a symbol category's first item carries "希臘字母 · Tab 換分類" for
+    # PIME's plain list; the panel says that in its title and chips instead
+    symbol_tab = cand.palette is not None and tab not in LIST_TABS
+    items = [CandidateItem(c.text, c.annotation if c.annotation != c.group and not symbol_tab else "",
                            c.group, str(i % cand.page_size + 1) if i // cand.page_size == page else "")
              for i, c in enumerate(shown)]
     panel = CandidatePanel(items, cand.index, cand.page_size, cand.columns, cand.first_page, cand.pages,
@@ -155,7 +156,6 @@ def candidate_panel(session) -> CandidatePanel | None:
         panel.preview = cand.current.preview
     if cand.palette is not None:
         panel.palette = True
-        panel.layout = "grid" if grid else "list"
         panel.chips = list(TABS)
         panel.chip = tab
         panel.title = f"符號 · {tab}"

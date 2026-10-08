@@ -76,7 +76,7 @@ def test_snippets_and_kaomoji_tabs_in_the_symbol_panel(snip_session):
         run(snip_session, "{TAB}")
     assert TABS[snip_session.cand.palette] == "顏文字"
     p = candidate_panel(snip_session)
-    assert p.layout == "list" and p.chip == "顏文字"
+    assert p.chip == "顏文字"
     face = snip_session.cand.current.text
     out, _ = run(snip_session, "{ENTER}")
     assert out == face

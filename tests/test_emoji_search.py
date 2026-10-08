@@ -218,7 +218,7 @@ def test_my_symbols_tab_shows_pasted_content(user_engine):
     goto(s, "我的符號")
     assert [c.text for c in s.cand.shown] == ["★", "(=^・ω・^=)"]
     p = candidate_panel(s)
-    assert p.layout == "list" and p.chip == "我的符號"
+    assert p.chip == "我的符號"
 
 
 def test_my_symbols_empty_state_explains_where_to_add_them(user_engine):

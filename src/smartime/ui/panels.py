@@ -318,8 +318,7 @@ ROW_H, GROUP_H, LABEL_W = 29, 19, 16
 # 是未知」) — so every help row spells out both directions as their own chip
 # instead of leaving the reverse direction for people to discover by luck.
 PALETTE_HELP = [("↑↓", "移動"), ("1–9", "選這一欄"), ("→", "展開一欄"), ("←", "收合"), ("Tab", "下一分頁"),
-                ("⇧Tab", "上一分頁"), ("Esc", "關閉")]
-GRID_HELP = [("↑↓ ← →", "移動"), ("1–9", "選這一列"), ("Tab", "下一分頁"), ("⇧Tab", "上一分頁"), ("Esc", "關閉")]
+                ("Shift+Tab", "上一分頁"), ("Esc", "關閉")]
 
 
 def _cand_help(p: "CandidatePanel") -> list[tuple[str, str]]:
@@ -336,7 +335,7 @@ def _cand_help(p: "CandidatePanel") -> list[tuple[str, str]]:
     items = [("↑↓", "移動"), ("1–9", "選")]
     items += [("→", "展開一欄"), ("←", "收合")] if p.multi else [("← →", "翻頁")]
     if p.chips:
-        items += [("Tab", "下一類"), ("⇧Tab", "上一類")]
+        items += [("Tab", "下一類"), ("Shift+Tab", "上一類")]
     items += [("Del", "忘記"), ("Ctrl+D", "加詞")]
     return items
 # Tab walks eleven categories whose contents are nothing like each other in
@@ -344,7 +343,6 @@ def _cand_help(p: "CandidatePanel") -> list[tuple[str, str]]:
 # every Tab is exhausting to follow, so the symbol panel keeps one size for
 # all of them, grid tabs and list tabs alike.
 PALETTE_W = 520
-PALETTE_BODY_H = 9 * 29  # nine list rows; the grid fills the same box
 SNIPPET_HELP = [("字母", "篩選"), ("↑↓", "移動"), ("1–9", "選"), ("Enter", "打出"), ("Esc", "關閉（保留 ;;）")]
 PREVIEW_LINES = 8
 
@@ -384,11 +382,11 @@ def _columns(p: CandidatePanel):
     return out
 
 
-def _column_rows(rows):
+def _column_rows(rows, headers: bool = True):
     """Insert a group header wherever the group changes inside a column."""
     out, last = [], None
     for idx, item in rows:
-        if item.group != last and item.group:
+        if headers and item.group != last and item.group:
             out.append(("group", item.group))
             last = item.group
         out.append(("item", (idx, item)))
@@ -406,56 +404,6 @@ def _row_width(c: Canvas, s: Styles, kind: str, val, k: float) -> float:
 
 def _rows_height(rows, k: float) -> float:
     return sum(GROUP_H * k if kind == "group" else ROW_H * k for kind, _ in rows)
-
-
-CELL_W, CELL_H = 38, 38
-
-
-def paint_palette(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, draw: bool = True) -> Painted:
-    """The symbol panel: a grid, one page (1–9) per row, the category chips
-    above. Numbers are shown on the row the selection is in."""
-    s = Styles(c, t, size)
-    k = size
-    rows = _columns(p)  # pages shown = rows here
-    grid_w = p.page_size * CELL_W * k
-    chips_w = sum(c.measure(ch, s.small)[0] + 18 * k for ch in p.chips)
-    width = max(grid_w, min(chips_w, 560 * k), _help_width(c, s, GRID_HELP),
-                PALETTE_W * k) + 2 * PAD_X * k
-    chip_lines = _chip_lines(c, s, p.chips, width - 2 * PAD_X * k, k)
-    title_h = 20 * k
-    chips_h = 24 * k * len(chip_lines)
-    grid_h = max(len(rows) * CELL_H * k, PALETTE_BODY_H * k)
-    height = PAD_Y * k + title_h + chips_h + 6 * k + grid_h + 8 * k + 20 * k + PAD_Y * k
-    out = Painted(width, height)
-    if not draw:
-        return out
-    c.fill(0, 0, width, height, t.bg)
-    c.stroke(0, 0, width, height, t.border, line=1)
-    x0, y = PAD_X * k, PAD_Y * k
-    draw_mixed(c, x0, y, p.notice or p.title, s.help, s.symbol, t.accent if p.notice else t.muted)
-    pages = f"{p.first_page + 1}–{p.first_page + len(rows)}/{p.pages}" if len(rows) > 1 else f"1/{p.pages}"
-    if p.pages > 1:
-        c.text(width - PAD_X * k - c.measure(pages, s.num)[0], y + 1 * k, pages, s.num, t.faint)
-    y += title_h
-    for line in chip_lines:
-        _paint_chips(c, s, t, x0, y, line, p.chip, k)
-        y += 24 * k
-    c.hline(x0, width - PAD_X * k, y + 2 * k, t.border, 1)
-    y += 6 * k
-    for r, (page, items) in enumerate(rows):
-        cy = y + r * CELL_H * k
-        for col, (idx, item) in enumerate(items):
-            cx = x0 + col * CELL_W * k
-            selected = idx == p.index
-            if selected:
-                c.fill(cx + 1 * k, cy + 1 * k, CELL_W * k - 2 * k, CELL_H * k - 2 * k, t.accent, radius=5 * k)
-            if item.label:
-                c.text(cx + 3 * k, cy + 1 * k, item.label, s.label, t.on_accent if selected else t.faint)
-            c.text_center(cx, cy + 9 * k, CELL_W * k, item.text, s.cand, t.on_accent if selected else t.fg)
-    fy = y + grid_h + 8 * k
-    c.hline(x0, width - PAD_X * k, fy - 4 * k, t.border, 1)
-    _paint_help(c, s, t, x0, fy, GRID_HELP, width - PAD_X * k)
-    return out
 
 
 def _chip_lines(c: Canvas, s: Styles, chips: list[str], room: float, k: float) -> list[list[str]]:
@@ -485,12 +433,14 @@ def _paint_chips(c: Canvas, s: Styles, t: Theme, x: float, y: float, chips: list
 
 
 def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, draw: bool = True) -> Painted:
-    if p.palette and p.layout == "grid":
-        return paint_palette(c, t, p, size, draw)
     s = Styles(c, t, size)
     k = size
     cols = _columns(p)
-    col_rows = [_column_rows(rows) for _, rows in cols]
+    # In the symbol panel a header only says something when there is more
+    # than one group: 「常用」 over every column of the 常用 tab just repeated
+    # the title. (The candidate window keeps its headers as they were.)
+    headers = not p.palette or len({i.group for i in p.items}) > 1
+    col_rows = [_column_rows(rows, headers) for _, rows in cols]
     gap = 10 * k
     if p.palette:
         # One width and one height for every column of the tab, measured over
@@ -501,7 +451,7 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
         # column happened to hold one more group header (reported for 顏文字:
         # 「長度不同有時候框框會被擠壓」).
         every = [_column_rows(list(enumerate(p.items[pg * p.page_size:(pg + 1) * p.page_size],
-                                                 pg * p.page_size)))
+                                                 pg * p.page_size)), headers)
                  for pg in range(p.pages)]
         one = max((_row_width(c, s, kind, val, k) for rows in every for kind, val in rows), default=40 * k)
         col_w = [one] * len(cols)

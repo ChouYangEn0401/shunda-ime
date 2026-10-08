@@ -17,16 +17,22 @@ log = logging.getLogger(__name__)
 # way to break a line from inside the input method.
 NEWLINE_SYMBOL = "⏎"
 
-CATEGORIES: list[tuple[str, str]] = [
-    ("常用", "，。、；：？！…—「」『』（）《》〈〉【】“”～⏎"),
-    ("括號引號", "「」『』（）《》〈〉【】〔〕｛｝“”‘’〝〞﹁﹂﹃﹄［］"),
-    ("希臘字母", "αβγδεζηθικλμνξοπρστυφχψωΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ"),
-    ("數學", "＋－×÷＝≠≈≒±∞√∑∏∫∂∆∇≤≥＜＞∈∉⊂⊃∩∪∴∵∀∃°′″‰％"),
-    ("箭頭", "←→↑↓↖↗↙↘⇐⇒⇑⇓⇔↔↕↺↻➜"),
-    ("單位", "℃℉°㎜㎝㎞㎡㎥㏄㎎㎏㏎㎖㎗㎘μ＄¢£¥€™©®"),
-    ("圖形", "○●◎◇◆□■△▲▽▼☆★♀♂✓✔✗✘※§¶†‡•"),
-    ("序號", "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩"),
-    ("注音", "ㄅㄆㄇㄈㄉㄊㄋㄌㄍㄎㄏㄐㄑㄒㄓㄔㄕㄖㄗㄘㄙㄧㄨㄩㄚㄛㄜㄝㄞㄟㄠㄡㄢㄣㄤㄥㄦˊˇˋ˙"),
+# (tab, ((group, symbols), ...)). Shown the way 顏文字 is: a list in columns
+# with a header wherever the group changes, so every tab of the panel reads
+# and moves the same way (reported: the grid tabs and the list tabs felt
+# like two different products in one box).
+CATEGORIES: list[tuple[str, tuple[tuple[str, str], ...]]] = [
+    ("常用", (("常用", "，。、；：？！…—「」『』（）《》〈〉【】“”～⏎"),)),
+    ("括號引號", (("引號", "「」『』“”‘’〝〞﹁﹂﹃﹄"), ("括號", "（）《》〈〉【】〔〕｛｝［］"))),
+    ("希臘字母", (("小寫", "αβγδεζηθικλμνξοπρστυφχψω"), ("大寫", "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ"))),
+    ("數學", (("運算", "＋－×÷±√∑∏∫∂∆∇∞"), ("比較", "＝≠≈≒≤≥＜＞"), ("集合邏輯", "∈∉⊂⊃∩∪∴∵∀∃"),
+              ("角度百分比", "°′″‰％"))),
+    ("箭頭", (("單線", "←→↑↓↖↗↙↘↔↕"), ("雙線", "⇐⇒⇑⇓⇔"), ("其他", "↺↻➜"))),
+    ("單位", (("度量", "℃℉°㎜㎝㎞㎡㎥㏄㎎㎏㏎㎖㎗㎘μ"), ("貨幣", "＄¢£¥€"), ("商標", "™©®"))),
+    ("圖形", (("圖形", "○●◎◇◆□■△▲▽▼☆★"), ("記號", "♀♂✓✔✗✘※§¶†‡•"))),
+    ("序號", (("圈號", "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮"), ("羅馬數字", "ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ"), ("國字", "㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩"))),
+    ("注音", (("聲母", "ㄅㄆㄇㄈㄉㄊㄋㄌㄍㄎㄏㄐㄑㄒㄓㄔㄕㄖㄗㄘㄙ"), ("介音韻母", "ㄧㄨㄩㄚㄛㄜㄝㄞㄟㄠㄡㄢㄣㄤㄥㄦ"),
+              ("聲調", "ˊˇˋ˙"))),
 ]
 RECENT_MAX = 18  # single symbols in 常用
 RECENT_KAOMOJI = 12
@@ -130,12 +136,19 @@ class SymbolPanel:
             except (OSError, ValueError):
                 pass
 
-    def category(self, index: int) -> tuple[str, list[str]]:
-        name, chars = CATEGORIES[index % len(CATEGORIES)]
-        symbols = list(chars)
+    def groups(self, index: int) -> tuple[str, list[tuple[str, list[str]]]]:
+        """(tab, [(group, symbols), ...]). 常用 puts the recently used single
+        symbols in their own 最近 group first, the same as 顏文字 does."""
+        name, parts = CATEGORIES[index % len(CATEGORIES)]
+        groups = [(label, list(chars)) for label, chars in parts]
         if index % len(CATEGORIES) == 0:
-            symbols = list(dict.fromkeys([s for s in self.recent if len(s) == 1] + symbols))
-        return name, symbols
+            recent = [s for s in self.recent if len(s) == 1]
+            groups = [("最近", recent)] + [(label, [x for x in syms if x not in recent]) for label, syms in groups]
+        return name, [(label, syms) for label, syms in groups if syms]
+
+    def category(self, index: int) -> tuple[str, list[str]]:
+        name, groups = self.groups(index)
+        return name, [s for _, syms in groups for s in syms]
 
     def kaomoji(self) -> list[tuple[str, str]]:
         """[(face, group)], the recently used ones first (group 最近)."""

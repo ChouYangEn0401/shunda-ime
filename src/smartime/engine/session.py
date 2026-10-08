@@ -39,7 +39,7 @@ from .panel import (
     CandidatePanel, DecodePanel, HintPanel, SmartPanel, candidate_panel, decode_panel, smart_panel,
 )
 from .punct import ctrl_output
-from .symbols import CATEGORIES, EMOJI_TAB, LIST_TABS, NEWLINE_SYMBOL, TABS, SymbolPanel
+from .symbols import EMOJI_TAB, LIST_TABS, NEWLINE_SYMBOL, TABS, SymbolPanel
 
 VK_D = 0x44
 VK_Y = 0x59
@@ -85,6 +85,30 @@ SCHEME_LABEL = {"zhuyin": "注音", "pinyin": "拼音", "cangjie": "倉頡"}
 GROUP_ORDER = ("我的詞庫", "學過", "詞庫", "英文", "數字", "標點", "其他讀法", "原始按鍵", "略過的鍵",
                "長句", "也許是", "接續", "符號")
 MAX_COLUMNS = 4  # multi-column candidate window: pages shown side by side
+
+
+def palette_columns(tab: str) -> int:
+    """Columns a symbol-panel tab opens with: as many as fill the panel's
+    fixed width. Single symbols make narrow columns, faces wide ones, and a
+    片語 line takes the whole width."""
+    if tab == "片語":
+        return 1
+    if tab in ("顏文字", "我的符號"):
+        return 2
+    return 6  # one symbol per row: the symbol categories and emoji
+
+
+def palette_rows(count: int, most: int) -> int:
+    """Rows per column for a symbol category of ``count`` symbols.
+
+    Nine rows a column left the small categories two or three columns wide,
+    each stretched across the panel with one tiny glyph in it (箭頭 was two
+    330-pixel columns). Shorter columns let every category spread over about
+    six, the same wide-and-low shape the old grid had — while moving and
+    picking stay exactly the list's: ↓ down the column, → to the next, the
+    digits pick within the column. Never under five, or the group headers
+    would outnumber the symbols."""
+    return min(most, max(5, -(-count // 6)))
 
 
 @dataclass
@@ -1184,20 +1208,6 @@ class Session(CorrectionMixin):
         if vk == VK_TAB and cand.palette is not None:
             self._open_palette(cand.palette + (-1 if key.shift else 1))
             return True
-        if cand.palette is not None and TABS[cand.palette % len(TABS)] not in LIST_TABS and                 vk in (VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN):
-            # The symbol panel is a grid, one page per row. Moving by ±1 used
-            # to run off the end of a row into the next one, so → looked like
-            # "down" and ↑↓ looked like nothing (reported: 「左右操作變成上下、
-            # 上下操作變成左右」). Now each direction stays in its own axis.
-            row, col = divmod(cand.index, cand.page_size)
-            last_row = (len(cand.shown) - 1) // cand.page_size
-            if vk in (VK_LEFT, VK_RIGHT):
-                col = max(0, min(col + (1 if vk == VK_RIGHT else -1), cand.page_size - 1))
-            else:
-                row = max(0, min(row + (1 if vk == VK_DOWN else -1), last_row))
-            cand.index = min(row * cand.page_size + col, len(cand.shown) - 1)
-            cand._keep_visible()
-            return True
         if vk == VK_TAB:
             # show one group at a time: 全部 -> 我的詞庫 -> 學過 -> 詞庫 -> …
             cand.cycle_filter(-1 if key.shift else +1)
@@ -1712,16 +1722,17 @@ class Session(CorrectionMixin):
         elif name == EMOJI_TAB:
             items = self._emoji_items("")
         else:
-            _, symbols = self.engine.symbols.category(index)
-            items = [Candidate(sym, None, symbol=sym, group="符號") for sym in symbols]
-            # the category name rides on the first row, so it is visible even
-            # when nothing is being composed (no message window then)
+            _, groups = self.engine.symbols.groups(index)
+            items = [Candidate(sym, None, symbol=sym, group=label) for label, syms in groups for sym in syms]
+            # the category name rides on the first row for PIME's own plain
+            # list (panel off, or nothing composed: no message window then);
+            # the panel shows it in its title instead and drops this note
             items[0].annotation = f"{name} · Tab 換分類"
         self.cand = self._new_list(items, title=f"符號 {tabs} · Tab 換分類", palette=index)
         self.cand.multi = True
-        # open a few columns straight away: the point of the panel is seeing
-        # a lot at once. 片語 lines are long, so it stays at one.
-        self.cand.columns = 1 if name == "片語" else min(self.cand.pages, 2 if name in LIST_TABS else 6)
+        if index < len(TABS) - len(LIST_TABS):  # a symbol category
+            self.cand.page_size = palette_rows(len(items), self.cfg.candidates_per_page)
+        self.cand.columns = min(self.cand.pages, palette_columns(name))
         self.cand.trigger_at = trigger_at
 
     def _open_emoji(self) -> None:
@@ -1910,7 +1921,7 @@ class Session(CorrectionMixin):
         title = f"{EMOJI_TAB} · 關鍵字：{query}" if query else f"{EMOJI_TAB} · 打關鍵字篩選"
         self.cand = self._new_list(self._emoji_items(query), title=title, palette=TABS.index(EMOJI_TAB))
         self.cand.multi = True
-        self.cand.columns = min(self.cand.pages, 2)
+        self.cand.columns = min(self.cand.pages, palette_columns(EMOJI_TAB))
         self.cand.trigger_at, self.cand.query = trigger, query
 
     def _type_text(self, c: Candidate) -> None:

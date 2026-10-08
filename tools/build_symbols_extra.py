@@ -110,8 +110,9 @@ def already_builtin() -> set[str]:
     from smartime.engine.symbols import CATEGORIES, EMOJI_SYMBOLS
 
     known = {sym for sym, _cat, _tags in EMOJI_SYMBOLS}
-    for _name, chars in CATEGORIES:
-        known.update(chars)
+    for _name, groups in CATEGORIES:
+        for _label, chars in groups:
+            known.update(chars)
     return known
 
 
