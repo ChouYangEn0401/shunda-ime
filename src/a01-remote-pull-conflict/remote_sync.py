@@ -116,28 +116,38 @@ def ahead_behind(repo: str, branch: str, upstream: str) -> tuple[int, int]:
     return int(behind), int(ahead)
 
 
-def conflict_preview(repo: str, branch: str, upstream: str) -> list[str] | None:
-    """Files that would conflict, without touching the work tree.
+def conflict_preview(repo: str, branch: str, upstream: str) -> tuple[bool | None, list[str]]:
+    """Would this merge conflict, and in which files -- without touching anything.
 
-    ``None`` means "could not tell" (git too old, or merge-tree errored) — which
-    is deliberately not the same answer as ``[]``, "no conflicts".
+    ``git merge-tree --write-tree`` does the whole merge in memory and reports
+    the answer through its exit code: 0 clean, 1 conflicted, anything else an
+    error. Returns ``(will it conflict?, which files)``, where the first element
+    is ``None`` for "could not tell" -- deliberately not the same answer as
+    ``False``, and never collapsed into "no conflicts".
+
+    The *answer* comes from the exit code and the *file list* from the output,
+    on purpose. The output layout is documented as subject to change, so a
+    parse that comes back empty must not be able to turn a conflicted merge
+    into a clean one; it only costs us the filenames.
     """
     if git_version() < MERGE_TREE_MIN_GIT:
-        return None
+        return None, []
     code, out = git("merge-tree", "--write-tree", "--name-only", branch, upstream, cwd=repo)
     if code == 0:
-        return []
+        return False, []
     if code != 1:  # 128 and friends: not a conflict answer, an error
-        return None
-    # Output is: tree oid, then one conflicted path per line, then a blank line
-    # and free-text messages. Stop at the blank line and drop the oid.
-    lines = out.splitlines()
+        return None, []
+    # Sections are the tree oid, the conflicted paths, then free-text messages,
+    # with a blank line before the messages. Skip the oid, tolerate a blank line
+    # on either side of the path list, and stop at the one that ends it.
     paths: list[str] = []
-    for line in lines[1:]:
+    for line in out.splitlines()[1:]:
         if not line.strip():
-            break
+            if paths:
+                break
+            continue
         paths.append(line.strip())
-    return paths
+    return True, paths
 
 
 def describe_incoming(repo: str, branch: str, upstream: str) -> None:
@@ -151,6 +161,11 @@ def describe_incoming(repo: str, branch: str, upstream: str) -> None:
 
 
 def report_conflicts(paths: list[str], *, predicted: bool) -> None:
+    if not paths:
+        # git said "conflict" but we could not read the file list out of it. Say
+        # exactly that; pretending there is no conflict would be the worse lie.
+        print("\n⚠ " + ("如果現在 pull 會衝突" if predicted else "merge 衝突了") + "，但列不出是哪些檔案。")
+        return
     when = "如果現在 pull，這些檔案會衝突" if predicted else "這些檔案衝突了"
     print(f"\n⚠ {when}（{len(paths)} 個）：")
     for path in paths:
@@ -304,12 +319,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n● {branch} 落後 {upstream} {behind} 個 commit" + (f"，自己另有 {ahead} 個" if ahead else ""))
     describe_incoming(repo, branch, upstream)
 
-    preview = conflict_preview(repo, branch, upstream)
-    if preview is None:
-        print("\n· 這個 git 版本看不出會不會衝突（需要 git >= "
-              f"{'.'.join(map(str, MERGE_TREE_MIN_GIT))}），只能實際 merge 才知道。")
-    elif preview:
-        report_conflicts(preview, predicted=True)
+    will_conflict, paths = conflict_preview(repo, branch, upstream)
+    if will_conflict is None:
+        print("\n· 看不出會不會衝突（需要 git >= "
+              f"{'.'.join(map(str, MERGE_TREE_MIN_GIT))}，或 merge-tree 出錯），只能實際 merge 才知道。")
+    elif will_conflict:
+        report_conflicts(paths, predicted=True)
     else:
         print("\n✓ 預演過了：這個 merge 不會衝突。")
 
@@ -321,7 +336,7 @@ def main(argv: list[str] | None = None) -> int:
         return pull_or_report(repo, branch, upstream, behind, ahead, args.abort_on_conflict)
 
     print("\n只看不動（沒有加 --pull），工作目錄沒有被碰。要拿進來：加 --pull")
-    return EXIT_CONFLICT if preview else EXIT_UPDATES_AVAILABLE
+    return EXIT_CONFLICT if will_conflict else EXIT_UPDATES_AVAILABLE
 
 
 if __name__ == "__main__":

@@ -152,7 +152,9 @@ def test_conflict_is_predicted_without_touching_the_work_tree(clone: Path) -> No
     commit(clone, "shared.txt", "line one\nlocal version\n", "local: same line, different answer")
     result = sync(clone)
     assert result.returncode == EXIT_CONFLICT, result.stdout
-    assert "會衝突" in result.stdout
+    # Not just "會衝突": that is a substring of the clean message, 不會衝突.
+    assert "這些檔案會衝突" in result.stdout
+    assert "不會衝突" not in result.stdout
     assert "shared.txt" in result.stdout
     # Predicted in memory: no merge started, nothing staged, no conflict markers.
     assert not (clone / ".git" / "MERGE_HEAD").exists()
@@ -165,6 +167,7 @@ def test_pull_leaves_a_conflicted_merge_for_a_human(clone: Path) -> None:
     commit(clone, "shared.txt", "line one\nlocal version\n", "local: same line, different answer")
     result = sync(clone, "--pull")
     assert result.returncode == EXIT_CONFLICT, result.stdout
+    assert "這些檔案衝突了" in result.stdout
     assert (clone / ".git" / "MERGE_HEAD").exists()
     assert "<<<<<<<" in (clone / "shared.txt").read_text(encoding="utf-8")
     assert "git merge --abort" in result.stdout
