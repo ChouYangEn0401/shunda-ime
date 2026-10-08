@@ -1228,11 +1228,8 @@ class Session(CorrectionMixin):
         elif vk == VK_UP:
             cand.move(-1)
         elif vk in (VK_LEFT, VK_RIGHT):
-            # ← → walk the row of group chips at the top of the window — the
-            # thing they point at. 微軟注音 keeps paging on PageUp/PageDown,
-            # and ↑↓ already roll over into the next page, so a dedicated
-            # paging arrow was spending the two most reachable keys on the
-            # rarest action. Shift+→ still opens another column.
+            # ← → open and fold columns (微軟新注音's shape); with multi-column
+            # off they turn the page. The group chips are Tab / Shift+Tab.
             step = +1 if vk == VK_RIGHT else -1
             if cand.multi:
                 cand.move_column(step, self.cfg.candidate_expand)

@@ -556,7 +556,7 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
 
 
 # ======================================================================== 超智慧推薦
-SMART_HELP = [("Shift+Tab", "選"), ("Tab", "接黃框的第一個"), ("標點／Enter", "收起")]
+SMART_HELP = [("Shift+Tab", "選"), ("Tab", "接提示列的第一個"), ("標點／Enter", "收起")]
 
 
 def paint_smart(c: Canvas, t: Theme, p: SmartPanel, size: float = 1.0, draw: bool = True) -> Painted:

@@ -93,7 +93,7 @@
                 <label class="switch"><input type="checkbox" data-cfg="reorder_tolerance" aria-label="順序容錯"><span></span></label>
               </div>
               <div class="row">
-                <div><div class="label">略過多按的雜鍵</div><div class="desc"><code>我e更快</code>→我更快。被略過的鍵在解碼面板以紅色刪除線標出，也可從候選窗「原始按鍵」找回。保守：只略過很明顯多按的鍵。</div></div>
+                <div><div class="label">略過多按的雜鍵</div><div class="desc"><code>我e更快</code>→我更快。被略過的鍵會在提示列以紅色標出，按 <kbd>↓</kbd> 在候選窗紅色的「略過的鍵」選回來（修正模式裡游標走到它旁邊也一樣）。保守：只略過很明顯多按的鍵。</div></div>
                 <div class="seg" role="group" aria-label="略過雜鍵的程度" data-cfg="drop_stray_keys">
                   <button data-value="off">關閉</button><button data-value="conservative">保守</button><button data-value="standard">標準</button>
                 </div>
@@ -185,7 +185,7 @@
             <div class="cand" aria-label="候選窗預覽" hidden>
               <ol id="cand-list"></ol>
             </div>
-            <p class="note" style="margin:0; max-width:40ch">黃框是打字時的提示與接續建議；選字時的候選窗見下方「順打面板」。</p>
+            <p class="note" style="margin:0; max-width:40ch">游標旁邊的提示列：還沒成字的注音、被略過的鍵、接續建議（按 <kbd>Tab</kbd> 帶入）。選字時的候選窗見下方「順打面板」。</p>
           </div></div>
         </div>
 
@@ -216,7 +216,7 @@
               <source srcset="img/cand-zh-dark.png" media="(prefers-color-scheme: dark)">
               <img src="img/cand-zh-light.png" alt="分組上色的候選窗：我的詞庫、學過、詞庫、原始按鍵" width="300">
             </picture>
-            <p class="note" style="margin-bottom:0">候選窗由輸入法自己畫：<b style="color:var(--ok)">綠色</b>是你自己的詞（我的詞庫、學過），一組一組排好；<kbd>Tab</kbd> 只看某一組。黃色提示框還是會在，面板貼在它下面。</p>
+            <p class="note" style="margin-bottom:0">候選窗由輸入法自己畫：<b style="color:var(--ok)">綠色</b>是你自己的詞（我的詞庫、學過），一組一組排好；<kbd>Tab</kbd> 只看某一組；紅色「略過的鍵」是被當成手滑的鍵，選了就照原樣保留。</p>
           </div></div>
           <div class="row">
             <div><div class="label">用順打面板顯示候選</div><div class="desc">關閉後改回 PIME 的純文字候選窗（不分組、沒有顏色）。沒在打字時叫出的符號面板一律用 PIME 的。</div></div>
@@ -238,11 +238,11 @@
           <h3>實驗功能 <span class="badge plan">實驗</span></h3>
           <div class="row"><div class="full"><p class="note" style="margin:0">還在試的功能，預設關閉。覺得不好用就關掉，不影響其他功能。</p></div></div>
           <div class="row">
-            <div><div class="label">超智慧推薦</div><div class="desc">打字時多一個紫色面板：「接下來」用詞庫接出比較長的一串（例：電腦 → 斷層掃描器），「也許是」列出和剛打的字同音、但比較常見的詞（打鬥號 → 逗號）。一直顯示到送出為止，<kbd>Shift</kbd>+<kbd>Tab</kbd> 按數字選。只靠詞頻、沒有語意，長句有時會接得很怪。</div></div>
+            <div><div class="label">超智慧推薦</div><div class="desc">打字時多一個紫色面板：「接下來」用詞庫接出比較長的一串（例：電腦 → 斷層掃描器），「也許是」列出和剛打的字同音、但比較常見的詞（打鬥號 → 逗號）。一直顯示到送出為止，<kbd>Shift</kbd>+<kbd>Tab</kbd> 按數字選。另外，修正一個字時會連它周圍的三個字一起記成詞，下次打到前兩個字就可能接得出來。只靠詞頻、沒有語意，長句有時會接得很怪。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="smart_suggest" aria-label="超智慧推薦"><span></span></label>
           </div>
           <div class="row">
-            <div><div class="label">瘋狂模式（注音）</div><div class="desc">每個字只打注音的開頭（聲母或前一兩個符號、不打聲調），一路打下去自動猜成詞：<kbd>j</kbd><kbd>a</kbd>（ㄨㄇ）→ 我們、<kbd>r</kbd><kbd>w</kbd><kbd>u</kbd> → 今天。開啟時解碼面板一直顯示，琥珀色「…」是猜出來的音節；猜錯照樣用 <kbd>↓</kbd> 或修正模式改。打完整的注音也照常可以。</div></div>
+            <div><div class="label">瘋狂模式（注音）</div><div class="desc">每個字只打注音的開頭（聲母或前一兩個符號、不打聲調），一路打下去自動猜成詞：<kbd>j</kbd><kbd>a</kbd>（ㄨㄇ）→ 我們、<kbd>r</kbd><kbd>w</kbd><kbd>u</kbd> → 今天。開啟時會順便讓解碼面板一直顯示（看得到每個音節是怎麼猜的，琥珀色「…」是猜出來的）——兩者是不同的東西：解碼面板只是顯示，瘋狂模式是改變打法。猜錯照樣用 <kbd>↓</kbd> 或修正模式改；打完整的注音也照常可以。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="crazy_mode" aria-label="瘋狂模式"><span></span></label>
           </div>
         </div>
@@ -316,7 +316,7 @@
             <label class="switch"><input type="checkbox" data-cfg="correction_mode" aria-label="修正模式"><span></span></label>
           </div>
           <div class="row">
-            <div><div class="label">解碼面板（按鍵／注音／國字）</div><div class="desc">什麼時候顯示：只在修正模式（預設）、打字時一直顯示（隨時看得到每個鍵被當成什麼），或關閉。</div></div>
+            <div><div class="label">解碼面板（按鍵／注音／國字）</div><div class="desc">什麼時候顯示：只在修正模式（預設）、打字時一直顯示（隨時看得到每個鍵被當成什麼），或關閉。只是顯示，不會改變打出來的字；瘋狂模式開著時固定一直顯示。</div></div>
             <div class="seg" role="group" aria-label="解碼面板" data-cfg="panel_decode">
               <button data-value="correction">修正模式時</button><button data-value="always">一直顯示</button><button data-value="off">關閉</button>
             </div>
