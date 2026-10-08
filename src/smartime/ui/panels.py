@@ -395,6 +395,19 @@ def _column_rows(rows):
     return out
 
 
+def _row_width(c: Canvas, s: Styles, kind: str, val, k: float) -> float:
+    if kind == "group":
+        return c.measure(val, s.small_bold)[0] + 16 * k
+    _, item = val
+    tw = c.measure(item.text, s.cand)[0]
+    nw = c.measure(item.note, s.cand_note)[0] if item.note else 0
+    return (LABEL_W + 10) * k + tw + (10 * k + nw if nw else 0) + 14 * k
+
+
+def _rows_height(rows, k: float) -> float:
+    return sum(GROUP_H * k if kind == "group" else ROW_H * k for kind, _ in rows)
+
+
 CELL_W, CELL_H = 38, 38
 
 
@@ -478,20 +491,24 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
     k = size
     cols = _columns(p)
     col_rows = [_column_rows(rows) for _, rows in cols]
-    # widths
-    col_w = []
-    for rows in col_rows:
-        w = 96 * k
-        for kind, val in rows:
-            if kind == "group":
-                w = max(w, c.measure(val, s.small_bold)[0] + 16 * k)
-            else:
-                _, item = val
-                tw = c.measure(item.text, s.cand)[0]
-                nw = c.measure(item.note, s.cand_note)[0] if item.note else 0
-                w = max(w, (LABEL_W + 10) * k + tw + (10 * k + nw if nw else 0) + 14 * k)
-        col_w.append(w)
     gap = 10 * k
+    if p.palette:
+        # One width and one height for every column of the tab, measured over
+        # all of its pages rather than the ones on screen. Measured per
+        # visible column, → reshuffled the window on every step: a long face
+        # widened its own column and squeezed the others, the window width
+        # wandered (544, 560, 564, 553 … 621) and the height jumped when a
+        # column happened to hold one more group header (reported for 顏文字:
+        # 「長度不同有時候框框會被擠壓」).
+        every = [_column_rows(list(enumerate(p.items[pg * p.page_size:(pg + 1) * p.page_size],
+                                                 pg * p.page_size)))
+                 for pg in range(p.pages)]
+        one = max((_row_width(c, s, kind, val, k) for rows in every for kind, val in rows), default=40 * k)
+        col_w = [one] * len(cols)
+        body_h = max((_rows_height(rows, k) for rows in every), default=ROW_H * k)
+    else:
+        col_w = [max([96 * k] + [_row_width(c, s, kind, val, k) for kind, val in rows]) for rows in col_rows]
+        body_h = max((_rows_height(rows, k) for rows in col_rows), default=ROW_H * k)
     cols_w = sum(col_w) + gap * max(0, len(col_w) - 1)
     help_items = SNIPPET_HELP if p.snippet else PALETTE_HELP if p.palette else _cand_help(p)
     title_w = measure_mixed(c, p.notice or p.title, s.help, s.symbol) + 60 * k
@@ -500,25 +517,27 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
                 360 * k if p.preview else 0) + 2 * PAD_X * k
     width = min(width, max(cols_w + 2 * PAD_X * k, 460 * k if p.preview else 420 * k))
     if p.palette:
-        # Tab walks eleven categories whose contents are nothing like each
-        # other in width (「，」 vs 「ヽ(✿ﾟ▽ﾟ)ノ」). Letting the window resize
-        # under the cursor on every Tab is exhausting to follow, so the panel
-        # keeps one width for all of them.
+        # Tab walks thirteen tabs whose contents are nothing like each other
+        # in width (「，」 vs 「ヽ(✿ﾟ▽ﾟ)ノ」). Letting the window resize under
+        # the cursor on every Tab is exhausting to follow, so the panel keeps
+        # one width for all of them …
         width = max(width, PALETTE_W * k + 2 * PAD_X * k)
+        # … and the columns share whatever that leaves over, instead of
+        # sitting at the left with an empty band on the right.
+        room = width - 2 * PAD_X * k
+        if cols and cols_w < room:
+            extra = (room - cols_w) / len(cols)
+            col_w = [w + extra for w in col_w]
+            cols_w = room
     chip_lines = _chip_lines(c, s, p.chips, width - 2 * PAD_X * k, k) if p.chips else []
     preview = wrap(c, p.preview, s.reading, width - 2 * PAD_X * k - 20 * k, PREVIEW_LINES) if p.preview else []
     preview_h = (len(preview) * 20 * k + 30 * k) if preview else 0
     title_h = 20 * k
     chips_h = 24 * k * len(chip_lines)
-    body_h = max((sum(GROUP_H * k if kind == "group" else ROW_H * k for kind, _ in rows) for rows in col_rows),
-                 default=ROW_H * k)
-    # Height is *not* pinned the way width is. Only the four list tabs reach
-    # this function (the grid categories return to paint_palette above), and
-    # 片語 / 我的符號 usually hold a handful of entries: a fixed nine-row body
-    # left most of the window empty under them, which reads as a half-drawn
-    # window rather than a stable one (reported: 「片語視窗有時候沒有完全展開」).
-    # The ;;-triggered snippet window has always sized itself to its content;
-    # this makes the palette's own 片語 tab behave the same.
+    # Height follows the content (no fixed nine-row body): 片語 and 我的符號
+    # usually hold a handful of entries, and a pinned body left most of the
+    # window empty under them — it read as a half-drawn window (reported:
+    # 「片語視窗有時候沒有完全展開」).
     footer_h = 20 * k
     height = PAD_Y * k + title_h + chips_h + 4 * k + body_h + preview_h + 8 * k + footer_h + PAD_Y * k
     out = Painted(width, height)
