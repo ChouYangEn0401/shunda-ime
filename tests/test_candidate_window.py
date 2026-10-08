@@ -96,6 +96,42 @@ def test_the_edge_either_grows_or_turns_the_page(session):
         run(session, "{RIGHT}")
     assert cand.columns == MAX_COLUMNS and cand.first_page > 0, "grow, then scroll"
 
+
+def test_left_slides_a_scrolled_window_back_before_collapsing_it(session):
+    """Reported: once → had scrolled the window past MAX_COLUMNS (first_page
+    > 0), pressing ← at the left edge closed the whole window immediately
+    instead of sliding it back one column at a time — "column[i] should
+    become column[i-1]", not a collapse-then-reopen-at-column-0."""
+    from smartime.engine.session import MAX_COLUMNS
+
+    run(session, "u4{DOWN}")
+    cand = session.cand
+    for _ in range(MAX_COLUMNS + 3):  # grow to MAX_COLUMNS, then scroll 3 more
+        run(session, "{RIGHT}")
+    scrolled_first_page = cand.first_page
+    assert scrolled_first_page > 0 and cand.columns == MAX_COLUMNS
+
+    # walk back onto the left edge of the currently-visible set — still the
+    # same MAX_COLUMNS window, only the selection moves
+    for _ in range(MAX_COLUMNS - 1):
+        run(session, "{LEFT}")
+    assert cand.first_page == scrolled_first_page and cand.columns == MAX_COLUMNS
+
+    # one more ←, at the left edge: must slide, not collapse
+    run(session, "{LEFT}")
+    assert cand.first_page == scrolled_first_page - 1, "slid back one column"
+    assert cand.columns == MAX_COLUMNS, "same width — not a collapse"
+
+    # keep pressing ← exactly once per step until first_page truly reaches 0
+    while cand.first_page > 0:
+        before = cand.first_page
+        run(session, "{LEFT}")
+        assert cand.first_page == before - 1 and cand.columns == MAX_COLUMNS
+
+    # only now, with nothing earlier left, does one more ← fold it up
+    run(session, "{LEFT}")
+    assert cand.columns == 1, "nothing earlier left: now it folds up"
+
     session.cfg.candidate_expand = "page"
     s2 = Session(session.engine)
     run(s2, "u4{DOWN}")

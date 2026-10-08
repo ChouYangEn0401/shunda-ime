@@ -169,12 +169,19 @@ class CandidateList:
         if delta < 0:
             if self.page > self.first_page:
                 target = self.page - 1
-            elif self.columns > 1:
-                self.columns = 1  # fold back into one list
-                return
             elif self.first_page > 0:
+                # At the left edge of a window that has already slid forward
+                # (→ scrolled past MAX_COLUMNS at some point): slide it back
+                # one column first, same width, the same way → slid it
+                # forward — column[i] becomes column[i-1], not a collapse.
+                # Reported: pressing ← here closed the whole window and
+                # reopened at column 0 instead of revealing one earlier
+                # column.
                 self.first_page -= 1
                 target = self.first_page
+            elif self.columns > 1:
+                self.columns = 1  # nothing earlier: fold back into one list
+                return
             else:
                 return
         else:
