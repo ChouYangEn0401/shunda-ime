@@ -216,6 +216,8 @@ class Decoder:
         self.reorder_tolerance = cfg.reorder_tolerance
         self.drop_enabled = cfg.drop_stray_keys != "off"
         self.crazy = bool(getattr(cfg, "crazy_mode", False))
+        if self.crazy:
+            self.lex.warm_abbreviations()
         base = Weights()
         self.w = replace(
             base,

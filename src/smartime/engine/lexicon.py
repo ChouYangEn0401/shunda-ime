@@ -9,6 +9,7 @@ when the user dictionary changed (learning, or edits in the settings app).
 from __future__ import annotations
 
 import sqlite3
+import threading
 from functools import lru_cache
 from pathlib import Path
 
@@ -64,6 +65,7 @@ class Lexicon:
         self.has_cangjie = "cangjie" in tables
         self._pinyin: PinyinTable | None = None
         self._abbr: dict[str, list[tuple[str, str]]] | None = None  # 瘋狂模式, built on first use
+        self._abbr_lock = threading.Lock()
         self._make_caches()
 
     def _make_caches(self) -> None:
@@ -114,13 +116,27 @@ class Lexicon:
             index.setdefault(abbr_key(reading), []).append((score, phrase, reading))
         return {k: [(p, r) for _, p, r in sorted(v, reverse=True)[:24]] for k, v in index.items()}
 
+    def _abbr_index(self) -> dict[str, list[tuple[str, str]]]:
+        if self._abbr is None:
+            with self._abbr_lock:
+                if self._abbr is None:
+                    self._abbr = self._build_abbr()
+        return self._abbr
+
+    def warm_abbreviations(self) -> None:
+        """Build the 瘋狂模式 index in the background. Built on the first key
+        instead, that key stalled for about a third of a second — the one
+        measurable part of 「打開以後速度感覺變超級慢」 (every key after it
+        takes 0–2 ms)."""
+        if self._abbr is None:
+            threading.Thread(target=self._abbr_index, name="abbr-index", daemon=True).start()
+
     def _abbreviations(self, key: str) -> tuple[tuple[str, str, float], ...]:
         """Phrases whose syllables start with these symbols (one symbol per
         syllable), best first, my memory applied: ㄨㄇ -> 我們 …"""
-        if self._abbr is None:
-            self._abbr = self._build_abbr()
+        index = self._abbr_index()
         out: dict[tuple[str, str], float] = {}
-        for phrase, reading in self._abbr.get(key, []) + self._user_abbr.get(key, []):
+        for phrase, reading in index.get(key, []) + self._user_abbr.get(key, []):
             for p, s in self.phrases(reading):
                 if p == phrase:
                     out[(p, reading)] = s
