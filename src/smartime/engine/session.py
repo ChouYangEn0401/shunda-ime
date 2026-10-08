@@ -1291,6 +1291,20 @@ class Session(CorrectionMixin):
     def _forget_candidate(self, c: Candidate) -> None:
         user = self.engine.user
         seg = c.pin
+        if seg is None:
+            # Not a decoded word: a symbol, a kaomoji, a snippet, or a 超智慧
+            # 推薦 continuation (those carry a Suggestion instead of a pin).
+            # Delete is wired unconditionally in _candidate_key, so every one
+            # of these used to crash the backend here (seg.kind on None) —
+            # found while building the searchable symbol panel. Say why
+            # instead, and leave the window open.
+            if c.group == "片語":
+                self._notice = "片語要到設定頁「片語與顏文字」管理"
+            elif c.suggestion is not None:
+                self._notice = "接續建議沒辦法忘記；不想看到就繼續打別的字"
+            else:
+                self._notice = "這不是可以忘記的詞"
+            return
         if user is None or seg.kind not in (Kind.ZH, Kind.EN):
             return
         reading = "-".join(seg.readings) if seg.kind is Kind.ZH else ""

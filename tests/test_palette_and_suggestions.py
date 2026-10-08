@@ -132,3 +132,35 @@ def test_the_strip_numbers_the_other_suggestions_the_way_the_list_does(session):
         run(s, "ji3rup wu0 {S-TAB}")
         _, v2 = run(s, str(i))
         assert v2.composition.endswith(wanted), f"{i} should take 「{wanted}」"
+
+
+def test_delete_on_a_symbol_or_kaomoji_does_not_crash(engine):
+    """Found while building the searchable symbol panel: Delete is wired
+    unconditionally in _candidate_key, but _forget_candidate assumed every
+    candidate carries a decoded Segment as its pin. Every symbol, kaomoji
+    and snippet candidate has pin=None, so pressing Delete anywhere in the
+    symbol panel, 顏文字 or 片語 crashed the backend."""
+    s1 = Session(engine)
+    run(s1, "ji3{RCTRL}{DOWN}")
+    _, v = run(s1, "{DEL}")
+    assert v.candidates is not None  # the panel is still open
+    assert "不是可以忘記" in v.notice
+
+    s2 = Session(engine)
+    run(s2, "ji3{RCTRL}{S-TAB}{DOWN}")
+    _, v = run(s2, "{DEL}")
+    assert v.candidates is not None
+    assert "不是可以忘記" in v.notice
+
+    s3 = Session(engine)
+    run(s3, "ji3;;")
+    _, v = run(s3, "{DEL}")
+    assert v.candidates is not None
+    assert "片語" in v.notice and "設定頁" in v.notice
+
+
+def test_delete_on_a_continuation_suggestion_does_not_crash(session):
+    run(session, "ji3rup wu0 {S-TAB}")
+    _, v = run(session, "{DEL}")
+    assert v.candidates is not None
+    assert "接續建議" in v.notice
