@@ -313,12 +313,32 @@ GROUP_COLOR = {"我的詞庫": "memory", "學過": "memory", "接續": "predict"
                "顏文字": "predict", "原始按鍵": "faint", "長句": "predict", "也許是": "fix",
                "略過的鍵": "drop"}
 ROW_H, GROUP_H, LABEL_W = 29, 19, 16
-# ← → walk the group chips when there are any, else they turn pages.
-CAND_HELP_GROUPS = [("↑↓", "移動"), ("1–9", "選"), ("→", "展開一欄"), ("←", "收合"), ("Tab", "分類"),
-                    ("Del", "忘記"), ("Ctrl+D", "加詞")]
-CAND_HELP_PAGES = [("↑↓", "移動"), ("1–9", "選"), ("← →", "翻頁"), ("Del", "忘記"), ("Ctrl+D", "加詞")]
-PALETTE_HELP = [("↑↓", "移動"), ("1–9", "選這一欄"), ("→", "展開一欄"), ("←", "收合"), ("Tab", "換分類"), ("Esc", "關閉")]
-GRID_HELP = [("↑↓ ← →", "移動"), ("1–9", "選這一列"), ("Tab", "換分類"), ("Esc", "關閉")]
+# Shift+Tab going backward is obvious to anyone who has used a browser's tab
+# order, but not to everyone (reported: 「這對工程師是直覺，但對於廣大民眾
+# 是未知」) — so every help row spells out both directions as their own chip
+# instead of leaving the reverse direction for people to discover by luck.
+PALETTE_HELP = [("↑↓", "移動"), ("1–9", "選這一欄"), ("→", "展開一欄"), ("←", "收合"), ("Tab", "下一分頁"),
+                ("⇧Tab", "上一分頁"), ("Esc", "關閉")]
+GRID_HELP = [("↑↓ ← →", "移動"), ("1–9", "選這一列"), ("Tab", "下一分頁"), ("⇧Tab", "上一分頁"), ("Esc", "關閉")]
+
+
+def _cand_help(p: "CandidatePanel") -> list[tuple[str, str]]:
+    """The regular candidate window's help row.
+
+    → / ← and Tab / ⇧Tab are two independent questions — whether multi-column
+    is on (→ opens a column vs. turns the page) and whether there is more
+    than one group to filter (``p.chips``) — not one. A static pair of lists
+    chosen by ``p.multi`` alone used to show category chips on screen
+    (我的詞庫／學過／詞庫) with the help row never mentioning Tab at all, because
+    that particular window also happened to be single-column. Composing the
+    row from both conditions keeps it honest about what the keys do.
+    """
+    items = [("↑↓", "移動"), ("1–9", "選")]
+    items += [("→", "展開一欄"), ("←", "收合")] if p.multi else [("← →", "翻頁")]
+    if p.chips:
+        items += [("Tab", "下一類"), ("⇧Tab", "上一類")]
+    items += [("Del", "忘記"), ("Ctrl+D", "加詞")]
+    return items
 # Tab walks eleven categories whose contents are nothing like each other in
 # size (「，」 next to 「ヽ(✿ﾟ▽ﾟ)ノ」). A window that resizes under the cursor on
 # every Tab is exhausting to follow, so the symbol panel keeps one size for
@@ -473,8 +493,7 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
         col_w.append(w)
     gap = 10 * k
     cols_w = sum(col_w) + gap * max(0, len(col_w) - 1)
-    help_items = SNIPPET_HELP if p.snippet else PALETTE_HELP if p.palette else (
-        CAND_HELP_GROUPS if p.multi else CAND_HELP_PAGES)
+    help_items = SNIPPET_HELP if p.snippet else PALETTE_HELP if p.palette else _cand_help(p)
     title_w = measure_mixed(c, p.notice or p.title, s.help, s.symbol) + 60 * k
     chips_w = sum(c.measure(ch, s.small)[0] + 18 * k for ch in p.chips)
     width = max(cols_w, _help_width(c, s, help_items), title_w, min(chips_w, 560 * k),
