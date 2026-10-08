@@ -72,6 +72,36 @@ def test_keys_view_shows_and_deletes_a_stray_key(session):
     assert "".join(k.char for k in session.keys) == "ji3e/4dj94"
 
 
+def test_a_dropped_key_stays_recoverable_after_the_cursor_goes_back_to_it(session):
+    """Reported: in Esc mode you can see the dropped key, 「但我發現我還是救
+    不回來」. The candidate window's 略過的鍵 group only looked at the last 4
+    keys of the *whole* composition, so a slip stopped being offered a few
+    keystrokes later and no amount of navigating back to it brought it
+    into the list again. "Recent" has to mean "near the cursor"."""
+    run(session, "ji3ee/4dj94")  # stray e at key 3, then 7 more keys typed
+    run(session, "{ESC}{HOME}l")  # correction mode, onto 更 — right after the drop
+    run(session, "{DOWN}")
+    drops = [c for c in session.cand.shown if c.group == "略過的鍵"]
+    assert [c.text for c in drops] == ["e"]
+
+    session.cand.index = session.cand.shown.index(drops[0])
+    _, v = run(session, "{ENTER}")
+    assert v.composition == "我e更快"  # kept exactly as it was typed
+    assert "".join(k.char for k in session.keys) == "ji3ee/4dj94"  # nothing deleted
+
+
+def test_a_drop_far_from_the_cursor_is_not_offered(session):
+    """The flip side: the group is for the slip you are looking at, not
+    every stray key still sitting in a long sentence."""
+    run(session, "ji3ee/4dj94k27python")  # the stray e, then a lot more text
+    run(session, "{ESC}{END}")
+    run(session, "{DOWN}")
+    assert not [c for c in session.cand.shown if c.group == "略過的鍵"]
+    run(session, "{ESC}{HOME}l")  # back onto 更, beside the drop: offered again
+    run(session, "{DOWN}")
+    assert [c.text for c in session.cand.shown if c.group == "略過的鍵"] == ["e"]
+
+
 def test_x_deletes_the_character_under_the_cursor(session):
     _, v = run(session, "ji3k27{ESC}hx")
     assert v.composition == "的" and v.correcting

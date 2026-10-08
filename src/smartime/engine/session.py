@@ -978,11 +978,20 @@ class Session(CorrectionMixin):
         a dropped key produces no character, so it was not a candidate for
         anything (reported: 「有時候『略過』要取消現在都沒辦法」). Picking one
         keeps the key exactly as typed.
+
+        "Just typed" is relative to the cursor, not the end of the buffer:
+        in correction mode the cursor moves back to the drop and everything
+        typed since then no longer counts against the window (reported:
+        navigating right onto a dropped key in Esc mode and opening ↓ still
+        showed nothing — the old window only ever looked at the last 4 keys
+        of the *whole* composition, so a slip stayed reachable for a few
+        keystrokes and then quietly stopped being offered at all, no matter
+        where the cursor went looking for it afterwards).
         """
         out = []
-        window = len(self.keys) - 4
+        near = self.cursor
         for seg in self.decoding.segments:
-            if seg.kind is not Kind.DROP or seg.end <= window:
+            if seg.kind is not Kind.DROP or not (near - 4 < seg.end <= near):
                 continue
             raw = "".join(k.char for k in self.keys[seg.start:seg.end])
             pin = Segment(seg.start, seg.end, raw, Kind.LITERAL, -10.0, pinned=True)
