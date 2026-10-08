@@ -261,7 +261,7 @@
     const k = config.suggestion_count || 1;
     const tip = document.getElementById("sugg-tip");
     tip.textContent = config.autocomplete === false ? "（接續建議已關閉）"
-      : sugg.slice(0, k).map((s, i) => (i === 0 ? `${s} ⇥` : s)).join(" · ");
+      : sugg.slice(0, k).map((s, i) => (i === 0 ? `${s}  Tab` : s)).join(" · ");
   }
   const kao = document.getElementById("kao-sample");
   ["(＾▽＾)", "(｡♥‿♥｡)", "(╥﹏╥)", "(╯°□°）╯︵ ┻━┻", "¯\\_(ツ)_/¯", "m(_ _)m", "ʕ•ᴥ•ʔ", "(ง •̀_•́)ง"].forEach(k => {

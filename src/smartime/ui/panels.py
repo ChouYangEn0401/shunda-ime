@@ -660,11 +660,11 @@ def paint_smart(c: Canvas, t: Theme, p: SmartPanel, size: float = 1.0, draw: boo
 # that PIME destroys and rebuilds on every change, so it blinked on every
 # keystroke. One calm surface, and each thing in it has its own place:
 #
-#     ㄊㄧㄢ        │  天氣 ⇥  其他 · 選項
+#     ㄊㄧㄢ        │  天氣 Tab  Ctrl+ 2 其他  Shift+Tab 更多
 #     ^ reading        ^ what Tab takes, then the quieter alternatives
 #
 # A fast typist should be able to ignore the right-hand side completely, so
-# the suggestion is muted and only the ⇥ marker carries the accent colour.
+# the suggestion is muted and only the Tab key name carries the accent colour.
 HINT_PAD_X, HINT_PAD_Y = 11, 7
 HINT_ROW = 22
 HINT_MIN_W = 56  # never smaller than PIME's anchor stub, which this covers
@@ -684,17 +684,30 @@ def _hint_others(p: HintPanel) -> str:
 
 
 CTRL_LABEL = "Ctrl+"
+# Key names spelled out, not ⇥ / ⇧⇥: those glyphs are obvious to people who
+# already know them and nobody else (reported: 「我不知道那個更多怎麼按出來的」).
+TAB_KEY = "Tab"
+MORE_KEY = "Shift+Tab"
+MORE_TEXT = "更多"
+
+
+def _hint_chip_width(c: Canvas, s: Styles, p: HintPanel, k: float) -> float:
+    return measure_mixed(c, p.suggestion, s.reading, s.symbol) + 6 * k + c.measure(TAB_KEY, s.help_key)[0] + 14 * k
+
+
+def _hint_more_width(c: Canvas, s: Styles, k: float) -> float:
+    return c.measure(MORE_KEY, s.help_key)[0] + 4 * k + c.measure(MORE_TEXT, s.small)[0]
 
 
 def _hint_suggest_width(c: Canvas, s: Styles, p: HintPanel, k: float) -> float:
     if not p.suggestion:
         return 0.0
-    w = measure_mixed(c, p.suggestion + " ⇥", s.reading, s.symbol) + 14 * k
+    w = _hint_chip_width(c, s, p, k)
     rest = _hint_others(p)
     if rest:
         w += c.measure(CTRL_LABEL, s.help_key)[0] + 4 * k + c.measure(rest, s.small)[0] + 10 * k
     if p.others:
-        w += measure_mixed(c, "⇧⇥ 更多", s.small, s.symbol) + 10 * k
+        w += _hint_more_width(c, s, k) + 10 * k
     return w
 
 
@@ -753,10 +766,11 @@ def paint_hint(c: Canvas, t: Theme, p: HintPanel, size: float = 1.0, draw: bool 
             # right-aligned: a fast typist can ignore this side completely,
             # so it keeps its own place instead of shifting with the reading
             x = max(x, width - HINT_PAD_X * k - suggest_w)
-            chip_w = measure_mixed(c, p.suggestion + " ⇥", s.reading, s.symbol) + 14 * k
+            chip_w = _hint_chip_width(c, s, p, k)
             c.fill(x, y + 1 * k, chip_w, 20 * k, t.accent_soft, radius=5 * k)
-            draw_mixed(c, x + 7 * k, y + 1 * k, p.suggestion + " ⇥", s.reading, s.symbol,
-                       t.fg, symbol_color=t.accent)
+            draw_mixed(c, x + 7 * k, y + 1 * k, p.suggestion, s.reading, s.symbol, t.fg)
+            tw = measure_mixed(c, p.suggestion, s.reading, s.symbol)
+            c.text(x + 7 * k + tw + 6 * k, y + 4 * k, TAB_KEY, s.help_key, t.accent)
             x += chip_w + 10 * k
             rest = _hint_others(p)
             if rest:
@@ -765,7 +779,9 @@ def paint_hint(c: Canvas, t: Theme, p: HintPanel, size: float = 1.0, draw: bool 
                 c.text(x, y + 4 * k, rest, s.small, t.muted)
                 x += c.measure(rest, s.small)[0] + 10 * k
             if p.others:
-                draw_mixed(c, x, y + 4 * k, "⇧⇥ 更多", s.small, s.symbol, t.faint)
+                c.text(x, y + 4 * k, MORE_KEY, s.help_key, t.faint)
+                x += c.measure(MORE_KEY, s.help_key)[0] + 4 * k
+                c.text(x, y + 4 * k, MORE_TEXT, s.small, t.faint)
         y += HINT_ROW * k
     if p.notice:
         draw_mixed(c, HINT_PAD_X * k, y + 3 * k, p.notice, s.small, s.symbol, t.muted)

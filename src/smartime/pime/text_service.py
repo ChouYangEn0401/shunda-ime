@@ -325,7 +325,7 @@ class SmartTextService:
             message = v.hint
         elif v.suggestion:
             others = v.suggestions[1:]
-            message = f"{v.suggestion}  ⇥Tab" + "".join(f" · {s}" for s in others)
+            message = f"{v.suggestion}  Tab" + "".join(f" · {s}" for s in others)
             if others:
                 message += "　Shift+Tab 全部"
         else:
