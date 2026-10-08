@@ -1,6 +1,6 @@
 [project]
 name = "smartime"
-version = "0.8.0a5"
+version = "0.8.0a6"
 description = "順打輸入法 Shunda IME：免切換中英混打的注音輸入法（Windows / PIME backend）"
 license = "Apache-2.0"
 readme = "README.md"
