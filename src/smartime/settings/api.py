@@ -334,7 +334,7 @@ class SettingsApp:
         text = str(body.get("text", ""))
         return {"ok": self.user.remove_custom_symbol(text)}
 
-    # ---------------------------------------------------------- 搜尋符號：更多符號 (symbols_extra)
+    # ---------------------------------------------------------- emoji 分頁：更多符號 (symbols_extra)
     def symbols_extra_state(self) -> dict:
         from ..engine import symbols_extra
 

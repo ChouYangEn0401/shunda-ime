@@ -31,10 +31,13 @@ CATEGORIES: list[tuple[str, str]] = [
 RECENT_MAX = 18  # single symbols in 常用
 RECENT_KAOMOJI = 12
 # Tabs after the symbol categories; shown as lists, not as the symbol grid.
-LIST_TABS = ("片語", "顏文字", "我的符號", "搜尋符號")
+# The searchable catalogue. Called 搜尋符號 at first; renamed because that
+# described the mechanism, not the thing — people look for "emoji".
+EMOJI_TAB = "emoji"
+LIST_TABS = ("片語", "顏文字", "我的符號", EMOJI_TAB)
 TABS = [name for name, _ in CATEGORIES] + list(LIST_TABS)
 
-# ------------------------------------------------------------- 搜尋符號
+# ------------------------------------------------------------- emoji
 # A bigger, keyword-searchable catalogue — stars, hearts, checkmarks,
 # weather, zodiac, warning signs, religious/cultural marks, card suits,
 # pointing hands, simple (non-colour) faces, ornamental dividers.

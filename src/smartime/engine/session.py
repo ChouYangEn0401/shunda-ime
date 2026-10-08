@@ -39,7 +39,7 @@ from .panel import (
     CandidatePanel, DecodePanel, HintPanel, SmartPanel, candidate_panel, decode_panel, smart_panel,
 )
 from .punct import ctrl_output
-from .symbols import CATEGORIES, LIST_TABS, NEWLINE_SYMBOL, TABS, SymbolPanel
+from .symbols import CATEGORIES, EMOJI_TAB, LIST_TABS, NEWLINE_SYMBOL, TABS, SymbolPanel
 
 VK_D = 0x44
 VK_Y = 0x59
@@ -1156,7 +1156,7 @@ class Session(CorrectionMixin):
         if key.ctrl or key.alt:
             return False
         if (key.char == ":" and cand.palette is not None
-                and TABS[cand.palette % len(TABS)] != "搜尋符號"):
+                and TABS[cand.palette % len(TABS)] != EMOJI_TAB):
             # One more ':' from anywhere in the symbol-panel family jumps
             # straight into the searchable catalogue, ready to type a
             # keyword. ":：" alone still opens the ordinary panel instantly
@@ -1174,7 +1174,7 @@ class Session(CorrectionMixin):
             tab = TABS[cand.palette % len(TABS)]
             if tab == "片語" and self._snippet_key(key):
                 return True
-            if tab == "搜尋符號" and self._emoji_key(key):
+            if tab == EMOJI_TAB and self._emoji_key(key):
                 return True
         elif cand.snippet_at is not None and self._snippet_key(key):
             # the ;; trigger's own 片語 list never sets cand.palette (it was
@@ -1701,7 +1701,7 @@ class Session(CorrectionMixin):
         # literal "::" sitting in the composition forever (_insert_symbol's
         # cleanup only fires when trigger_at is not None, and _open_palette
         # used to silently drop it on every call). Found while wiring up
-        # 搜尋符號 — reproduced with 'ji3::{TAB}1' leaving '我::「' behind.
+        # the emoji tab — reproduced with 'ji3::{TAB}1' leaving '我::「' behind.
         trigger_at = self.cand.trigger_at if self.cand is not None else None
         if name == "片語":
             items = self._snippet_items("")
@@ -1709,7 +1709,7 @@ class Session(CorrectionMixin):
             items = self._kaomoji_items()
         elif name == "我的符號":
             items = self._my_symbol_items()
-        elif name == "搜尋符號":
+        elif name == EMOJI_TAB:
             items = self._emoji_items("")
         else:
             _, symbols = self.engine.symbols.category(index)
@@ -1725,7 +1725,7 @@ class Session(CorrectionMixin):
         self.cand.trigger_at = trigger_at
 
     def _open_emoji(self) -> None:
-        self._open_palette(TABS.index("搜尋符號"))
+        self._open_palette(TABS.index(EMOJI_TAB))
 
     # ============================================================ 片語 / 顏文字
     def _snippet_items(self, query: str) -> list[Candidate]:
@@ -1826,7 +1826,7 @@ class Session(CorrectionMixin):
         self.cand = self._new_list(self._snippet_items(query), title="片語", palette=palette)
         self.cand.snippet_at, self.cand.trigger_at, self.cand.query = at, trigger, query
 
-    # ============================================================ 搜尋符號 / 我的符號
+    # ============================================================ emoji / 我的符號
     def _emoji_items(self, query: str) -> list[Candidate]:
         """The built-in searchable catalogue (symbols.EMOJI_SYMBOLS), matched
         against its category label and search tags — plus the much bigger
@@ -1855,7 +1855,7 @@ class Session(CorrectionMixin):
             pool = [e for e in pool if q in e[1].lower() or any(q in tag for tag in e[2])]
         if not pool:
             note = f"沒有符合「{query}」的符號" if query else "沒有符號"
-            return [Candidate(f"（{note}）", None, group="搜尋符號")]
+            return [Candidate(f"（{note}）", None, group=EMOJI_TAB)]
         in_pool = {sym for sym, _cat, _tags in pool}
         recent = [s for s in self.engine.symbols.recent if s in in_pool][:RECENT_KAOMOJI]
         items = [Candidate(sym, None, symbol=sym, group="最近") for sym in recent]
@@ -1878,7 +1878,7 @@ class Session(CorrectionMixin):
         return [Candidate(text, None, symbol=text, group="我的符號") for text in rows]
 
     def _emoji_key(self, key: KeyInput) -> bool:
-        """Keys while 搜尋符號 is open: letters filter it, digits pick,
+        """Keys while the emoji tab is open: letters filter it, digits pick,
         Backspace edits the filter. Esc is not handled here on purpose — the
         generic Esc/Backspace-with-nothing-typed fallback at the end of
         _candidate_key already does exactly the right thing (close it)."""
@@ -1907,8 +1907,8 @@ class Session(CorrectionMixin):
 
     def _refilter_emoji(self, query: str) -> None:
         trigger = self.cand.trigger_at
-        title = f"搜尋符號 · 關鍵字：{query}" if query else "搜尋符號 · 打關鍵字篩選"
-        self.cand = self._new_list(self._emoji_items(query), title=title, palette=TABS.index("搜尋符號"))
+        title = f"{EMOJI_TAB} · 關鍵字：{query}" if query else f"{EMOJI_TAB} · 打關鍵字篩選"
+        self.cand = self._new_list(self._emoji_items(query), title=title, palette=TABS.index(EMOJI_TAB))
         self.cand.multi = True
         self.cand.columns = min(self.cand.pages, 2)
         self.cand.trigger_at, self.cand.query = trigger, query

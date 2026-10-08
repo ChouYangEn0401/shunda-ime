@@ -1,4 +1,4 @@
-"""搜尋符號 (the searchable symbol catalogue) and 我的符號 (the user's own
+"""The emoji tab (the searchable symbol catalogue, first called 搜尋符號) and 我的符號 (the user's own
 pasted symbols/kaomoji): the ``:::`` entry point, keyword filtering, and the
 palette bugs found while building them.
 """
@@ -9,7 +9,7 @@ from smartime.config import Config
 from smartime.devtools.simulate import run
 from smartime.engine.panel import candidate_panel
 from smartime.engine.session import Engine, Session
-from smartime.engine.symbols import EMOJI_SYMBOLS, TABS
+from smartime.engine.symbols import EMOJI_SYMBOLS, EMOJI_TAB, TABS
 
 
 def goto(session, tab: str) -> None:
@@ -75,14 +75,14 @@ def test_colon_colon_colon_opens_search_from_a_cold_start(session):
     panel again."""
     _, v = run(session, "ji3:::")
     assert v.candidates is not None
-    assert TABS[session.cand.palette] == "搜尋符號"
+    assert TABS[session.cand.palette] == EMOJI_TAB
     assert v.composition == "我::"  # exactly the two real colons, no third
 
 
 def test_colon_colon_colon_at_the_very_start_of_the_buffer(session):
     out, v = run(session, ":::")
     assert v.candidates is not None
-    assert TABS[session.cand.palette] == "搜尋符號"
+    assert TABS[session.cand.palette] == EMOJI_TAB
     assert v.composition == "::" and out == ""
 
 
@@ -92,18 +92,18 @@ def test_a_further_colon_pivots_from_any_tab_into_search(session):
     happen to be browsing."""
     run(session, "ji3{RCTRL}{TAB}{TAB}")  # 希臘字母, a grid tab
     _, v = run(session, ":")
-    assert TABS[session.cand.palette] == "搜尋符號"
+    assert TABS[session.cand.palette] == EMOJI_TAB
 
     run(session, "{ESC}{ESC}")
     goto(session, "顏文字")
     _, v = run(session, ":")
-    assert TABS[session.cand.palette] == "搜尋符號"
+    assert TABS[session.cand.palette] == EMOJI_TAB
 
 
 def test_colon_inside_the_search_tab_itself_does_not_re_pivot(session):
     run(session, "ji3:::")
     run(session, ":")  # would only matter if this re-opened/reset the tab
-    assert session.cand is not None and TABS[session.cand.palette] == "搜尋符號"
+    assert session.cand is not None and TABS[session.cand.palette] == EMOJI_TAB
     assert session.cand.query == ":"  # it became part of the search text instead
 
 
