@@ -357,6 +357,19 @@ def test_the_three_character_run_goes_again_if_the_sentence_moves_on(mem_session
         mem_session.cfg.smart_suggest = False
 
 
+def test_an_accepted_continuation_comes_first_next_time(mem_engine, user):
+    """Asked: 「接受 recommendation 的建議以後，要不要讓那些詞變成高頻詞」.
+    It already does — every way of taking one (Tab, Ctrl+digit, the
+    Shift+Tab list) goes through _accept_suggestion, which learns it — but
+    nothing pinned that down until now."""
+    _, v = run(Session(mem_engine), "ao6u.3")  # 沒有 …
+    fourth = v.suggestions[3]
+    run(Session(mem_engine), "ao6u.3{S-TAB}4{ENTER}")
+    assert (fourth, "tab") in {(r["phrase"][2:], r["origin"]) for r in user.list(source="learned")}
+    _, v = run(Session(mem_engine), "ao6u.3")
+    assert v.suggestions[0] == fourth, f"{fourth} should lead now: {v.suggestions}"
+
+
 def test_picking_a_whole_word_is_remembered_as_it_is(mem_session, user):
     run(mem_session, "2832.4cl4{LEFT}{LEFT}{DOWN}1")  # 逗號 as one candidate
     assert {(r["phrase"], r["origin"]) for r in user.list(source="learned")} == {("逗號", "pick")}
