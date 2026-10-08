@@ -150,28 +150,32 @@ def describe_incoming(repo: str, branch: str, upstream: str) -> None:
         print(f"  {line}")
 
 
-def report_conflicts(repo: str, paths: list[str], *, predicted: bool) -> None:
+def report_conflicts(paths: list[str], *, predicted: bool) -> None:
     when = "如果現在 pull，這些檔案會衝突" if predicted else "這些檔案衝突了"
     print(f"\n⚠ {when}（{len(paths)} 個）：")
     for path in paths:
         print(f"  {path}")
 
 
-def fetch(repo: str, remote: str, upstream: str) -> tuple[bool, str, str]:
-    """Update remote-tracking refs. Returns (reached the remote?, before, after)."""
+def fetch(repo: str, remote: str, upstream: str) -> bool:
+    """Update remote-tracking refs; says whether the remote was actually reached.
+
+    Reports the before/after of the upstream ref, so "the fetch worked and
+    nothing moved" is visible as its own outcome.
+    """
     before = git_out("rev-parse", "--verify", "--quiet", upstream, cwd=repo)
     code, out = git("fetch", "--prune", remote, cwd=repo)
     if code != 0:
         print(f"✗ 連不到 {remote}：")
         for line in out.splitlines():
             print(f"    {line}")
-        return False, before, before
+        return False
     after = git_out("rev-parse", "--verify", "--quiet", upstream, cwd=repo)
     if before != after:
         print(f"✓ fetch 完成：{upstream} {before[:7] or '（原本沒有）'} → {after[:7]}")
     else:
         print(f"✓ fetch 完成：{upstream} 沒有動（還是 {after[:7] or '不存在'}）")
-    return True, before, after
+    return True
 
 
 def tracking_summary(repo: str) -> None:
@@ -229,7 +233,7 @@ def pull_or_report(repo: str, branch: str, upstream: str, behind: int, ahead: in
         print("\n✗ merge 失敗，但不是衝突：\n    " + "\n    ".join(out.splitlines()))
         return EXIT_ERROR
 
-    report_conflicts(repo, conflicted, predicted=False)
+    report_conflicts(conflicted, predicted=False)
     if abort:
         git("merge", "--abort", cwd=repo)
         print("\n已經 git merge --abort，工作目錄回到 merge 之前的樣子。沒有東西需要善後。")
@@ -258,7 +262,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--remote", default="origin", help="要問哪個 remote（預設 origin）")
     parser.add_argument("--branch", help="要更新哪個本機分支（預設：現在 checkout 的）")
     parser.add_argument("--upstream", help="要跟哪個 remote ref 比（預設：該分支的 upstream）")
-    parser.add_argument("--no-fetch", action="store_true", help="不連線，只用本機上次抓到的狀態（會過時）")
+    parser.add_argument(
+        "--no-fetch",
+        action="store_true",
+        help=f"不連線，只用本機上次抓到的狀態（會過時，所以永遠不會回 {EXIT_IN_SYNC}）",
+    )
     args = parser.parse_args(argv)
 
     repo = git_out("rev-parse", "--show-toplevel")
@@ -271,20 +279,25 @@ def main(argv: list[str] | None = None) -> int:
     print(f"repo     {repo}\n分支     {branch}\nupstream {upstream}")
     print(f"remote   {git_out('remote', 'get-url', args.remote, cwd=repo) or '（問不到 URL）'}\n")
 
-    reached = True
+    # Why this is tracked as a reason rather than a bool: every "nothing to
+    # pull" line below has to say whether we actually asked. Exit code 0 is
+    # reserved for "asked, and there is nothing new" -- never for "did not ask".
+    stale_reason: str | None = None
     if args.no_fetch:
+        stale_reason = "這次沒有問 remote（--no-fetch）"
         print("⚠ --no-fetch：沒有問 remote，下面用的是本機上次抓到的狀態，可能已經過時。")
-    else:
-        reached, _, _ = fetch(repo, args.remote, upstream)
+    elif not fetch(repo, args.remote, upstream):
+        stale_reason = "這次連不到 remote"
 
     behind, ahead = ahead_behind(repo, branch, upstream)
     tracking_summary(repo)
 
     if behind == 0:
         state = "已經同步" if ahead == 0 else f"本機多 {ahead} 個 commit，remote 沒有新東西"
-        print(f"\n{'✓' if reached else '·'} {branch}：{state}")
-        if not reached:
-            print("  ⚠ 但這次沒連到 remote，所以這句話只代表「上次抓到的狀態」，不是「現在確定沒有更新」。")
+        print(f"\n{'·' if stale_reason else '✓'} {branch}：{state}")
+        if stale_reason:
+            print(f"  ⚠ 但{stale_reason}，所以這句話只代表「上次抓到的狀態」，"
+                  "不是「現在確定沒有更新」。")
             return EXIT_ERROR
         return EXIT_IN_SYNC
 
@@ -296,12 +309,12 @@ def main(argv: list[str] | None = None) -> int:
         print("\n· 這個 git 版本看不出會不會衝突（需要 git >= "
               f"{'.'.join(map(str, MERGE_TREE_MIN_GIT))}），只能實際 merge 才知道。")
     elif preview:
-        report_conflicts(repo, preview, predicted=True)
+        report_conflicts(preview, predicted=True)
     else:
         print("\n✓ 預演過了：這個 merge 不會衝突。")
 
-    if not reached:
-        print("\n⚠ 這次沒連到 remote，上面是舊資料；連上之後再跑一次。")
+    if stale_reason:
+        print(f"\n⚠ {stale_reason}，上面是舊資料；問得到 remote 之後再跑一次。")
         return EXIT_ERROR
 
     if args.pull:
