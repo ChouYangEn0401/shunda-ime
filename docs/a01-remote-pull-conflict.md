@@ -83,6 +83,8 @@ uv run python src/a01-remote-pull-conflict/remote_sync.py --branch main --pull
 - **先預演再動手**：`git merge-tree --write-tree` 會在記憶體裡做一次合併，
   所以「會不會衝突」在完全沒碰工作目錄的情況下就能知道（需要 git ≥ `MERGE_TREE_MIN_GIT`；
   更舊的 git 會說「看不出來」，而不是假裝沒有衝突）。
+  **「會不會衝突」看的是 merge-tree 的離開碼，「是哪些檔案」才去解析它的輸出。**
+  輸出格式官方說可能改，所以解析失敗只會讓我們少了檔名、不會把會衝突的合併說成乾淨的。
 - **不自動選邊**：衝突是內容上的決定，工具沒有任何依據知道哪一邊才對。
   自動挑一邊（`-X ours` / `-X theirs`）會安靜地丟掉另一邊的修改。
 - 所以結果只有兩種：**留著等人處理**，或**整個放棄**（`--abort-on-conflict`）。
