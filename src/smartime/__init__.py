@@ -5,7 +5,7 @@ backend folder keep the original code name "smartime", so a rename never
 loses anyone's settings or memory.
 """
 
-__version__ = "0.8.0-alpha.4"
+__version__ = "0.8.0-alpha.5"
 
 # Product naming lives here only, so a rename touches one place (the IME
 # manifest backend/input_methods/smartime/ime.json must match PRODUCT_NAME;
