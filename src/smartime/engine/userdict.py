@@ -56,6 +56,17 @@ def boost(count: int) -> float:
     return min(3.0, 0.9 + 0.6 * math.log2(count))
 
 
+# A learned single character carries no context: "I picked 指 once" says
+# nothing about the next sentence. Boosted like a word it won everywhere —
+# four picks of 常 made 嘗試 come out 常示, a learned 指 replaced every 只,
+# 化 every 畫的 (all found in the user's own dictionary; reported as 「原本的
+# 選字反而又被你改壞了」). Even a small boost flips homophones: 只 and 指 are
+# both single characters. So a learned single character does not change
+# what the decoder picks; it still leads the candidate window, where the
+# 學過 group lists it first. Context is what pairs and phrases are for.
+SINGLE_CHAR_BOOST_MAX = 0.0
+
+
 @dataclass
 class Entry:
     id: int
@@ -75,7 +86,10 @@ class Entry:
             base = MANUAL_BASE if system is None else max(system, MANUAL_BASE)
         else:
             base = LEARNED_NEW_BASE if system is None else system
-        return base + boost(self.count)
+        extra = boost(self.count)
+        if self.source != "manual" and self.kind == "zh" and len(self.phrase) == 1:
+            extra = min(extra, SINGLE_CHAR_BOOST_MAX)
+        return base + extra
 
 
 class UserDict:

@@ -502,3 +502,45 @@ def test_custom_symbols_are_merged_additively_on_import(user, tmp_path):
     other.merge_from(backup)
     assert sorted(other.custom_symbols()) == sorted(["★", "☆", "♥"])
     other.close()
+
+
+# ------------------------------------------------------------- learning must not break decoding
+def test_learned_single_characters_do_not_change_what_the_decoder_picks(mem_engine, user):
+    """Reported: 「原本的選字反而又被你改壞了」. In the user's own dictionary
+    常, 示, 舊 and 指 had been learned as lone characters, and at a word's
+    boost each one won every sentence: 嘗試 came out 常示, 就 became 舊, 只
+    became 指. A lone character carries no context, so it no longer moves
+    the decoder — it still leads the candidate window (學過)."""
+    for ch, reading in (("常", "ㄔㄤˊ"), ("示", "ㄕˋ"), ("舊", "ㄐㄧㄡˋ"), ("指", "ㄓˇ")):
+        for _ in range(4):
+            user.learn(ch, reading, "zh", "pick")
+    mem_engine.lexicon.invalidate()
+    _, v = run(Session(mem_engine), "2; ji3rup wu0 t;6g4283")
+    assert v.composition == "當我今天嘗試打"
+    _, v = run(Session(mem_engine), "ru.4cjo4")  # 就會
+    assert v.composition == "就會"
+    _, v = run(Session(mem_engine), "53g4")  # 只是
+    assert v.composition.startswith("只")
+
+    s = Session(mem_engine)
+    run(s, "53{DOWN}")
+    first = s.cand.shown[0]
+    assert (first.text, first.group) == ("指", "學過"), "still first in the candidate window"
+
+
+def test_a_correction_without_a_real_word_beside_it_is_remembered_as_three_characters(mem_session, user):
+    """228 of the 242 correction pairs in the user's dictionary were not
+    words (跟屎, 寄刀, 的視…): when neither neighbour made a word, both pairs
+    were learned, and each leaked into every sentence with those sounds (的是
+    came out 的視). The three characters together only match their own
+    sentence, so that is what is remembered now."""
+    _, v = run(mem_session, "ji3cp3dj94")  # 我很快
+    assert v.composition == "我很快"
+    _, v = run(mem_session, "{LEFT}{LEFT}{DOWN}3")  # a homophone of 很 in the middle
+    fixed = v.composition
+    assert fixed != "我很快" and len(fixed) == 3
+    learned = {r["phrase"] for r in user.list(source="learned")}
+    assert learned == {fixed}, f"only the run, no invented pairs: {learned}"
+    mem_session._reset_buffer()
+    _, v = run(mem_session, "ji3cp3dj94")
+    assert v.composition == fixed, "and the same sentence still comes out the corrected way"

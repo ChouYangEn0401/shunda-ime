@@ -1331,7 +1331,7 @@ class Session(CorrectionMixin):
             self._learn(ctx, origin="fix")
         if self.cfg.smart_suggest:
             run = self._correction_run(pin)
-            if run is not None:
+            if run is not None and all(run.text != c.text for c in contexts):
                 self._learn(run, origin="fix")
 
     def _correction_run(self, pin: Segment) -> Segment | None:
@@ -1367,10 +1367,10 @@ class Session(CorrectionMixin):
                        readings, bounds, pinned=True)
 
     def _correction_contexts(self, pin: Segment) -> list[Segment]:
-        """Two-character words made of the corrected character and its
-        left or right Chinese neighbour (as now on screen). If one of them is
-        a real word, just that one; otherwise both (one of them is the word
-        the user means — the settings page shows them to sort or delete)."""
+        """What to remember around a corrected character: the two-character
+        word it makes with its left or right Chinese neighbour if one of them
+        is a real word; otherwise the three characters around it; with only
+        one neighbour (start or end of the text), that one pair."""
         units = self.decoding.units()
         segs = self.decoding.segments
         idx = next((i for i, u in enumerate(units) if u[0] == pin.start), None)
@@ -1393,7 +1393,18 @@ class Session(CorrectionMixin):
             out.append(Segment(left[0], right[1], text, Kind.ZH, 0.0, readings, (left[0], left[1], right[1]),
                                pinned=True))
         real = [s for s in out if self.engine.lexicon.in_system(s.text, "-".join(s.readings))]
-        return real[:1] if real else out
+        if real:
+            return real[:1]
+        if len(out) == 2:
+            # Neither pair is a word. Learning both invented two: in the
+            # user's own dictionary 228 of 242 correction pairs were not
+            # words (跟屎, 寄刀, 的視…), and each leaked into every sentence
+            # with those sounds — 的是 came out 的視. The three characters
+            # together only ever match the sentence they came from.
+            run = self._correction_run(pin)
+            if run is not None:
+                return [run]
+        return out
 
     def _forget_candidate(self, c: Candidate) -> None:
         user = self.engine.user
