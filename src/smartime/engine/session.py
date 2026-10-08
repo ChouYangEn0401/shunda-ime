@@ -27,9 +27,9 @@ from .decoder import (
 )
 from .keys import (
     MODIFIER_VKS, SCAN_LSHIFT, SCAN_RSHIFT, VK_BACK, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE,
-    VK_HOME, VK_LEFT, VK_NEXT, VK_OEM_1, VK_OEM_2, VK_OEM_4, VK_OEM_6, VK_OEM_7, VK_OEM_COMMA,
-    VK_OEM_MINUS, VK_OEM_PERIOD, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SHIFT, VK_SPACE, VK_TAB,
-    VK_UP, VK_MENU, VK_PACKET, VK_CONTROL, KeyInput,
+    VK_HOME, VK_LEFT, VK_NEXT, VK_NUMPAD0, VK_NUMPAD9, VK_OEM_1, VK_OEM_2, VK_OEM_4, VK_OEM_6,
+    VK_OEM_7, VK_OEM_COMMA, VK_OEM_MINUS, VK_OEM_PERIOD, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SHIFT,
+    VK_SPACE, VK_TAB, VK_UP, VK_MENU, VK_PACKET, VK_CONTROL, KeyInput,
 )
 from .layouts import Layout
 from .lexicon import Lexicon
@@ -616,13 +616,27 @@ class Session(CorrectionMixin):
         them, because while composing the digit keys are zhuyin (reported:
         「數字鍵似乎會變成打字，不然你的推薦字都不能用」). Ctrl+digit was
         going straight to the application and is free here.
+
+        Deliberately *not* ``key.digit``: that property also reads the
+        numeric keypad's navigation keys as digits when NumLock is off
+        (VK_LEFT -> "4" and so on), which exists only so a candidate window
+        can be driven from that keypad. Reusing it here would have hijacked
+        a real Ctrl+Left/Ctrl+Home/… typed on the keypad with NumLock off —
+        found because the *test harness* happened to reproduce the same
+        VK/extended combination for the dedicated arrow block, which pointed
+        at the real version of this bug.
         """
         if not (key.ctrl and not key.alt and not key.shift) or not self.cfg.suggestion_ctrl_digits:
             return None
         if self.cand is not None or self.correcting or not self.suggestions:
             return None
-        digit = key.digit
-        if not digit or digit == "1" or not digit.isdigit():
+        if len(key.char) == 1 and key.char in "123456789":
+            digit = key.char
+        elif VK_NUMPAD0 <= key.vk <= VK_NUMPAD9:
+            digit = chr(ord("0") + key.vk - VK_NUMPAD0)
+        else:
+            return None
+        if digit == "1":
             return None
         i = int(digit) - 1
         return i if i < min(len(self.suggestions), self.cfg.suggestion_count) else None

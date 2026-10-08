@@ -164,3 +164,26 @@ def test_delete_on_a_continuation_suggestion_does_not_crash(session):
     _, v = run(session, "{DEL}")
     assert v.candidates is not None
     assert "接續建議" in v.notice
+
+
+def test_ctrl_digit_does_not_hijack_a_real_navigation_key(session):
+    """Found via the real-machine test harness: a non-extended Ctrl+Left is
+    exactly what the numeric keypad's "4" key sends with NumLock off. The
+    first version of Ctrl+digit reused KeyInput.digit (built for driving the
+    candidate window from that same keypad), which also treats that as "4"
+    — so Ctrl+Left silently took a continuation instead of moving the caret
+    or reaching the application. Only a genuine digit — the top row, or a
+    true VK_NUMPAD vk — may trigger it."""
+    from smartime.engine.keys import KeyInput, VK_LEFT, VK_NUMPAD0
+
+    run(session, "ji3rup wu0 ")  # a composition with suggestions available
+    before = session.view().composition
+    key = KeyInput(vk=VK_LEFT, ctrl=True, extended=False)  # keypad "4", NumLock off
+    assert session._suggestion_digit(key) is None
+    handled = session.filter_key_down(key) and session.key_down(key)
+    assert not handled  # falls through to "for the app", not swallowed here
+    assert session.view().commit == before  # the composition was sent, not altered
+
+    run(session, "ji3rup wu0 ")
+    real_numpad4 = KeyInput(vk=VK_NUMPAD0 + 4, ctrl=True)
+    assert session._suggestion_digit(real_numpad4) is not None  # this one is genuine

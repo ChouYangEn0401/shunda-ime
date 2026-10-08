@@ -60,6 +60,16 @@ PM_REMOVE = 1
 NAMED_VK = {"ENTER": VK_RETURN, "BS": 0x08, "TAB": 0x09, "ESC": 0x1B, "LEFT": 0x25, "UP": 0x26,
             "RIGHT": 0x27, "DOWN": 0x28, "RSHIFT": 0xA1, "HOME": 0x24, "END": 0x23, "DEL": 0x2E,
             "RALT": 0xA5, "RCTRL": 0xA3}
+# The dedicated navigation block (arrows, Home/End, PageUp/PageDown,
+# Insert/Delete) is an "extended" key on real hardware — Windows tells it
+# apart from the numeric keypad's own nav keys (NumLock off) exactly that
+# way. _send() used to only set KEYEVENTF_EXTENDEDKEY for right Ctrl/Alt, so
+# a synthesized Ctrl+Left here did not match a real keyboard's. Harmless
+# until Ctrl+digit got a meaning of its own (超智慧推薦 continuations): a
+# *non*-extended Ctrl+Left is exactly what the keypad's "4" key sends with
+# NumLock off, which this test's own synthetic key happened to collide with
+# too, catching a real bug in _suggestion_digit along the way.
+EXTENDED_VKS = frozenset({0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E, 0xA3, 0xA5})
 OEM_VK = {" ": 0x20, ",": 0xBC, ".": 0xBE, "/": 0xBF, ";": 0xBA, "-": 0xBD, "'": 0xDE, "[": 0xDB, "]": 0xDD}
 SHIFTED = {"<": ",", ">": ".", "?": "/", ":": ";", '"': "'", "{": "[", "}": "]"}
 
@@ -327,7 +337,7 @@ class TestWindow:
         if user32.GetForegroundWindow() != self.hwnd:
             raise Aborted("test window lost the foreground; stopped sending keys")
         inp = INPUT(type=INPUT_KEYBOARD)
-        flags = (KEYEVENTF_KEYUP if up else 0) | (KEYEVENTF_EXTENDEDKEY if vk in (0xA3, 0xA5) else 0)
+        flags = (KEYEVENTF_KEYUP if up else 0) | (KEYEVENTF_EXTENDEDKEY if vk in EXTENDED_VKS else 0)
         inp.u.ki = KEYBDINPUT(wVk=vk, wScan=user32.MapVirtualKeyW(vk, 0), dwFlags=flags, dwExtraInfo=INJECTED_TAG)
         user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
 
