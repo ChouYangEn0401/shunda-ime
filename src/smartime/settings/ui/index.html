@@ -499,6 +499,20 @@
             <div class="sym-list" id="sym-list"></div>
           </div></div>
         </div>
+
+        <div class="group">
+          <h3>更多符號 <span class="badge" id="symx-status"></span></h3>
+          <div class="row">
+            <div><div class="label">下載更大的符號庫</div><div class="desc">額外收錄約 1300 多個符號（技術、數學、箭頭、圖形、圈號……），來自 Unicode 官方字元資料庫。不內建在安裝檔裡——下載一次（約 150 KB），存在你的電腦上。
+              <p class="error" id="symx-error" hidden style="margin:4px 0 0"></p>
+            </div></div>
+            <button class="btn small primary" type="button" id="symx-download">下載</button>
+          </div>
+          <div class="row">
+            <div><div class="label">在搜尋符號裡使用</div><div class="desc">下載完成後才能打開；關閉時「搜尋符號」只用內建的常用符號。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="symbols_extra_enabled" id="symx-enabled" aria-label="使用更多符號"><span></span></label>
+          </div>
+        </div>
       </section>
 
       <!-- ============ 快捷鍵 ============ -->

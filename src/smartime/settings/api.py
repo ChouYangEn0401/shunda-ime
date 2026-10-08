@@ -69,6 +69,7 @@ class SettingsApp:
         self.download: dict = {}  # voice model download progress
         self.install_state: dict = {}  # voice component installation
         self.update_job: dict = {}  # new-version download progress
+        self.symbols_extra_job: dict = {}  # 更多符號 catalogue download progress
 
     def close(self) -> None:
         self.user.close()
@@ -115,7 +116,8 @@ class SettingsApp:
     # ---------------------------------------------------------- voice input
     def busy(self) -> bool:
         """A background job that must not be cut off by the idle exit."""
-        return bool(self.download.get("active") or self.install_state.get("active"))
+        return bool(self.download.get("active") or self.install_state.get("active")
+                    or self.symbols_extra_job.get("active"))
 
     def voice_state(self) -> dict:
         py = voice_launch.voice_python()
@@ -331,6 +333,30 @@ class SettingsApp:
     def remove_custom_symbol(self, body: dict) -> dict:
         text = str(body.get("text", ""))
         return {"ok": self.user.remove_custom_symbol(text)}
+
+    # ---------------------------------------------------------- 搜尋符號：更多符號 (symbols_extra)
+    def symbols_extra_state(self) -> dict:
+        from ..engine import symbols_extra
+
+        return {**symbols_extra.status(), "job": dict(self.symbols_extra_job)}
+
+    def download_symbols_extra(self) -> dict:
+        from ..engine import symbols_extra
+
+        if self.symbols_extra_job.get("active"):
+            raise ApiError(400, "已經在下載了")
+        self.symbols_extra_job = {"active": True, "done": 0, "total": 0, "error": ""}
+
+        def run() -> None:
+            try:
+                symbols_extra.download(lambda d, t: self.symbols_extra_job.update(done=d, total=t))
+            except Exception as e:  # noqa: BLE001
+                log.exception("symbols-extra download failed")
+                self.symbols_extra_job["error"] = str(e)
+            self.symbols_extra_job["active"] = False
+
+        threading.Thread(target=run, daemon=True).start()
+        return dict(self.symbols_extra_job)
 
     def clear_learned(self) -> dict:
         return {"removed": self.user.clear_learned()}
@@ -570,6 +596,8 @@ class _Handler(BaseHTTPRequestHandler):
             ("GET", "/api/custom-symbols"): app.custom_symbols,
             ("POST", "/api/custom-symbols"): lambda: app.add_custom_symbols(self._json_body()),
             ("POST", "/api/custom-symbols/remove"): lambda: app.remove_custom_symbol(self._json_body()),
+            ("GET", "/api/symbols-extra"): app.symbols_extra_state,
+            ("POST", "/api/symbols-extra/download"): app.download_symbols_extra,
             ("POST", "/api/clear-learned"): app.clear_learned,
             ("POST", "/api/memory/tidy"): app.tidy_memory,
             ("POST", "/api/open-folder"): app.open_folder,

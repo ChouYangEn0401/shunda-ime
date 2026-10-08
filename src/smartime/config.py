@@ -88,6 +88,11 @@ class Config:
     # Shift+Enter already means something in most editors, and handing it
     # over changed what they did. The symbol panel's ⏎ works either way.
     newline_enter: str = "off"
+    # 搜尋符號: merge in the bigger, downloadable catalogue (symbols_extra.py)
+    # on top of the hand-picked EMOJI_SYMBOLS. Off until downloaded and turned
+    # on — nothing is fetched or merged until both are true, the same shape
+    # as voice_enabled above.
+    symbols_extra_enabled: bool = False
 
     # Smart correction
     reorder_tolerance: bool = True  # ㄛㄨˇ typed for ㄨㄛˇ still gives 我

@@ -149,6 +149,36 @@ def test_recently_used_get_their_own_group_up_front(session):
     assert first.symbol == picked and first.group == "最近"
 
 
+def test_extra_catalogue_merges_in_only_when_downloaded_and_enabled(session, tmp_path, monkeypatch):
+    """The optional, user-downloaded pack (symbols_extra.py, tools/
+    build_symbols_extra.py) is additive: it must change nothing for anyone
+    who hasn't both turned it on *and* downloaded it, the same shape as
+    voice_enabled needing a model before it does anything."""
+    import json
+
+    from smartime.engine import symbols_extra
+    from smartime.engine.session import Session
+
+    monkeypatch.setattr(symbols_extra, "path", lambda: tmp_path / "symbols-extra.json")
+
+    session.cfg.symbols_extra_enabled = True
+    s1 = Session(session.engine)
+    run(s1, "ji3:::direct")
+    assert "沒有符合" in s1.cand.current.text  # enabled, but nothing downloaded: no crash, no result
+
+    symbols_extra.path().write_text(
+        json.dumps([["⎓", "技術符號", ["direct", "current"]]]), encoding="utf-8")
+
+    s2 = Session(session.engine)
+    run(s2, "ji3:::direct")
+    assert [c.text for c in s2.cand.shown] == ["⎓"]
+
+    session.cfg.symbols_extra_enabled = False  # downloaded, but turned off: filtered back out
+    s3 = Session(session.engine)
+    run(s3, "ji3:::direct")
+    assert "沒有符合" in s3.cand.current.text
+
+
 def test_no_match_shows_a_placeholder_and_does_not_crash_on_pick(session):
     run(session, "ji3:::")
     run(session, "nosuchsymbolxyz")

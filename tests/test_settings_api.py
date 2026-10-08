@@ -206,3 +206,59 @@ def test_custom_symbols_add_list_remove(server):
     # removing something already gone is not an error, just reports it
     status, r = call(server, "POST", "/api/custom-symbols/remove", {"text": "☆"})
     assert status == 200 and r["ok"] is False
+
+
+def test_symbols_extra_state_reports_not_installed_by_default(tmp_path, monkeypatch):
+    from smartime.engine import symbols_extra
+
+    monkeypatch.setattr(symbols_extra, "path", lambda: tmp_path / "symbols-extra.json")
+    app = SettingsApp()
+    assert app.symbols_extra_state() == {"installed": False, "count": 0, "job": {}}
+    app.close()
+
+
+def test_symbols_extra_download_fetches_in_the_background_without_going_online(server, monkeypatch, tmp_path):
+    """The 「更多符號」 pack: not bundled, so this is the only path that puts
+    it on disk — must run off the request thread (the HTTP response cannot
+    wait on a network round trip) and never hit anything but the one URL
+    symbols_extra.download already owns."""
+    import time
+
+    from smartime.engine import symbols_extra
+
+    target = tmp_path / "symbols-extra.json"
+    monkeypatch.setattr(symbols_extra, "path", lambda: target)
+    calls = []
+
+    def fake_download(progress=None):
+        calls.append(True)
+        target.write_text(json.dumps([["★", "測試", ["star"]]]), encoding="utf-8")
+        return target
+
+    monkeypatch.setattr(symbols_extra, "download", fake_download)
+    status, body = call(server, "POST", "/api/symbols-extra/download")
+    assert status == 200
+
+    for _ in range(100):
+        status, body = call(server, "GET", "/api/symbols-extra")
+        if not body["job"].get("active"):
+            break
+        time.sleep(0.01)
+    assert calls == [True]
+    assert body["installed"] is True and body["count"] == 1
+
+
+def test_symbols_extra_download_rejects_a_second_concurrent_request(server, monkeypatch, tmp_path):
+    import threading
+
+    from smartime.engine import symbols_extra
+
+    monkeypatch.setattr(symbols_extra, "path", lambda: tmp_path / "x.json")
+    release = threading.Event()
+    monkeypatch.setattr(symbols_extra, "download", lambda progress=None: release.wait(timeout=2))
+
+    status, _ = call(server, "POST", "/api/symbols-extra/download")
+    assert status == 200
+    status, body = call(server, "POST", "/api/symbols-extra/download")
+    assert status == 400 and "下載" in body["error"]
+    release.set()

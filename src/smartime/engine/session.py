@@ -1810,7 +1810,11 @@ class Session(CorrectionMixin):
     # ============================================================ 搜尋符號 / 我的符號
     def _emoji_items(self, query: str) -> list[Candidate]:
         """The built-in searchable catalogue (symbols.EMOJI_SYMBOLS), matched
-        against its category label and search tags.
+        against its category label and search tags — plus the much bigger
+        downloadable catalogue (symbols_extra.py) when it has been fetched
+        *and* turned on in Settings. Off by default and never fetched by
+        itself, the same shape as voice_enabled: nothing changes here for
+        anyone who hasn't opted in.
 
         Grouped the same way 顏文字 already is (see SymbolPanel.kaomoji):
         recently used ones pulled into their own "最近" group up front, the
@@ -1822,6 +1826,12 @@ class Session(CorrectionMixin):
 
         q = query.strip().lower()
         pool = EMOJI_SYMBOLS
+        if self.cfg.symbols_extra_enabled:
+            from . import symbols_extra
+
+            extra = symbols_extra.load()
+            if extra:
+                pool = pool + extra
         if q:
             pool = [e for e in pool if q in e[1].lower() or any(q in tag for tag in e[2])]
         if not pool:

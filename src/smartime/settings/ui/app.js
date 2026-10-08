@@ -46,7 +46,7 @@
     try { localStorage.setItem("smartime-view", id); } catch (e) { /* storage may be blocked */ }
     if (id === "dict") loadEntries();
     if (id === "voice") loadVoice();
-    if (id === "snippets") { loadSnippets(); loadCustomSymbols(); }
+    if (id === "snippets") { loadSnippets(); loadCustomSymbols(); loadSymbolsExtra(); }
   }
   rail.forEach(b => b.addEventListener("click", () => show(b.dataset.view)));
 
@@ -791,6 +791,44 @@
     chip.append(label, del);
     return chip;
   }
+
+  // ------------------------------------------------------------ 更多符號 (symbols_extra)
+  // Not bundled with the app: the user downloads it from here, same shape as
+  // the voice models below. _emoji_items merges it in only once both this
+  // file exists *and* the toggle (symbols_extra_enabled, bound by the
+  // generic [data-cfg] handling above) is on.
+  let symxTimer = 0;
+  async function loadSymbolsExtra() {
+    let s;
+    try { s = await api("GET", "/api/symbols-extra"); } catch (e) { return; }
+    const job = s.job || {};
+    const badge = document.getElementById("symx-status");
+    const btn = document.getElementById("symx-download");
+    const err = document.getElementById("symx-error");
+    if (job.active) {
+      const pct = job.total ? Math.floor(job.done * 100 / job.total) : 0;
+      badge.className = "badge plan";
+      badge.textContent = `下載中 ${pct}%`;
+      btn.disabled = true;
+      btn.textContent = "下載中…";
+      err.hidden = true;
+    } else {
+      badge.className = "badge " + (s.installed ? "done" : "later");
+      badge.textContent = s.installed ? `已下載 · ${s.count} 個符號` : "未下載";
+      btn.disabled = false;
+      btn.textContent = s.installed ? "重新下載" : "下載";
+      err.hidden = !job.error;
+      err.textContent = job.error ? "下載失敗：" + job.error : "";
+    }
+    clearTimeout(symxTimer);
+    const visible = !document.getElementById("view-snippets").hidden;
+    if (job.active) symxTimer = setTimeout(loadSymbolsExtra, 800);
+    else if (visible) symxTimer = setTimeout(loadSymbolsExtra, 4000);
+  }
+  document.getElementById("symx-download").addEventListener("click", async () => {
+    try { await api("POST", "/api/symbols-extra/download"); loadSymbolsExtra(); }
+    catch (e) { toast(e.message, true); }
+  });
 
   document.getElementById("sym-form").addEventListener("submit", async e => {
     e.preventDefault();
