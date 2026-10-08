@@ -39,28 +39,47 @@ Artifact(file_path="docs/index.html", root="docs",
 `docs/images/` 底下所有的圖。動了面板外觀、設定頁、或版本號，就重跑一次，
 然後重新發佈 Artifact。文件和產品因此不會偷偷脫節。
 
-## 3. 開發環境只用標準 venv
+## 3. 每次更新都要同步：文件、設定頁、Artifact
+
+**每一次**交出新版本（不是只有大改版）都要檢查並更新這三樣，不可以只改程式：
+
+1. **文件**：`README.md`、`docs/*.md`（按鍵表 `docs/keys.md`、安裝 `docs/install.md`、
+   架構 `docs/architecture.md`）、`CHANGELOG.md`
+2. **設定頁**（`src/smartime/settings/ui/`）：每個選項的說明文字、快捷鍵表
+   （`app.js` 的 `renderShortcuts`），還有面板自己的說明列（`ui/panels.py` 的 `*_HELP`）
+3. **首頁 Artifact**：重跑 `tools\make_docs_images.py`，更新 `docs/index.html` 的說明與
+   圖說，再照 §1 重新發佈
+
+做法：commit 前問自己「這個改動有沒有讓哪一句說明變成錯的？」，用 grep 找舊名詞
+（例：改名、改按鍵、改版面）。使用者曾經發現說明還停在舊印象（「黃框」、「← → 在
+分類籤之間走」、符號面板的「格子」），這就是要避免的事。
+
+## 4. 開發環境只用標準 venv
 
 `python -m venv .venv` ＋ `requirements*.txt`，執行工具一律 `.venv\Scripts\python.exe`。
 **不要引進 uv 或其他套件管理器**，文件和腳本裡也不要出現。
 
-## 4. Commit 一個主題一包
+## 5. Commit 一個主題一包
 
 做完一個主題就 commit，不要累積。訊息要寫「做了什麼」和「決策緣由」（繁體中文），
-一年後用 `git log` 要看得懂為什麼。沒有被要求不要改版本號、不要覆蓋 `dist/` 裡
-已發佈的檔案、不要 push。
+一年後用 `git log` 要看得懂為什麼。不要覆蓋 `dist/` 裡已發佈的檔案、不要 push、
+不要建 GitHub Release（使用者自己來）。
 
-## 5. 改完要自己驗
+版本號：交給使用者測試的版本用 `tools\set_version.py 0.8.0-alpha.N` 往上加（一天好幾個
+也可以），單獨一個 commit；乾淨的 `0.8.0` 只有使用者說可以發佈時才用。CHANGELOG 用
+正式版的標題（`## 0.8.0（開發中）`），alpha 期間持續往裡面加。
+
+## 6. 改完要自己驗
 
 單元測試是必要但不夠的。對照 [CONTRIBUTING.md](CONTRIBUTING.md) §4 的表跑該跑的
 實機測試，改完把新版裝起來給使用者。實機測試會在這台電腦上真的打字——跑之前先在
 訊息裡說一聲。
 
-## 6. 不要手寫含反斜線的檔案到 shell heredoc 裡
+## 7. 不要手寫含反斜線的檔案到 shell heredoc 裡
 
 Git Bash 的 heredoc 會把 `\\` 吃成 `\`，曾經寫壞 `ime.json` 害輸入法起不來。
 JSON、Windows 路徑、regex、PS1、Python escape 一律用編輯工具寫，寫完驗一次。
 
-## 7. 不進版本控制
+## 8. 不進版本控制
 
 `bug_fix.txt`（使用者的回饋草稿）。
