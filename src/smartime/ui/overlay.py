@@ -219,6 +219,15 @@ class Overlay:
         self._ready.set()
         self._shown: tuple | None = None
         self._size = (0, 0)
+        # The model changed but _size has not been measured for it yet. Kept
+        # as state rather than a call argument: a show can arrive before the
+        # anchor exists (PIME rebuilds its message window on every change),
+        # and the follow timer that later finds the anchor calls _place
+        # with resize=False — it then sized the window from the *previous*
+        # panel. Reported as ::/;; sometimes opening as a tiny box (the
+        # composing dot's size) with the new content clipped inside, fixed
+        # by the next arrow key.
+        self._stale = False
         self._scale = 0.0
         self._fonts: Fonts | None = None
         self._last_anchor_at = 0.0
@@ -266,6 +275,7 @@ class Overlay:
             return
         first = self._shown is None
         self._shown = want
+        self._stale = True
         self._last_anchor_at = time.monotonic()
         self._place(resize=True)
         if first:
@@ -292,6 +302,7 @@ class Overlay:
     def _place(self, resize: bool) -> bool:
         """Position (and with ``resize`` size + repaint) next to the anchor.
         Returns whether an anchor was found."""
+        resize = resize or self._stale
         cover = bool(self._shown and self._shown[5])
         anchor = find_own(self.dock_under) if self.dock_under else None
         if anchor is not None:
@@ -327,6 +338,7 @@ class Overlay:
             resize = True
         if resize:
             self._size = self._measure(scale)
+            self._stale = False
         width, height = self._size
         # covering: the stub already sits right under the caret line
         x, y = anchor[0], (anchor[1] if cover else anchor[3] + GAP)
@@ -349,6 +361,7 @@ class Overlay:
 
     def _resize_and_paint(self) -> None:
         self._size = self._measure(self._scale or 1.0)
+        self._stale = False
         x, y = self._pos
         user32.SetWindowPos(self._hwnd, w.HWND_TOPMOST, x, y, *self._size, w.SWP_NOACTIVATE | w.SWP_SHOWWINDOW)
         user32.InvalidateRect(self._hwnd, None, False)
