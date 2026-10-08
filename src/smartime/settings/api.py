@@ -371,7 +371,7 @@ class SettingsApp:
         buf = io.BytesIO()
         with tempfile.TemporaryDirectory() as tmp:
             db = Path(tmp) / "user.db"
-            self.user.backup_to(db)
+            self.user.backup_to(db, stamp=True)  # so a second import of this very file is recognised
             with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
                 z.write(db, "user.db")
                 if self.config_path.exists():
@@ -402,18 +402,22 @@ class SettingsApp:
             else:
                 raise ApiError(400, f"這不是{PRODUCT_NAME}的匯出檔")
             try:
-                merged = self.user.merge_from(db)
+                report = self.user.merge_from(db)
             except sqlite3.DatabaseError as e:
                 raise ApiError(400, f"無法讀取詞庫：{e}") from e
         applied = False
         if with_settings and config_data:
+            # The only part of an import that replaces rather than merges —
+            # two machines' preferences cannot be averaged, so this is a
+            # separate, opt-in checkbox and never happens by itself.
             try:
-                cfg = Config.from_dict(json.loads(config_data.decode("utf-8")))
+                cfg = Config.from_dict(json.loads(config_data.decode("utf-8")), base=Config.load(self.config_path))
             except (ValueError, UnicodeDecodeError) as e:
                 raise ApiError(400, "設定檔格式不正確") from e
             cfg.save(self.config_path)
             applied = True
-        return {"merged": merged, "settingsApplied": applied}
+        return {"merged": report["words"] + report["updated"] + report["snippets"] + report["symbols"],
+                **report, "settingsApplied": applied}
 
     # ---------------------------------------------------------- updates
     def update_state(self, force: bool = False) -> dict:

@@ -1,6 +1,8 @@
 """My dictionary and learned memory: storage, ranking, forgetting, sharing
 with the settings app, and the session's learning behaviour."""
 
+from pathlib import Path
+
 import pytest
 
 from smartime import paths
@@ -89,11 +91,108 @@ def test_export_and_merge_into_another_pc(user, tmp_path):
 
     other = UserDict(tmp_path / "other" / "user.db")
     other.learn("逗號", "ㄉㄡˋ-ㄏㄠˋ")
-    assert other.merge_from(backup) == 3
+    report = other.merge_from(backup)
+    assert (report["words"], report["updated"]) == (2, 1)  # 陳怡君 + 鬥號 new, 逗號 already here
     assert other.lookup("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ").category == "朋友"
     assert other.lookup("逗號", "ㄉㄡˋ-ㄏㄠˋ").count == 2  # summed
     assert other.is_blocked("鬥號", "ㄉㄡˋ-ㄏㄠˋ")
     other.close()
+
+
+def test_several_machines_merge_into_one_dictionary(tmp_path):
+    """The point of import: a folder of exports from different machines,
+    poured into one dictionary in any order, ends up holding all of it —
+    nothing replaced, counts added up (reported as a wish: 「把多份匯出檔
+    （相當於不同工作環境的資訊）最終合在一起」)."""
+    def export(name, build) -> Path:
+        d = tmp_path / name
+        u = UserDict(d / "user.db")
+        build(u)
+        snap = d / "snap.db"
+        u.backup_to(snap, stamp=True)
+        u.close()
+        return snap
+
+    def work(u):
+        u.add("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ", "zh", "工作")
+        for _ in range(3):
+            u.learn("會議", "ㄏㄨㄟˋ-ㄧˋ")
+        u.add_snippet("公司地址 100 號", "公司", "addr")
+        u.add_custom_symbols("★")
+        u.block("鬥號", "ㄉㄡˋ-ㄏㄠˋ")
+
+    def home(u):
+        for _ in range(5):
+            u.learn("會議", "ㄏㄨㄟˋ-ㄧˋ")  # the same word, used on the other machine
+        u.add("家裡電話", "ㄐㄧㄚ-ㄌㄧˇ-ㄉㄧㄢˋ-ㄏㄨㄚˋ", "zh", "家裡")
+        u.add_snippet("公司地址 100 號", "公司", "addr")  # byte-identical to work's
+        u.add_custom_symbols("♥")
+
+    laptop, desktop = export("work", work), export("home", home)
+    mine = UserDict(tmp_path / "mine" / "user.db")
+    mine.merge_from(laptop)
+    mine.merge_from(desktop)
+
+    assert mine.lookup("會議", "ㄏㄨㄟˋ-ㄧˋ").count == 8  # 3 + 5
+    assert mine.lookup("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ").category == "工作"
+    assert mine.lookup("家裡電話", "ㄐㄧㄚ-ㄌㄧˇ-ㄉㄧㄢˋ-ㄏㄨㄚˋ").category == "家裡"
+    assert mine.is_blocked("鬥號", "ㄉㄡˋ-ㄏㄠˋ")
+    assert [s["body"] for s in mine.snippets()] == ["公司地址 100 號", ]  # the duplicate is not doubled
+    assert mine.custom_symbols() == ["★", "♥"]
+    assert {"工作", "家裡"} <= {c["name"] for c in mine.categories()}
+    mine.close()
+
+
+def test_importing_the_same_file_again_does_not_inflate_the_counts(tmp_path):
+    """Found while checking the above: the merge adds counts, so dropping
+    the same export in twice (easy with a folder of them) silently doubled
+    every usage count it carried and skewed the ranking. The stamped
+    export_id makes the repeat settle instead of pile up."""
+    source = UserDict(tmp_path / "src" / "user.db")
+    for _ in range(4):
+        source.learn("會議", "ㄏㄨㄟˋ-ㄧˋ")
+    snap = tmp_path / "snap.db"
+    source.backup_to(snap, stamp=True)
+    source.close()
+
+    mine = UserDict(tmp_path / "mine" / "user.db")
+    assert mine.merge_from(snap)["repeat"] is False
+    assert mine.lookup("會議", "ㄏㄨㄟˋ-ㄧˋ").count == 4
+    assert mine.merge_from(snap)["repeat"] is True
+    assert mine.lookup("會議", "ㄏㄨㄟˋ-ㄧˋ").count == 4, "the same file twice is not 8"
+
+    # a *new* export from that machine still brings what it has learned since
+    source = UserDict(tmp_path / "src" / "user.db")
+    for _ in range(2):
+        source.learn("會議", "ㄏㄨㄟˋ-ㄧˋ")
+    later = tmp_path / "later.db"
+    source.backup_to(later, stamp=True)
+    source.close()
+    assert mine.merge_from(later)["repeat"] is False
+    assert mine.lookup("會議", "ㄏㄨㄟˋ-ㄧˋ").count == 10  # 4 + the new file's 6
+    mine.close()
+
+
+def test_a_repeat_import_still_restores_anything_deleted_locally(tmp_path):
+    """A repeat is not a no-op: it is still the way back if something was
+    deleted here by mistake. Only the counts settle."""
+    source = UserDict(tmp_path / "src" / "user.db")
+    source.add("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ", "zh", "朋友")
+    source.add_custom_symbols("★")
+    snap = tmp_path / "snap.db"
+    source.backup_to(snap, stamp=True)
+    source.close()
+
+    mine = UserDict(tmp_path / "mine" / "user.db")
+    mine.merge_from(snap)
+    mine.delete(mine.lookup("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ").id)
+    mine.remove_custom_symbol("★")
+
+    report = mine.merge_from(snap)
+    assert report["repeat"] is True
+    assert mine.lookup("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ") is not None
+    assert mine.custom_symbols() == ["★"]
+    mine.close()
 
 
 # ------------------------------------------------------------- ranking in the decoder

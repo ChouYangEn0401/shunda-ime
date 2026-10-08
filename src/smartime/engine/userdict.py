@@ -20,13 +20,19 @@ SQLite file; the IME notices through ``PRAGMA data_version`` and reloads.
 
 from __future__ import annotations
 
+import json
 import math
 import sqlite3
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
 SCHEMA_VERSION = 2  # 2: entries.origin
+# Exports already poured into this dictionary, newest last (see merge_from).
+# Only enough to cover "I have a folder of these and lost track of which
+# ones I already did"; older ids fall off.
+ABSORBED_MAX = 64
 ORIGINS = ("pick", "fix", "tab")
 # 人工加入 is where Ctrl+D puts a word: "I typed this and said keep it",
 # before it has been sorted into anything. 常用詞 is then a real category the
@@ -480,24 +486,58 @@ class UserDict:
         return cur.rowcount > 0
 
     # ------------------------------------------------------------ export / import
-    def backup_to(self, path: str | Path) -> None:
+    def backup_to(self, path: str | Path, stamp: bool = False) -> None:
+        """A consistent copy of this dictionary. ``stamp`` marks the copy
+        with a one-off id (see ``merge_from``: it is how a second import of
+        the very same file is recognised). The id goes into the copy only,
+        never into the live dictionary."""
         dst = sqlite3.connect(path)
         with dst:
             self._con.backup(dst)
+            if stamp:
+                dst.execute("INSERT OR REPLACE INTO meta VALUES ('export_id', ?)", (uuid.uuid4().hex,))
         dst.close()
 
-    def merge_from(self, path: str | Path) -> int:
+    def _absorbed(self) -> list[str]:
+        row = self._con.execute("SELECT value FROM meta WHERE key='absorbed'").fetchone()
+        try:
+            return json.loads(row[0]) if row else []
+        except ValueError:
+            return []
+
+    def _remember_absorbed(self, export_id: str) -> None:
+        ids = [i for i in self._absorbed() if i != export_id][-ABSORBED_MAX:] + [export_id]
+        self._con.execute("INSERT OR REPLACE INTO meta VALUES ('absorbed', ?)",
+                          (json.dumps(ids),))
+
+    def merge_from(self, path: str | Path) -> dict:
         """Merge another user.db (import "my memory" from another PC):
         manual entries and categories are added, usage counts are summed,
-        blocks are kept."""
+        blocks are kept. Nothing here is ever a replacement — several
+        machines' exports can be poured into one dictionary, in any order.
+
+        Importing the *same file* twice is the exception: counts would be
+        added a second time and quietly skew every ranking they feed. Each
+        exported copy carries a one-off ``export_id``; once that id has been
+        absorbed, a repeat merge still fills in anything missing locally but
+        takes the larger of the two counts instead of their sum, so it
+        settles instead of inflating.
+        """
         src = sqlite3.connect(f"file:{Path(path).as_posix()}?mode=ro", uri=True)
-        n = 0
+        report = {"words": 0, "updated": 0, "snippets": 0, "symbols": 0, "categories": 0, "repeat": False}
         try:
+            row = src.execute("SELECT value FROM meta WHERE key='export_id'").fetchone()
+            export_id = row[0] if row and row[0] else ""
+            report["repeat"] = bool(export_id) and export_id in self._absorbed()
+            counts = "max(count, excluded.count)" if report["repeat"] else "count + excluded.count"
             cats = dict(src.execute("SELECT id, name FROM categories").fetchall())
+            mine_cats = {c["name"] for c in self.categories()}
             for name in cats.values():
                 self._con.execute("INSERT OR IGNORE INTO categories (name, sort) VALUES (?, 99)", (name,))
+                report["categories"] += name not in mine_cats
             has_origin = "origin" in {r[1] for r in src.execute("PRAGMA table_info(entries)")}
             origin_col = "origin" if has_origin else "''"
+            mine_words = {r for r in self._con.execute("SELECT phrase, reading FROM entries")}
             for phrase, reading, kind, cat_id, source, count, last_used, created, blocked, origin in src.execute(
                 "SELECT phrase, reading, kind, category_id, source, count, last_used, created, blocked, "
                 f"{origin_col} FROM entries"
@@ -507,7 +547,7 @@ class UserDict:
                     "INSERT INTO entries (phrase, reading, kind, category_id, source, count, last_used, created, "
                     "blocked, origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                     "ON CONFLICT (phrase, reading) DO UPDATE SET "
-                    "count = count + excluded.count, "
+                    f"count = {counts}, "
                     "source = CASE WHEN excluded.source='manual' THEN 'manual' ELSE source END, "
                     "category_id = coalesce(category_id, excluded.category_id), "
                     "blocked = max(blocked, excluded.blocked), "
@@ -516,7 +556,11 @@ class UserDict:
                     (phrase, reading, kind, my_cat, source, count, last_used, created or time.time(), blocked,
                      origin or ""),
                 )
-                n += 1
+                if (phrase, reading) in mine_words:
+                    report["updated"] += 1
+                else:
+                    report["words"] += 1
+                    mine_words.add((phrase, reading))
             has_snippets = src.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='snippets'").fetchone() is not None
             if has_snippets:
@@ -525,19 +569,21 @@ class UserDict:
                     if body not in mine:  # same text already here: keep mine
                         self.add_snippet(body, title, keyword)
                         mine.add(body)
-                        n += 1
+                        report["snippets"] += 1
             has_custom_symbols = src.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='custom_symbols'").fetchone() is not None
             if has_custom_symbols:
                 mine_symbols = set(self.custom_symbols())
                 for (text,) in src.execute("SELECT text FROM custom_symbols ORDER BY sort, id"):
                     if text not in mine_symbols:
-                        n += self.add_custom_symbols(text)
+                        report["symbols"] += self.add_custom_symbols(text)
                         mine_symbols.add(text)
+            if export_id:
+                self._remember_absorbed(export_id)
         finally:
             src.close()
         self._load()
-        return n
+        return report
 
     def close(self) -> None:
         self._con.close()

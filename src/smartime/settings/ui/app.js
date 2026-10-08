@@ -971,7 +971,18 @@
     const withSettings = document.getElementById("import-settings").checked ? "1" : "0";
     try {
       const r = await api("POST", "/api/import?settings=" + withSettings, undefined, await file.arrayBuffer());
-      toast(`已匯入 ${r.merged} 個詞${r.settingsApplied ? "，並套用設定" : ""}`);
+      // Say what was actually combined: the whole point is that nothing was
+      // replaced, and with several machines' files it is worth seeing which
+      // one brought what (and when a file was already imported before).
+      const parts = [];
+      if (r.words) parts.push(`${r.words} 個新的詞`);
+      if (r.updated) parts.push(`${r.updated} 個詞合併次數`);
+      if (r.snippets) parts.push(`${r.snippets} 則片語`);
+      if (r.symbols) parts.push(`${r.symbols} 個符號`);
+      if (r.categories) parts.push(`${r.categories} 個分類`);
+      const what = parts.length ? parts.join("、") : "沒有新東西";
+      const again = r.repeat ? "（這個檔案匯入過了，次數不再累加）" : "";
+      toast(`已合併：${what}${again}${r.settingsApplied ? "，並套用設定" : ""}`);
       if (r.settingsApplied) { const s = await api("GET", "/api/state"); config = s.config; renderConfig(); }
       await refreshState();
     } catch (err) { toast(err.message, true); }

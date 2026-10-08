@@ -154,8 +154,47 @@ def test_export_then_import_merges(server):
     call(server, "DELETE", f"/api/entries/{rows[0]['id']}")
     status, r = call(server, "POST", "/api/import?settings=0", raw=blob)
     assert status == 200 and r["merged"] == 1
+    assert (r["words"], r["repeat"]) == (1, False)
     assert [x["phrase"] for x in call(server, "GET", "/api/entries")[1]] == ["林志豪"]
     assert call(server, "POST", "/api/import?settings=0", raw=b"not a file")[0] == 400
+
+
+def test_importing_one_bundle_twice_is_reported_and_does_not_double_counts(server):
+    """Several machines' files get poured in one after another, so the same
+    one landing twice has to be harmless — and visibly so, or there is no
+    way to tell whether the numbers are real."""
+    call(server, "POST", "/api/entries", {"phrase": "林志豪", "category": "朋友"})
+    blob = call(server, "GET", "/api/export")[1]
+    before = call(server, "GET", "/api/entries")[1][0]["count"]
+
+    first = call(server, "POST", "/api/import?settings=0", raw=blob)[1]
+    again = call(server, "POST", "/api/import?settings=0", raw=blob)[1]
+    assert first["repeat"] is False and again["repeat"] is True
+    assert call(server, "GET", "/api/entries")[1][0]["count"] == before
+
+
+def test_importing_settings_keeps_local_values_an_older_file_never_mentions(server):
+    """The settings checkbox is the one part that replaces rather than
+    merges. A file from an older version carries fewer keys than this one
+    has, and the ones it says nothing about must keep their current value
+    instead of snapping back to the default."""
+    import io
+    import zipfile
+
+    call(server, "POST", "/api/config", {"candidate_font_size": 20})  # so there is a config.json to export
+    blob = call(server, "GET", "/api/export")[1]
+    old = io.BytesIO()  # the same bundle, but with a one-key config.json
+    with zipfile.ZipFile(io.BytesIO(blob)) as src, zipfile.ZipFile(old, "w") as dst:
+        for name in src.namelist():
+            dst.writestr(name, json.dumps({"candidate_font_size": 22}) if name == "config.json"
+                         else src.read(name))
+
+    call(server, "POST", "/api/config", {"candidate_font_size": 14, "suggestion_count": 7})
+    r = call(server, "POST", "/api/import?settings=1", raw=old.getvalue())[1]
+    assert r["settingsApplied"] is True
+    cfg = call(server, "GET", "/api/state")[1]["config"]
+    assert cfg["candidate_font_size"] == 22  # the file's value won
+    assert cfg["suggestion_count"] == 7  # and a key it had nothing to say about survived
 
 
 def test_tidy_memory_reports_size(server):

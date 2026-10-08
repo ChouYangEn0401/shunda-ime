@@ -633,8 +633,9 @@
             <a class="btn" id="export-link" href="#" download="我的記憶.smartime">匯出…</a>
           </div>
           <div class="row">
-            <div><div class="label">匯入我的記憶</div><div class="desc">選另一台電腦匯出的檔案。詞庫會合併（用過的次數相加），不會覆蓋你現有的詞。</div>
-              <label class="note" style="display:flex; gap:6px; align-items:center; margin-top:4px"><input type="checkbox" id="import-settings"> 同時套用檔案裡的設定</label></div>
+            <div><div class="label">匯入我的記憶</div><div class="desc">選另一台電腦匯出的檔案。<b>永遠是合併，不會蓋掉你現有的東西</b>：沒有的詞、片語、符號、分類會加進來，兩邊都有的詞把用過的次數相加，自己加的詞和封鎖的詞優先保留。
+              多台電腦的檔案可以一個一個匯入，最後合在一起；同一個檔案重複匯入也不會把次數灌水。</div>
+              <label class="note" style="display:flex; gap:6px; align-items:center; margin-top:4px"><input type="checkbox" id="import-settings"> 同時套用檔案裡的設定（這一項是覆蓋，不是合併）</label></div>
             <label class="btn" for="import-file">匯入…</label>
             <input type="file" id="import-file" accept=".smartime,.db,.zip" hidden>
           </div>
