@@ -389,11 +389,32 @@ def type_script(tap, script: str) -> None:
         i += 1
 
 
+class Changed:
+    """Expected = the simulation, *and* it must differ from what ``baseline``
+    types. For cases that exist to change something (pick another candidate,
+    j in correction mode): a result equal to the untouched text is a failure,
+    never a pass. These used to accept ("我嘛", "我嗎") — the untouched text
+    included — so the case could not fail even when nothing changed
+    (reported: 「每次打出來我看結果都是錯的，但你好像都讓 test 通過了」)."""
+
+    def __init__(self, baseline: str):
+        self.baseline = baseline
+
+    def __repr__(self) -> str:
+        return f"Changed({self.baseline!r})"
+
+
+class PickOther(Changed):
+    """The script is a prefix that opens the candidate window; the digit is
+    chosen when the test runs: the first candidate that differs from what is
+    on screen. A fixed digit depends on this machine's dictionary — with 嘛
+    learned, "2" was 嗎, the character already there."""
+
+
 # (script, expected). expected=None means "whatever the engine simulator
 # produces for the same keys": the real app must behave exactly like the
-# simulation (this is what catches TSF/PIME integration bugs). A tuple means
-# any of those texts is right — the candidate order depends on what this
-# machine's dictionary has learned, and the test reads the real one.
+# simulation (this is what catches TSF/PIME integration bugs). The simulator
+# uses a copy of this machine's real dictionary, the same as the real IME.
 CASES = [
     ("ji3ap7{ENTER}", "我們"),  # first syllable must convert too (regression)
     # clause punctuation sends the sentence; the mark itself stays in the
@@ -406,7 +427,7 @@ CASES = [
     # candidate for the char after the cursor. 嗎/嘛 swap places once one of
     # them is learned, so this checks that *a* different character arrived,
     # not which one — the real dictionary is the user's, and it moves.
-    ("ji3a87{LEFT}{UP}2{ENTER}", ("我嘛", "我嗎")),
+    ("ji3a87{LEFT}{UP}", PickOther("ji3a87{ENTER}")),
     ("ao6u.3{TAB}{ENTER}", "沒有用"),  # Tab completion
     # lone right Shift taps cycle 自動 -> 純注音 -> 純英文 -> 自動 (the default)
     ("{RSHIFT}{RSHIFT}abc{RSHIFT}ji3{ENTER}", "abc我"),
@@ -421,7 +442,7 @@ CASES = [
     ("ji3ee/4dj94{ENTER}", "我更快"),  # stray key left by fast typing is dropped
     ("mvp {DOWN}4{ENTER}", "勳"),  # English token -> Chinese reading (␣ is its tone key)
     ('ji3ap7"python"{ENTER}', '我們"python"'),  # " stays half-width
-    ("ji3a87{ESC}j{ENTER}", ("我嘛", "我嗎")),  # correction mode: j swaps the candidate in place
+    ("ji3a87{ESC}j{ENTER}", Changed("ji3a87{ENTER}")),  # correction mode: j swaps the candidate in place
     ("mvp {ESC}e{ENTER}", "勳"),  # correction mode: e turns raw keys into Chinese
     ("ji3ee/4dj94{ESC}vv{HOME}lllxv{ENTER}", "我更快"),  # 按鍵 view: delete one stray key
     ("ji3{RCTRL}{TAB}{TAB}1{ENTER}", "我α"),  # symbol panel: a lone right-Ctrl tap
@@ -442,20 +463,17 @@ CASES = [
 PASTE_TEXT = "XYZ"
 
 
-def expected_text(script: str) -> str:
-    """What the engine produces for ``script`` with the settings the real IME
-    uses during the test (defaults, learning off) and a *copy* of the user's
-    memory — the real IME ranks with it too (it once typed 的字 where an
-    empty memory gives 的自). Computed in a throwaway folder, so the real one
-    is never touched."""
+def _with_user_copy(fn):
+    """Run ``fn(engine)`` with the settings the real IME uses during the test
+    (defaults, learning off) and a *copy* of the user's memory — the real IME
+    ranks with it too (it once typed 的字 where an empty memory gives 的自).
+    Computed in a throwaway folder, so the real one is never touched."""
     import os
     import sqlite3
     import tempfile
 
     from .. import paths
-    from ..engine.session import Session
     from ..pime.server import build_engine
-    from .simulate import run
 
     real_db = paths.user_db_path()
     old = os.environ.get("SMARTIME_USER_DIR")
@@ -471,15 +489,59 @@ def expected_text(script: str) -> str:
         try:
             engine = build_engine()
             engine.config.learn = False
-            out, view = run(Session(engine), script.replace("{RSHIFT}", "{SHIFT}"))
-            engine.lexicon.user.close()
-            engine.lexicon.close()
+            try:
+                return fn(engine)
+            finally:
+                engine.lexicon.user.close()
+                engine.lexicon.close()
         finally:
             if old is None:
                 os.environ.pop("SMARTIME_USER_DIR", None)
             else:
                 os.environ["SMARTIME_USER_DIR"] = old
-    return out + view.composition
+
+
+def expected_text(script: str) -> str:
+    """What the engine produces for ``script`` (see _with_user_copy)."""
+    from ..engine.session import Session
+    from .simulate import run
+
+    def go(engine):
+        out, view = run(Session(engine), script.replace("{RSHIFT}", "{SHIFT}"))
+        return out + view.composition
+
+    return _with_user_copy(go)
+
+
+def pick_other(prefix: str) -> str | None:
+    """``prefix`` + the digit of the first candidate that differs from the
+    text on screen + Enter, or None if there is no such candidate."""
+    from ..engine.session import Session
+    from .simulate import run
+
+    def go(engine):
+        s = Session(engine)
+        run(s, prefix)
+        if s.cand is None:
+            return None
+        for i, c in enumerate(s.cand.page_items()):
+            if c.pin is not None and c.text != s._text_over(c.pin.start, c.pin.end):
+                return f"{prefix}{i + 1}{{ENTER}}"
+        return None
+
+    return _with_user_copy(go)
+
+
+def prepare(script: str, expected):
+    """(script, expected text or a failure reason) for one case."""
+    if isinstance(expected, PickOther):
+        script = pick_other(script) or script
+    if not isinstance(expected, Changed):
+        return script, (expected if expected is not None else expected_text(script)), ""
+    want, before = expected_text(script), expected_text(expected.baseline)
+    if want == before:
+        return script, want, f"this case changes nothing (still {before!r}); it would pass without testing anything"
+    return script, want, ""
 
 
 class MemoryGuard:
@@ -583,7 +645,7 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8")
     global GUARD
     richedit = "--richedit" in sys.argv[1:]
-    cases = [(s, e if e is not None else expected_text(s)) for s, e in CASES]
+    cases = [prepare(s, e) for s, e in CASES]
     print("waiting until keyboard/mouse have been idle for 5 s ...")
     if not wait_until_idle():
         print("ABORT: the computer is in use; try again later (no keys were sent)")
@@ -607,7 +669,11 @@ def main() -> int:
             print(f"FAIL: ActivateProfile returned {hr & 0xFFFFFFFF:#x}")
             return 1
         pump(0.8)  # let TSF load PIMETextService.dll and connect to the launcher
-        for n, (script, expected) in enumerate(cases, 1):
+        for n, (script, expected, broken) in enumerate(cases, 1):
+            if broken:
+                failures += 1
+                print(f"FAIL  {script!r:36} ({broken})")
+                continue
             if "{C-v}" in script:
                 if not clipboard.usable:
                     print(f"SKIP  {script!r:36} (the clipboard holds an image/files; not touched)")
@@ -648,10 +714,7 @@ def main() -> int:
                     restart_ime()
             if "SHIFT}" in script:
                 restart_ime()
-            # a tuple of expectations means "any of these" — for cases whose
-            # candidate order depends on what this machine's dictionary has
-            # learned (the test reads the user's real memory)
-            ok = got in expected if isinstance(expected, tuple) else got == expected
+            ok = got == expected
             failures += not ok
             label = script if len(script) <= 34 else script[:31] + "..."
             print(f"{'PASS' if ok else 'FAIL'}  {label!r:36} -> {got!r}" + ("" if ok else f"  (expected {expected!r})"))
