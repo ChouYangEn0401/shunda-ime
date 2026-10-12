@@ -436,8 +436,15 @@ class CorrectionMixin:
                 return
             current = self.decoding.segments[t[3]]
             self._snapshot()
-            start = self._current_index(items)  # j/k walk away from what is on screen
-            self._cycle = _Cycle(t[0], items, start, current, t[2])
+            # What is on screen first, then every other candidate in list
+            # order, so the first j is the most likely *other* one. Walking
+            # on from the current position instead depended on where the
+            # current character happened to sit: with 嘛 learned (學過 is
+            # listed first) the list read 嘛 嗎 蟆…, and j from 嗎 skipped 嘛
+            # and typed 蟆 (reported: 「每次打出來我看結果都是錯的」).
+            start = self._current_index(items)
+            items = [items[start]] + items[:start] + items[start + 1:]
+            self._cycle = _Cycle(t[0], items, 0, current, t[2])
         c = self._cycle
         # Step past candidates that would leave the screen looking the same.
         # The list holds both the word and its first character (今天 and 今),

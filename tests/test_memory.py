@@ -544,3 +544,19 @@ def test_a_correction_without_a_real_word_beside_it_is_remembered_as_three_chara
     mem_session._reset_buffer()
     _, v = run(mem_session, "ji3cp3dj94")
     assert v.composition == fixed, "and the same sentence still comes out the corrected way"
+
+
+def test_j_in_correction_mode_goes_to_the_most_likely_other_character(mem_engine, user):
+    """Reported: 「每次打出來我看結果都是錯的」. With 嘛 learned the candidate
+    list reads 嘛 嗎 蟆 … (學過 first) while 嗎 is on screen; j walked on from
+    嗎's position and typed 蟆, skipping the obvious 嘛."""
+    for _ in range(3):
+        user.learn("嘛", "ㄇㄚ˙", "zh", "pick")
+    mem_engine.lexicon.invalidate()
+    s = Session(mem_engine)
+    _, v = run(s, "ji3a87")
+    assert v.composition == "我嗎"
+    _, v = run(s, "{ESC}j")
+    assert v.composition == "我嘛"
+    _, v = run(s, "k")
+    assert v.composition == "我嗎", "k comes straight back"
