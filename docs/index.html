@@ -205,11 +205,159 @@ footer { border-top: 1px solid var(--line); padding-block: 36px 56px; color: var
 footer a { color: var(--muted); }
 footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7px; margin-right: 4px; }
 .note { font-size: 13.5px; color: var(--faint); margin-top: 18px; }
+
+/* ---------------------------------------------------------------- version tab
+   A closed <details> in the hero's top-right corner: shut, the page is laid out
+   exactly as without it (absolute, out of flow). No new colours — the page
+   promises its four colours mean only one thing each. The version being
+   developed takes the accent (= 游標, "you are here"); the other states differ
+   by the chip's outline: solid = 正式版, dashed = 沒有公開下載, none = 只有標籤. */
+.ver { position: absolute; top: 18px; right: 0; z-index: 5; }
+.ver > summary {
+  list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12.5px; font-weight: 500; color: var(--muted); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px 5px 10px;
+  transition: border-color .15s;
+}
+.ver > summary::-webkit-details-marker { display: none; }
+.ver > summary:hover, .ver[open] > summary { border-color: var(--accent); }
+.ver > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ver > summary b { font-family: var(--mono); font-weight: 700; color: var(--ink); }
+.ver > summary .dot { width: 7px; height: 7px; background: var(--accent); }
+.ver > summary .chev { font-size: 9px; color: var(--faint); transition: transform .15s; }
+.ver[open] > summary .chev { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .ver > summary, .ver > summary .chev { transition: none } }
+.ver-pop {
+  position: absolute; right: 0; top: calc(100% + 8px);
+  width: min(460px, calc(100vw - 40px)); max-height: min(72vh, 620px); overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow);
+  padding: 16px 18px 14px; font-size: 13.5px; line-height: 1.55;
+}
+.ver-pop h3 { font-size: 17px; }
+.ver-pop .intro { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+.ver-group { margin-top: 16px; }
+.ver-group .eyebrow { margin-bottom: 2px; font-size: 11px; }
+.ver-list { list-style: none; margin: 0; padding: 0; }
+.ver-list li {
+  display: grid; grid-template-columns: 7.6em minmax(0, 1fr); gap: 0 12px;
+  padding-block: 9px; border-top: 1px solid var(--line);
+}
+.ver-list li:first-child { border-top: 0; }
+.ver-list li.compact { padding-block: 5px; }
+/* the nine alphas fold into one row, so 正式版 stays in sight without scrolling */
+.ver-list li.alphas { display: block; padding-block: 0; }
+.alphas > details > summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: 0;
+  padding-block: 9px; padding-left: calc(7.6em + 12px);
+}
+.alphas > details > summary::-webkit-details-marker { display: none; }
+.alphas > details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.alphas > details > summary:hover .v-note { color: var(--ink); }
+.alphas .chev { font-size: 9px; color: var(--faint); margin-left: 8px; transform: rotate(-90deg); transition: transform .15s; }
+.alphas > details[open] .chev { transform: none; }
+.alphas .ver-list { margin-bottom: 6px; }
+.alphas .ver-list li:first-child { border-top: 1px solid var(--line); }
+@media (prefers-reduced-motion: reduce) { .alphas .chev { transition: none } }
+.v-name { font-family: var(--mono); font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.v-date { display: block; font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--faint); font-variant-numeric: tabular-nums; }
+.v-body { min-width: 0; }
+.v-note { color: var(--muted); font-size: 12.5px; }
+.v-body a { font-size: 12.5px; white-space: nowrap; margin-left: 4px; }
+.st {
+  display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em; line-height: 1.5;
+  border-radius: 4px; padding: 0 6px; margin-right: 6px; border: 1px solid transparent; white-space: nowrap;
+}
+.st-current { color: var(--accent); background: var(--accent-soft); }
+.st-release { color: var(--ink); border-color: var(--ink); }
+.st-alpha, .st-unpub { color: var(--muted); border-color: var(--faint); border-style: dashed; }
+.st-tag { color: var(--faint); padding-inline: 0; }
+.ver-legend { margin: 16px 0 0; padding-top: 12px; border-top: 1px solid var(--line); display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 10px; font-size: 12px; color: var(--muted); }
+.ver-legend dt { margin: 0; }
+.ver-legend dd { margin: 0; }
+.ver-foot { margin-top: 12px; font-size: 12px; color: var(--faint); }
+@media (max-width: 520px) {
+  .ver { top: 12px }
+  .ver-list li { grid-template-columns: 6.6em minmax(0, 1fr) }
+  .alphas > details > summary { padding-left: calc(6.6em + 12px) }
+}
 </style>
 
 <div class="wrap">
 
 <section class="hero">
+  <!-- Version list: written by hand, updated with every version (CLAUDE.md §3).
+       It ships with the page so the local copy opens offline. -->
+  <details class="ver" id="ver">
+    <summary aria-label="版本：目前開發中 0.8.0-alpha.10，點開看所有版本"><i class="dot"></i><b>v0.8.0-alpha.10</b>開發中<span class="chev" aria-hidden="true">▼</span></summary>
+    <div class="ver-pop">
+      <h3>版本</h3>
+      <p class="intro">「下載安裝檔」拿到的是最新的正式版。測試版只在開發者的電腦上建置、試用，沒有公開下載。</p>
+
+      <div class="ver-group">
+        <p class="eyebrow">開發中 · 0.8.0</p>
+        <ul class="ver-list">
+          <li><span class="v-name">alpha.10<span class="v-date">2026-10-13</span></span>
+            <span class="v-body"><span class="st st-current">測試版・目前</span><span class="v-note">繼續修：修正模式要更好用、片語多了要能管理、詞庫刪除後不跳回頂端</span></span></li>
+          <li><span class="v-name">rc.1<span class="v-date">2026-10-13</span></span>
+            <span class="v-body"><span class="st st-alpha">候選版</span><span class="v-note">第一個候選版，只在本機建置。試用後還有要修的，回到 alpha 繼續。選字框的 Delete 能把湊錯的組合（開新）標成錯的</span></span></li>
+          <li class="alphas"><details>
+            <summary><span class="st st-alpha">測試版</span><span class="v-note">alpha.1 – alpha.9 · 9 個</span><span class="chev" aria-hidden="true">▼</span></summary>
+            <ul class="ver-list">
+          <li class="compact"><span class="v-name">alpha.9<span class="v-date">2026-10-12</span></span>
+            <span class="v-body"><span class="v-note">修正模式 j 第一下就換成最可能的字</span></span></li>
+          <li class="compact"><span class="v-name">alpha.8<span class="v-date">2026-10-09</span></span>
+            <span class="v-body"><span class="v-note">學到的東西不再把原本選對的字改壞</span></span></li>
+          <li class="compact"><span class="v-name">alpha.7<span class="v-date">2026-10-08</span></span>
+            <span class="v-body"><span class="v-note">符號面板每一頁都是同一套分組清單</span></span></li>
+          <li class="compact"><span class="v-name">alpha.6<span class="v-date">2026-10-08</span></span>
+            <span class="v-body"><span class="v-note">多台電腦的匯出檔可以一份一份合併；略過的鍵救得回來</span></span></li>
+          <li class="compact"><span class="v-name">alpha.5<span class="v-date">2026-10-08</span></span>
+            <span class="v-body"><span class="v-note">emoji 分類分組；可選下載「更多符號」</span></span></li>
+          <li class="compact"><span class="v-name">alpha.4<span class="v-date">2026-10-08</span></span>
+            <span class="v-body"><span class="v-note">Ctrl+數字不再誤吃數字鍵盤的方向鍵</span></span></li>
+          <li class="compact"><span class="v-name">alpha.3<span class="v-date">2026-10-08</span></span>
+            <span class="v-body"><span class="v-note">打 ::: 搜尋 emoji；我的符號</span></span></li>
+          <li class="compact"><span class="v-name">alpha.2<span class="v-date">2026-10-07</span></span>
+            <span class="v-body"><span class="v-note">選字窗用 → ← 展開成多欄、收回成一列</span></span></li>
+          <li class="compact"><span class="v-name">alpha.1<span class="v-date">2026-10-07</span></span>
+            <span class="v-body"><span class="v-note">修正模式按聲調鍵改聲調；提示列建議加上編號</span></span></li>
+            </ul>
+          </details></li>
+        </ul>
+      </div>
+
+      <div class="ver-group">
+        <p class="eyebrow">之前的版本</p>
+        <ul class="ver-list">
+          <li><span class="v-name">0.7.0<span class="v-date">2026-10-07</span></span>
+            <span class="v-body"><span class="st st-unpub">未發佈</span><span class="v-note">提示列換掉 PIME 的黃框、修字救得回來、可以檢查更新</span></span></li>
+          <li><span class="v-name">0.6.0<span class="v-date">2026-10-05</span></span>
+            <span class="v-body"><span class="st st-release">正式版</span><span class="v-note">拼音與倉頡、片語與顏文字、裝置修正</span><a href="https://github.com/ChouYangEn0401/shunda-ime/releases/tag/v0.6.0">下載</a></span></li>
+          <li class="compact"><span class="v-name">0.5.0<span class="v-date">2026-10-02</span></span>
+            <span class="v-body"><span class="st st-tag">只有標籤</span><span class="v-note">超智慧推薦、瘋狂模式（實驗，預設關閉）</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/v0.5.0">原始碼</a></span></li>
+          <li class="compact"><span class="v-name">0.4.0<span class="v-date">2026-10-01</span></span>
+            <span class="v-body"><span class="st st-tag">只有標籤</span><span class="v-note">拼音與倉頡五代輸入</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/v0.4.0">原始碼</a></span></li>
+          <li class="compact"><span class="v-name">0.3.0<span class="v-date">2026-10-01</span></span>
+            <span class="v-body"><span class="st st-tag">只有標籤</span><span class="v-note">第一個公開版本，改名「順打輸入法」</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/v0.3.0">原始碼</a></span></li>
+          <li class="compact"><span class="v-name">0.2.0<span class="v-date">2026-10-01</span></span>
+            <span class="v-body"><span class="st st-tag">只有標籤</span><span class="v-note">安裝檔、我的詞庫、設定頁、修正模式、語音輸入</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/v0.2.0">原始碼</a></span></li>
+          <li class="compact"><span class="v-name">0.1.0<span class="v-date">2026-10-01</span></span>
+            <span class="v-body"><span class="st st-tag">只有標籤</span><span class="v-note">第一個可用的版本：快打容錯、Ctrl 標點</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/v0.1.0">原始碼</a></span></li>
+        </ul>
+      </div>
+
+      <dl class="ver-legend">
+        <dt><span class="st st-release">正式版</span></dt><dd>GitHub 上有 Release，可以下載安裝檔</dd>
+        <dt><span class="st st-current">目前</span></dt><dd>現在正在開發的版本</dd>
+        <dt><span class="st st-alpha">候選版</span></dt><dd>準備要發的版本，只差最後確認</dd>
+        <dt><span class="st st-alpha">測試版</span></dt><dd>開發者自己試用的建置，沒有公開下載</dd>
+        <dt><span class="st st-unpub">未發佈</span></dt><dd>版號定了，但沒有做成 Release</dd>
+        <dt><span class="st st-tag">只有標籤</span></dt><dd>git 上有記號、看得到原始碼，沒有安裝檔</dd>
+      </dl>
+      <p class="ver-foot">每一版改了什麼：<a href="https://github.com/ChouYangEn0401/shunda-ime/blob/main/CHANGELOG.md">版本紀錄（CHANGELOG）</a></p>
+    </div>
+  </details>
+
   <div class="wordmark">
     <span class="keycap keycap-lg" aria-hidden="true">順</span>
     <h1>順打輸入法</h1>
@@ -484,3 +632,16 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
 </footer>
 
 </div>
+
+<script>
+// The version list closes like a menu: a click elsewhere or Esc. Without this
+// script <details> still opens and closes from its own tag.
+(() => {
+  const ver = document.getElementById("ver");
+  if (!ver) return;
+  document.addEventListener("click", e => { if (ver.open && !ver.contains(e.target)) ver.open = false; });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && ver.open) { ver.open = false; ver.querySelector("summary").focus(); }
+  });
+})();
+</script>
