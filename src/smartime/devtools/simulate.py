@@ -171,7 +171,18 @@ def main() -> None:
 def _simulate(args) -> None:
     from ..pime.server import build_engine
 
-    session = Session(build_engine())
+    engine = build_engine()
+    try:
+        _type(Session(engine), args)
+    finally:
+        # Windows will not delete the throwaway user.db while it is open;
+        # without this every run ended in a PermissionError traceback.
+        if engine.user is not None:
+            engine.user.close()
+        engine.lexicon.close()
+
+
+def _type(session: Session, args) -> None:
     committed = []
     view = session.view()
     for item in parse(args.script):
