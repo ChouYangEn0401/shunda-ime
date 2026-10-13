@@ -383,8 +383,10 @@ def type_script(tap, script: str) -> None:
             i += len(name) + 2
             continue
         ch = script[i]
-        shift = ch in SHIFTED
-        base = SHIFTED.get(ch, ch)
+        # capitals need Shift too: without it R (重新判定) and D D (清除)
+        # were typed as r and d, and a test of them tested something else
+        shift = ch in SHIFTED or ch.isupper()
+        base = SHIFTED.get(ch, ch.lower())
         tap(OEM_VK.get(base, ord(base.upper())), shift, False)
         i += 1
 
@@ -644,8 +646,16 @@ def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     global GUARD
-    richedit = "--richedit" in sys.argv[1:]
-    cases = [prepare(s, e) for s, e in CASES]
+    args = sys.argv[1:]
+    richedit = "--richedit" in args
+    # --case SCRIPT (repeatable): only these scripts, each expected to type
+    # what the simulator types — for reproducing one report on the real IME
+    # without the whole list (and without --help silently running all of it).
+    own = [args[i + 1] for i, a in enumerate(args) if a == "--case" and i + 1 < len(args)]
+    if any(a in ("-h", "--help") for a in args):
+        print("usage: tsf_typing_test [--richedit] [--case SCRIPT ...]   (types into a test window!)")
+        return 0
+    cases = [prepare(s, None) for s in own] if own else [prepare(s, e) for s, e in CASES]
     print("waiting until keyboard/mouse have been idle for 5 s ...")
     if not wait_until_idle():
         print("ABORT: the computer is in use; try again later (no keys were sent)")
