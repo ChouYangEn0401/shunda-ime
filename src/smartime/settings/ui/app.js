@@ -496,6 +496,87 @@
     await loadEntries();
   }
 
+  // Changing one row (刪除, 還原, a category that moves it to the other
+  // area) updates that row in place: it disappears at once, the list keeps
+  // its scroll position and the rows already loaded, and only the counters
+  // are fetched again. Reloading the whole list jumped back to the top
+  // (reported: 「刪掉一些詞句的時候…需要重新捲動下去」).
+  let dictPending = 0;  // row changes not yet written by the server
+  let countsTimer = 0;
+
+  function scheduleCounts() {
+    clearTimeout(countsTimer);
+    countsTimer = setTimeout(refreshCounts, 150);
+  }
+  async function refreshCounts() {
+    if (dictPending) { scheduleCounts(); return; }  // count after the writes land
+    try {
+      const fresh = await api("GET", "/api/state");
+      state.categories = fresh.categories;
+      state.stats = fresh.stats;
+      renderCategories();
+    } catch (e) { /* the next change tries again */ }
+  }
+
+  function loadMoreIfNeeded() {
+    const el = document.getElementById("dict-scroll");
+    if (el.scrollTop + el.clientHeight > el.scrollHeight - 120) loadEntries(true);
+  }
+
+  // Take a row out of the list; returns how to put it back (the request failed).
+  function takeRow(r) {
+    const token = dictToken;
+    let i = dictRows.indexOf(r);
+    if (i < 0) return () => {};
+    dictRows.splice(i, 1);
+    r.tr.remove();
+    dictTotal = Math.max(0, dictTotal - 1);
+    if (state.stats[dictView] > 0) { state.stats[dictView] -= 1; renderCategories(); }
+    if (!dictRows.length && !dictTotal) showDictEmpty();
+    updateDictCount();
+    return () => {
+      if (token !== dictToken) return;  // the view changed meanwhile: it was reloaded anyway
+      const body = document.getElementById("dict-body");
+      const empty = body.querySelector("td.empty");
+      if (empty) empty.parentNode.remove();
+      i = Math.min(i, dictRows.length);
+      dictRows.splice(i, 0, r);
+      const after = dictRows[i + 1];
+      if (after && after.tr.parentNode === body) body.insertBefore(r.tr, after.tr);
+      else body.appendChild(r.tr);
+      dictTotal += 1;
+      updateDictCount();
+    };
+  }
+
+  async function rowChange(r, request, done) {
+    const putBack = takeRow(r);
+    dictPending++;
+    try {
+      await request();
+      toast(done);
+    } catch (e) {
+      putBack();
+      toast(e.message, true);
+    } finally {
+      dictPending--;
+    }
+    scheduleCounts();
+    loadMoreIfNeeded();
+  }
+
+  function updateDictCount() {
+    document.getElementById("dict-count").textContent = dictTotal ? `共 ${dictTotal} 個，顯示 ${dictRows.length} 個` : "";
+    document.getElementById("dict-more").hidden = dictRows.length >= dictTotal;
+  }
+
+  function showDictEmpty() {
+    document.getElementById("dict-body").innerHTML = `<tr><td colspan="6" class="note empty">${dictQuery ? "找不到符合的詞。" :
+      dictView === "blocked" ? "沒有封鎖的詞。在候選窗對不想再看到的詞按 Delete 就會出現在這裡。" :
+      dictView === "inbox" ? "還沒有自動收集的詞。從候選窗選字、修正錯字或按 Tab 接受接續後，會出現在這裡。" :
+      "這裡還沒有詞。用上面的表單加入第一個，或打字時按 Ctrl+D。"}</td></tr>`;
+  }
+
   const HEADS = {
     inbox: ["詞", "讀音", "怎麼來的", "用過", "最近", ""],
     mine: ["詞", "讀音", "分類", "用過", "最近", ""],
@@ -504,7 +585,10 @@
 
   async function loadEntries(more) {
     if (!state) return;
-    if (more && (dictLoading || dictRows.length >= dictTotal)) return;
+    // While a row change is on its way the server's list and ours differ by
+    // that row, so offset = dictRows.length would be off by one; the
+    // change calls back here once it has landed.
+    if (more && (dictLoading || dictPending || dictRows.length >= dictTotal)) return;
     const token = more ? dictToken : ++dictToken;
     dictLoading = true;
     const params = new URLSearchParams({ view: dictView, q: dictQuery, sort: dictSort, paged: "1",
@@ -529,21 +613,14 @@
       document.getElementById("dict-scroll").scrollTop = 0;
     }
     dictTotal = page.total;
-    dictRows = dictRows.concat(page.rows);
-    page.rows.forEach(r => body.appendChild(entryRow(r)));
-    if (!dictRows.length) {
-      body.innerHTML = `<tr><td colspan="6" class="note empty">${dictQuery ? "找不到符合的詞。" :
-        dictView === "blocked" ? "沒有封鎖的詞。在候選窗對不想再看到的詞按 Delete 就會出現在這裡。" :
-        dictView === "inbox" ? "還沒有自動收集的詞。從候選窗選字、修正錯字或按 Tab 接受接續後，會出現在這裡。" :
-        "這裡還沒有詞。用上面的表單加入第一個，或打字時按 Ctrl+D。"}</td></tr>`;
-    }
-    document.getElementById("dict-count").textContent = dictTotal ? `共 ${dictTotal} 個，顯示 ${dictRows.length} 個` : "";
-    document.getElementById("dict-more").hidden = dictRows.length >= dictTotal;
+    const have = new Set(dictRows.map(x => x.id));
+    const fresh = page.rows.filter(x => !have.has(x.id));
+    dictRows = dictRows.concat(fresh);
+    fresh.forEach(r => body.appendChild(entryRow(r)));
+    if (!dictRows.length) showDictEmpty();
+    updateDictCount();
   }
-  document.getElementById("dict-scroll").addEventListener("scroll", e => {
-    const el = e.target;
-    if (el.scrollTop + el.clientHeight > el.scrollHeight - 120) loadEntries(true);
-  });
+  document.getElementById("dict-scroll").addEventListener("scroll", loadMoreIfNeeded);
   document.querySelector("#dict-more button").addEventListener("click", () => loadEntries(true));
 
   function categorySelect(r, placeholder) {
@@ -552,18 +629,27 @@
     state.categories.forEach(c => { const o = document.createElement("option"); o.textContent = c.name; sel.appendChild(o); });
     sel.value = r.category || "";
     sel.addEventListener("change", async () => {
-      if (!sel.value) return;
+      const cat = sel.value;
+      if (!cat) { sel.value = r.category || ""; return; }
+      const request = () => api("PATCH", `/api/entries/${r.id}`, { category: cat });
+      // leaves this list: an inbox word becomes mine; in one category's list, it goes to another
+      if (dictView === "inbox" || (dictView === "mine" && dictCat && cat !== dictCat)) {
+        rowChange(r, request, dictView === "inbox" ? `「${r.phrase}」加入「${cat}」，移到我的詞庫` : `「${r.phrase}」移到「${cat}」`);
+        return;
+      }
       try {
-        await api("PATCH", `/api/entries/${r.id}`, { category: sel.value });
-        toast(dictView === "inbox" ? `「${r.phrase}」加入「${sel.value}」，移到我的詞庫` : `「${r.phrase}」移到「${sel.value}」`);
-        await refreshState();
-      } catch (e) { toast(e.message, true); }
+        await request();
+        r.category = cat;
+        toast(`「${r.phrase}」移到「${cat}」`);
+        scheduleCounts();
+      } catch (e) { sel.value = r.category || ""; toast(e.message, true); }
     });
     return sel;
   }
 
   function entryRow(r) {
     const tr = document.createElement("tr");
+    r.tr = tr;
     const tdWord = document.createElement("td"); tdWord.className = "word"; tdWord.textContent = r.phrase; tdWord.title = r.phrase;
     const tdRead = document.createElement("td");
     const code = document.createElement("code"); code.textContent = r.kind === "en" ? "英文" : r.readingDisplay; tdRead.appendChild(code);
@@ -587,16 +673,12 @@
     const btn = document.createElement("button"); btn.type = "button";
     if (dictView === "blocked") {
       btn.className = "btn small"; btn.textContent = "還原";
-      btn.addEventListener("click", async () => {
-        try { await api("PATCH", `/api/entries/${r.id}`, { blocked: false }); toast(`「${r.phrase}」會再出現在候選裡`); await refreshState(); }
-        catch (e) { toast(e.message, true); }
-      });
+      btn.addEventListener("click", () => rowChange(r,
+        () => api("PATCH", `/api/entries/${r.id}`, { blocked: false }), `「${r.phrase}」會再出現在候選裡`));
     } else {
       btn.className = "btn small danger"; btn.textContent = "刪除";
-      btn.addEventListener("click", async () => {
-        try { await api("DELETE", `/api/entries/${r.id}`); toast(`已刪除「${r.phrase}」`); await refreshState(); }
-        catch (e) { toast(e.message, true); }
-      });
+      btn.addEventListener("click", () => rowChange(r,
+        () => api("DELETE", `/api/entries/${r.id}`), `已刪除「${r.phrase}」`));
     }
     tdAct.appendChild(btn);
     tr.append(tdWord, tdRead, tdMid, tdN, tdWhen, tdAct);
