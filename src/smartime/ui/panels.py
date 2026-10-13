@@ -135,6 +135,21 @@ def _help_width(c: Canvas, s: Styles, items) -> float:
     return total - 12 if items else 0.0
 
 
+def _help_lines(c: Canvas, s: Styles, items, room: float) -> list[list]:
+    """The help row broken into lines that fit ``room``, at item boundaries.
+
+    The candidate window is capped at 420 px, and with group chips its help
+    row needs about 540: drawn on one line, _paint_help silently dropped
+    whatever did not fit — Del and Ctrl+D were never on screen in the most
+    common window, which is why Delete went unnoticed for 開新."""
+    lines: list[list] = [[]]
+    for item in items:
+        if lines[-1] and _help_width(c, s, lines[-1] + [item]) > room:
+            lines.append([])
+        lines[-1].append(item)
+    return lines if items else []
+
+
 def _paint_help(c: Canvas, s: Styles, t: Theme, x: float, y: float, items, max_x: float) -> None:
     for keys, label in items:
         kw = c.measure(keys, s.help_key)[0]
@@ -335,12 +350,14 @@ def _cand_help(p: "CandidatePanel") -> list[tuple[str, str]]:
     """
     items = [("↑↓", "移動"), ("1–9", "選")]
     items += [("→", "展開一欄"), ("←", "收合")] if p.multi else [("← →", "翻頁")]
-    if p.chips:
-        items += [("Tab", "下一類"), ("Shift+Tab", "上一類")]
     # "不要", not "忘記": Delete is how to say a candidate is wrong — it
     # forgets a learned word, and blocks a combination that is not a word.
     # 「忘記」 read as bookkeeping, and the user never found it for 開新.
     items += [("Del", "不要"), ("Ctrl+D", "加詞")]
+    if p.chips:
+        # last, so that when the row wraps (_help_lines) the Tab pair is the
+        # second line together instead of being split across two
+        items += [("Tab", "下一類"), ("Shift+Tab", "上一類")]
     return items
 # Tab walks eleven categories whose contents are nothing like each other in
 # size (「，」 next to 「ヽ(✿ﾟ▽ﾟ)ノ」). A window that resizes under the cursor on
@@ -518,7 +535,8 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
     preview_h = (len(preview) * 20 * k + 30 * k) if preview else 0
     title_h = 20 * k
     chips_h = 24 * k * len(chip_lines)
-    footer_h = 20 * k
+    help_lines = _help_lines(c, s, help_items, width - 2 * PAD_X * k)
+    footer_h = 20 * k * max(1, len(help_lines))
     height = PAD_Y * k + title_h + chips_h + 4 * k + body_h + preview_h + 8 * k + footer_h + PAD_Y * k
     out = Painted(width, height)
     if not draw:
@@ -581,7 +599,9 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
             ly += 20 * k
     fy = y + body_h + preview_h + 8 * k
     c.hline(x0, width - PAD_X * k, fy - 4 * k, t.border, 1)
-    _paint_help(c, s, t, x0, fy, help_items, width - PAD_X * k)
+    for line in help_lines:
+        _paint_help(c, s, t, x0, fy, line, width - PAD_X * k)
+        fy += 20 * k
     return out
 
 
