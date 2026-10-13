@@ -389,7 +389,7 @@ class Session(CorrectionMixin):
             v.candidate_index = self.cand.index % self.cand.page_size
             v.candidate_title = self.cand.title
             if not v.candidate_title and "學過" in v.candidate_notes:
-                v.candidate_title = "選字框裡按 Delete 可忘記「學過」的詞"
+                v.candidate_title = "「學過」的詞選錯了？對它按 Delete"
             v.candidate_panel = candidate_panel(self)
         elif self.correcting:
             v.hint = self._correction_hint()
@@ -1441,11 +1441,22 @@ class Session(CorrectionMixin):
         reading = "-".join(seg.readings) if seg.kind is Kind.ZH else ""
         phrase = seg.text if seg.kind is Kind.ZH else seg.text.lower()
         result = user.forget(phrase, reading, "zh" if seg.kind is Kind.ZH else "en")
+        if (result == "forgot" and seg.kind is Kind.ZH and len(seg.text) > 1
+                and not self.engine.lexicon.in_system(phrase, reading)):
+            # A learned combination that is not a word (開新, 的視 — pairs
+            # an old correction rule invented). Forgetting it is not what
+            # Delete means here: the user is saying "these two do not go
+            # together", and the next correction near them could invent it
+            # again. Block it, so 開 and 新 are free to pair with their other
+            # neighbours (開心) from now on.
+            user.block(phrase, reading, "zh")
+            result = "wrong"
         self.engine.lexicon.invalidate()
         self._notice = {
             "manual": f"「{seg.text}」是你加入的詞，要刪除請到設定頁",
             "forgot": f"已忘記「{seg.text}」的使用紀錄",
             "blocked": f"不再建議「{seg.text}」（可在設定頁還原）",
+            "wrong": f"「{seg.text}」不是詞，不會再湊在一起（可在設定頁還原）",
         }[result]
         # Rebuild the window without the removed/demoted entry.
         keep_index = self.cand.index if self.cand else 0

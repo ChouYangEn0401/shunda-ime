@@ -63,7 +63,7 @@
 | <kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> | 在上面那排**分類籤**之間移動（只看我的詞庫、只看學過…） |
 | <kbd>PageUp</kbd> <kbd>PageDown</kbd> | 翻頁 |
 | <kbd>Enter</kbd> | 選目前這個 |
-| <kbd>Delete</kbd> | 忘記這個學過的詞 |
+| <kbd>Delete</kbd> | **這個不對**：學過的詞就忘掉；學過但不是詞的組合（像「開新」）就封鎖，以後不會再湊在一起 |
 | <kbd>Ctrl</kbd>+<kbd>D</kbd> | 把這個候選加進我的詞庫 |
 | <kbd>Esc</kbd> | 取消 |
 

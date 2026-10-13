@@ -392,7 +392,7 @@
   const DICT_EXPLAIN = {
     inbox: "輸入法從你的選字、修正和 Tab 接續自動記下來的詞，還沒整理。給它一個分類，就會移到「我的詞庫」；用不到的直接刪掉。",
     mine: "你自己加的詞，和你分類過的詞。打字時排在最前面，候選窗標上綠色。",
-    blocked: "在候選窗按 Delete 不想再看到的詞。按「還原」就會再出現在候選裡。",
+    blocked: "在候選窗按 Delete 不想再看到的詞，和學過但不是詞的組合（像「開新」）。按「還原」就會再出現在候選裡。",
   };
   const ORIGIN = { fix: ["修正", "plan"], pick: ["選字", "later"], tab: ["接續", "predict"] };
   let dictView = "inbox";
@@ -480,7 +480,10 @@
   document.getElementById("tidy-memory").addEventListener("click", async () => {
     try {
       const r = await api("POST", "/api/memory/tidy");
-      toast(r.removed ? `整理好了：清掉 ${r.removed} 個很久沒用的學習紀錄` : "整理好了：沒有需要清掉的紀錄");
+      const done = [];
+      if (r.pairs) done.push(`${r.pairs} 個修正時湊出來、不是詞的組合（${r.examples.join("、")}${r.pairs > r.examples.length ? "…" : ""}）`);
+      if (r.removed) done.push(`${r.removed} 個很久沒用的學習紀錄`);
+      toast(done.length ? `整理好了：清掉 ${done.join("，和 ")}` : "整理好了：沒有需要清掉的紀錄");
       await refreshState();
     } catch (e) { toast(e.message, true); }
   });
@@ -864,7 +867,7 @@
       ["選字", "<kbd>→</kbd> <kbd>←</kbd>", "多欄（預設開啟）：→ 在右邊打開下一欄、游標停在同一列；← 往回走，在第一欄再按就收回成一列。關閉多欄時是翻頁", D],
       ["選字", "<kbd>PageUp</kbd> <kbd>PageDown</kbd>", "翻頁", D],
       ["選字", "<kbd>Ctrl</kbd>+<kbd>D</kbd>", "把選中的候選加入詞庫", D],
-      ["選字", "選字框裡按 <kbd>Delete</kbd>", "忘記這個詞的使用紀錄；沒學過的就不再建議", D],
+      ["選字", "選字框裡按 <kbd>Delete</kbd>", "這個不對：學過的詞忘掉使用紀錄；學過但不是詞的組合（像「開新」）和沒學過的詞就封鎖、不再建議", D],
       ["選字", "紅色的「略過的鍵」", "被當成手滑略過的鍵，選了就照原樣保留。修正模式裡游標走到它旁邊再按 <kbd>↓</kbd> 也找得到", D],
       ["修正", "<kbd>Esc</kbd>", "進入修正模式（再按一次回到打字；連按 D D 清除整段）", corr],
       ["修正", "<kbd>h</kbd> <kbd>l</kbd> / <kbd>j</kbd> <kbd>k</kbd>", "移動 / 換成下一個、上一個候選", corr],

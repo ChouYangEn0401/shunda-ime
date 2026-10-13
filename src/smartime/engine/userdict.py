@@ -402,6 +402,25 @@ class UserDict:
                 pass  # the IME is writing right now; next time
         return removed
 
+    def forget_invented_pairs(self, is_word) -> list[str]:
+        """Forget two-character pairs a correction made up that are not
+        words (``is_word(phrase, reading)`` is False). Returns them.
+
+        Before 0.8.0-alpha.8 a fixed character was remembered with *both*
+        neighbours when neither made a word; in the user's own dictionary
+        228 of 242 such pairs were not words (開新, 的視, 跟屎…), and each
+        one bends every sentence with those sounds — 開心 came out 開新.
+        alpha.8 stopped making them but left the old ones in place. Only the
+        unsorted inbox is touched: a pair the user gave a category is theirs."""
+        rows = self._con.execute(
+            "SELECT id, phrase, reading FROM entries WHERE source='learned' AND blocked=0 "
+            "AND category_id IS NULL AND origin='fix' AND kind='zh' AND length(phrase)=2").fetchall()
+        gone = [(i, p) for i, p, r in rows if not is_word(p, r)]
+        if gone:
+            self._con.executemany("DELETE FROM entries WHERE id=?", [(i,) for i, _ in gone])
+            self._load()
+        return [p for _, p in gone]
+
     def clear_learned(self) -> int:
         cur = self._con.execute("DELETE FROM entries WHERE source='learned' AND blocked=0")
         self._con.execute("UPDATE entries SET count=0 WHERE source='manual'")

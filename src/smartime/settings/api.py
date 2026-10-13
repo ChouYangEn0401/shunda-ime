@@ -362,8 +362,9 @@ class SettingsApp:
         return {"removed": self.user.clear_learned()}
 
     def tidy_memory(self) -> dict:
+        pairs = self.user.forget_invented_pairs(self.lexicon.in_system)
         removed = self.user.tidy(compact=True)
-        return {"removed": removed, "stats": self.user.stats()}
+        return {"removed": removed, "pairs": len(pairs), "examples": pairs[:5], "stats": self.user.stats()}
 
     # ---------------------------------------------------------- export / import
     def export_bundle(self) -> bytes:

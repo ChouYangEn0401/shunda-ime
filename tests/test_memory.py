@@ -66,6 +66,49 @@ def test_forget_learned_then_block(user):
     assert user.stats()["blocked"] == 1
 
 
+def test_delete_on_a_learned_non_word_marks_the_pairing_wrong(mem_session, user):
+    # The user's dictionary had 開新 from an old correction rule; 開心 came
+    # out 開新 every time and there was no way to say "these two are wrong".
+    user.learn("開新", "ㄎㄞ-ㄒㄧㄣ", origin="fix")
+    user.learn("開新", "ㄎㄞ-ㄒㄧㄣ", origin="fix")
+    mem_session.engine.lexicon.invalidate()
+    _, v = run(mem_session, "d9 vup ")
+    assert v.composition == "開新"
+    _, v = run(mem_session, "{DOWN}")
+    assert v.candidates[0] == "開新"
+    _, v = run(mem_session, "{DEL}")
+    assert v.composition == "開心"
+    assert "不是詞" in v.notice
+    assert user.is_blocked("開新", "ㄎㄞ-ㄒㄧㄣ")
+    # a later correction cannot teach it back
+    user.learn("開新", "ㄎㄞ-ㄒㄧㄣ", origin="fix")
+    assert user.is_blocked("開新", "ㄎㄞ-ㄒㄧㄣ")
+    s = Session(mem_session.engine)  # start over: 開 and 新 pair with their other neighbours
+    _, v = run(s, "cp3d9 vup ")
+    assert v.composition == "很開心"
+
+
+def test_delete_on_a_learned_real_word_only_forgets_it(mem_session, user):
+    # 新的 is a word: Delete takes back the learning, it does not ban the word
+    user.learn("新的", "ㄒㄧㄣ-ㄉㄜ˙", origin="fix")
+    mem_session.engine.lexicon.invalidate()
+    run(mem_session, "vup 2k7{DOWN}")
+    _, v = run(mem_session, "{DEL}")
+    assert "已忘記" in v.notice
+    assert not user.is_blocked("新的", "ㄒㄧㄣ-ㄉㄜ˙")
+
+
+def test_tidy_drops_invented_correction_pairs(user, mem_engine):
+    user.learn("開新", "ㄎㄞ-ㄒㄧㄣ", origin="fix")  # not a word: dropped
+    user.learn("新的", "ㄒㄧㄣ-ㄉㄜ˙", origin="fix")  # a word: kept
+    user.learn("跟屎", "ㄍㄣ-ㄕˇ", origin="fix")
+    user.update(next(e["id"] for e in user.list() if e["phrase"] == "跟屎"), category="常用詞")  # sorted: kept
+    user.learn("很心", "ㄏㄣˇ-ㄒㄧㄣ", origin="pick")  # not from a fix: kept
+    gone = user.forget_invented_pairs(mem_engine.lexicon.in_system)
+    assert gone == ["開新"]
+    assert {e["phrase"] for e in user.list()} == {"新的", "跟屎", "很心"}
+
+
 def test_forget_never_deletes_my_own_entry(user):
     user.add("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ", "zh", "朋友")
     assert user.forget("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ") == "manual"

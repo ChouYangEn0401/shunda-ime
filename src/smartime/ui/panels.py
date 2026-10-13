@@ -337,7 +337,10 @@ def _cand_help(p: "CandidatePanel") -> list[tuple[str, str]]:
     items += [("→", "展開一欄"), ("←", "收合")] if p.multi else [("← →", "翻頁")]
     if p.chips:
         items += [("Tab", "下一類"), ("Shift+Tab", "上一類")]
-    items += [("Del", "忘記"), ("Ctrl+D", "加詞")]
+    # "不要", not "忘記": Delete is how to say a candidate is wrong — it
+    # forgets a learned word, and blocks a combination that is not a word.
+    # 「忘記」 read as bookkeeping, and the user never found it for 開新.
+    items += [("Del", "不要"), ("Ctrl+D", "加詞")]
     return items
 # Tab walks eleven categories whose contents are nothing like each other in
 # size (「，」 next to 「ヽ(✿ﾟ▽ﾟ)ノ」). A window that resizes under the cursor on
