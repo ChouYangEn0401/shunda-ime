@@ -82,7 +82,8 @@ def test_a_dropped_key_stays_recoverable_after_the_cursor_goes_back_to_it(sessio
     run(session, "{ESC}{HOME}l")  # correction mode, onto 更 — right after the drop
     run(session, "{DOWN}")
     drops = [c for c in session.cand.shown if c.group == "略過的鍵"]
-    assert [c.text for c in drops] == ["e"]
+    # the key as typed first, then its zhuyin symbol (ㄍ) as another way back
+    assert [c.text for c in drops] == ["e", "ㄍ"]
 
     session.cand.index = session.cand.shown.index(drops[0])
     _, v = run(session, "{ENTER}")
@@ -99,7 +100,7 @@ def test_a_drop_far_from_the_cursor_is_not_offered(session):
     assert not [c for c in session.cand.shown if c.group == "略過的鍵"]
     run(session, "{ESC}{HOME}l")  # back onto 更, beside the drop: offered again
     run(session, "{DOWN}")
-    assert [c.text for c in session.cand.shown if c.group == "略過的鍵"] == ["e"]
+    assert [c.text for c in session.cand.shown if c.group == "略過的鍵"] == ["e", "ㄍ"]
 
 
 def test_x_deletes_the_character_under_the_cursor(session):
