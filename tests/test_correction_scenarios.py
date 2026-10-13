@@ -207,3 +207,39 @@ def test_a_tone_key_on_something_that_is_not_zhuyin_says_so(session):
     _, v = run(session, "4")
     assert session.correcting and v.composition == "mvp "
     assert "改不了聲調" in v.notice
+
+
+# ---------------------------------------------------------------- 2026-10-13 round
+def test_a_dropped_zhuyin_key_can_become_the_symbol_or_a_character(session):
+    """Reported: 「碰 掐拉 ㄣ拉 恰拉」 — p was ㄣ on purpose, typed without a
+    tone, so it was dropped, and the only way back was the letter p."""
+    _, v = run(session, "x8 px8 ")
+    assert v.composition == "拉拉"
+    _, v = run(session, "{DOWN}{S-TAB}")  # the 略過的鍵 group
+    assert v.candidates[:3] == ["p", "ㄣ", "恩"]
+    _, v = run(session, "2")
+    assert v.composition == "拉ㄣ拉"
+
+
+def test_punctuation_does_not_send_a_sentence_whose_last_key_was_just_dropped(session):
+    """Reported: an extra key, then a full stop — the key vanished and the
+    sentence was sent before there was any chance to see it."""
+    out, v = run(session, "x8 x8 p{C-,}")
+    assert out == "" and v.composition == "拉拉，"
+    assert "略過了「p」" in v.notice
+    out, v = run(session, "{ENTER}")
+    assert out == "拉拉，"
+    # a slip in the middle of the sentence was on screen long enough
+    out, _ = run(session, "ji3ee/4dj94{C-,}")
+    assert out == "我更快"
+
+
+def test_r_then_esc_gives_the_character_back(session):
+    """r deleted the character at once and Esc left it deleted, so the mode
+    looked broken (「按 R 直接壞掉直接離開 ESC 模式」)."""
+    _, v = run(session, "ji3k27{ESC}hr")
+    assert not v.correcting and "Esc 取消" in v.notice
+    _, v = run(session, "su")
+    assert "重打中" in v.notice
+    _, v = run(session, "{ESC}")
+    assert v.correcting and v.composition == "我的" and v.cursor == 0

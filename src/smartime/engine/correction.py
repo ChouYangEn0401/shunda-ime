@@ -54,6 +54,7 @@ class CorrectionMixin:
         self._cycle: _Cycle | None = None
         self._clear_armed = False  # D pressed once: the next D clears everything
         self._retype_at: int | None = None  # r: typing one replacement character here
+        self._retype_saved: tuple | None = None  # (keys, pins, text) before r, for Esc
         self._redecide_span = 0  # R pressed in a row: how many extra units it covers
 
     def enter_correction(self) -> None:
@@ -294,6 +295,7 @@ class CorrectionMixin:
             return
         self._snapshot()
         a = self._dropped_before(t[0])
+        self._retype_saved = (list(self.keys), list(self.pins), t[2])
         self._delete_keys(a, t[1])
         self.cursor = a
         self.exit_correction()
@@ -303,7 +305,27 @@ class CorrectionMixin:
             self._redecode()
             self.cursor = a
         self._retype_at = a
-        self._notice = "重打這個字：打完這個字自動回到修正模式"
+        self._notice = f"重打「{t[2]}」：打新的注音，打完自動回到修正模式 · Esc 取消"
+
+    def _cancel_retype(self) -> bool:
+        """Esc while retyping: put the character back and return to
+        correction mode. r used to delete it at once, and Esc then left it
+        deleted — it looked like the mode had broken and thrown the text
+        away (reported: 「按 R 直接壞掉直接離開 ESC 模式」)."""
+        saved, a = self._retype_saved, self._retype_at
+        self._retype_saved = None
+        if saved is None or a is None:
+            return False
+        self._retype_at = None
+        keys, pins, text = saved
+        self.keys[:] = keys
+        self.pins = list(pins)
+        self._redecode()
+        self.enter_correction()
+        self.cursor = a
+        self._snap_to_unit()
+        self._notice = f"取消重打，「{text}」留著"
+        return True
 
     def _retype_done(self) -> None:
         """After a key typed in r mode: back to correction mode once the

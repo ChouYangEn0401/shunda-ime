@@ -373,6 +373,9 @@ class Session(CorrectionMixin):
         )
         self._commit = ""
         v.notice, self._notice = self._notice, ""
+        if not v.notice and self._retype_at is not None and not self.correcting:
+            # r is a mode of its own: say so on every key until it ends
+            v.notice = "重打中：打完這個字自動回到修正模式 · Esc 取消"
         if self.correcting:
             v.composition, v.cursor = self._correction_view()
             v.correcting, v.layer = True, self.layer
@@ -707,7 +710,9 @@ class Session(CorrectionMixin):
         if vk == VK_RETURN:
             self.commit_all()
         elif vk == VK_ESCAPE:
-            if self.cfg.correction_mode:
+            if self._retype_at is not None and self._cancel_retype():
+                pass  # r then Esc: the character comes back
+            elif self.cfg.correction_mode:
                 self.enter_correction()  # a second Esc (in correction mode) clears
             else:
                 self._reset_buffer()
@@ -808,6 +813,18 @@ class Session(CorrectionMixin):
         if self.cfg.commit_on_clause_punct and self.cursor == len(self.keys):
             last = self.decoding.segments[-1] if self.decoding.segments else None
             if last is not None and last.kind is Kind.PUNCT and last.text in CLAUSE_PUNCT:
+                held = self._dropped_before(last.start)
+                if held < last.start:
+                    # The key right before the mark was just thrown away as a
+                    # slip, and sending now would make that final: the mark
+                    # comes a moment after the key, with no time to read the
+                    # 略過 hint (reported: 「多打 p 然後按標點符號，有些字就會
+                    # 直接消失…我也沒辦法去修正什麼了」). Hold the sentence once
+                    # and say why; the next mark or Enter sends it. A slip in
+                    # the middle of the sentence was on screen long enough.
+                    raw = "".join(k.char for k in self.keys[held:last.start])
+                    self._notice = f"略過了「{raw}」，先不送出 · ↓ 救回 · Enter 送出"
+                    return
                 # The sentence is settled, so send it — but keep the mark
                 # itself in the composition, so ↓ can still swap its width
                 # (，<->, 。<->.). Committing the mark too made it the one
@@ -1030,6 +1047,38 @@ class Session(CorrectionMixin):
             raw = "".join(k.char for k in self.keys[seg.start:seg.end])
             pin = Segment(seg.start, seg.end, raw, Kind.LITERAL, -10.0, pinned=True)
             out.append(Candidate(raw, pin, "保留這個鍵", group="略過的鍵"))
+            out += self._dropped_as_zhuyin(seg.start, seg.end)
+        return out
+
+    def _dropped_as_zhuyin(self, a: int, b: int) -> list[Candidate]:
+        """A dropped zhuyin key meant as itself: the symbol (ㄣ) and the
+        characters of that sound (恩 摁 …).
+
+        Reported: 「碰 掐拉 ㄣ拉」 — p was ㄣ on purpose (a chord sung out
+        loud), typed without a tone, and was dropped; the only way back was
+        the raw letter p."""
+        if self.scheme != "zhuyin":
+            return []
+        layout = self.engine.layout
+        symbols = [layout.symbol(k.char) for k in self.keys[a:b]]
+        if not symbols or None in symbols:
+            return []
+        body = bopomofo.compose_strict(symbols)
+        if body is None:
+            return []
+        out = [Candidate(body, Segment(a, b, body, Kind.LITERAL, -10.0, pinned=True), "注音符號", group="略過的鍵")]
+        valid = self.engine.lexicon.valid_syllables
+        seen = {body}  # the symbol itself is in the lexicon too
+        for mark in ("", "ˊ", "ˇ", "ˋ", "˙"):
+            syl = body + mark
+            if syl not in valid:
+                continue
+            # the most common character of each tone, once (嗯 is ㄣ and ㄣ˙)
+            text, score = next(((t, s) for t, s in self.engine.lexicon.phrases(syl) if t not in seen), ("", 0.0))
+            if text:
+                seen.add(text)
+                pin = Segment(a, b, text, Kind.ZH, score, (syl,), (a, b), pinned=True)
+                out.append(Candidate(text, pin, syl, group="略過的鍵"))
         return out
 
     def _candidate_items(self) -> list[Candidate]:
