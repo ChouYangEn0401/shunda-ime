@@ -207,8 +207,15 @@ def decode_panel(session) -> DecodePanel:
                 if scheme == "zhuyin":
                     symbols = [layout.symbol(c) or "" for c in typed[:-1]]
                     tone = layout.tone(typed[-1]) if typed else None
-                    reordered = tone is not None and bopomofo.compose_strict(symbols, tone) != syl
-                    abbreviated = bool(typed) and tone is None  # no tone key: 瘋狂模式 guessed the rest
+                    if tone is not None:
+                        reordered = bopomofo.compose_strict(symbols, tone) != syl
+                    elif session.engine.decoder.crazy and not any(layout.tone(c) is not None for c in typed):
+                        abbreviated = bool(typed)  # no tone key: 瘋狂模式 guessed the rest
+                    else:
+                        # the tone typed early (248) or left out (clm/4): the
+                        # IME read it for you — amber ↺ like a reorder, not
+                        # the "…" of an abbreviation
+                        reordered = bool(typed)
                 columns.append(Column("".join(_display_key(c) for c in typed), syl, seg.text[i], "zh", w, a, b,
                                       reordered=reordered, abbreviated=abbreviated, chosen=seg.pinned,
                                       memory=memory))

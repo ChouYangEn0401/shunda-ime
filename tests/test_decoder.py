@@ -48,6 +48,34 @@ def test_stray_key_between_chinese_is_dropped(decoder):
     assert any(s.kind is Kind.DROP for s in d.segments)
 
 
+@pytest.mark.parametrize(
+    "keys, text",
+    [
+        # reported 2026-10-13: each of these stayed raw keys, and nothing in
+        # correction mode could turn them back
+        ("248", "大"),  # the tone key one symbol early (ㄉˋㄚ)
+        ("ji3248", "我大"),
+        ("cl31j4clm/4", "好不好用"),  # 好 typed without its tone (was 好不cl用)
+        ("ji3rupwu0 ", "我今天"),  # the first-tone space left out
+        ("cc96", "還"),  # a double press at the very start (was cc96)
+        ("gjpp4283", "順打"),  # a double press inside a syllable
+        # ... and what they must not swallow
+        ("cl3dj4i ", "好酷喔"),  # dj4 is 酷 already: not 擴 with an early tone
+        ("mvp ", "mvp "),  # a lone ㄩ is no syllable missing its tone
+        ("ji3see book ", "我see book "),
+    ],
+)
+def test_common_slips_are_read_as_meant(decoder, keys, text):
+    assert decode(decoder, keys).text == text
+
+
+def test_a_double_press_at_a_syllable_start_is_shown_as_dropped(decoder):
+    # the IME must say what it threw away: 我e更快 keeps its 略過 e
+    d = decode(decoder, "ji3cc96")
+    assert d.text == "我還"
+    assert [s.start for s in d.segments if s.kind is Kind.DROP] == [3]
+
+
 def test_zh_alternatives_for_english_token(decoder):
     alts = decoder.zh_alternatives([Key(c) for c in "i "], 0)
     assert "喔" in [s.text for s in alts]

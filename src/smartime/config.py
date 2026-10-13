@@ -95,7 +95,7 @@ class Config:
     symbols_extra_enabled: bool = False
 
     # Smart correction
-    reorder_tolerance: bool = True  # ㄛㄨˇ typed for ㄨㄛˇ still gives 我
+    reorder_tolerance: bool = True  # 注音打錯容錯: order (ㄛㄨˇ 我), early tone (248 大), missing tone (clm/4 好用)
     drop_stray_keys: str = "standard"  # "off" | "conservative" | "standard"
     single_letter_context: bool = True  # lone i / o are zhuyin unless English context
 

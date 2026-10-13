@@ -84,9 +84,23 @@ class Weights:
     # number 283. Numbers must not be cheaper than real Chinese syllables.
     num: float = -5.5
     reorder: float = -1.0  # syllable keys typed out of canonical order
+    # The tone key typed one symbol too early: 2 4 8 (ㄉˋㄚ) for 2 8 4 大.
+    tone_early: float = -1.5
+    # ... when what was typed up to the tone is a syllable already (dj4 酷,
+    # 2u4 地): reading on (dj4i as 擴) must not beat 酷喔, so it costs more
+    tone_early_valid: float = -4.0
+    # The tone key left out between two syllables (cl m/4: ㄏㄠ ㄩㄥˋ for 好用);
+    # the next key starts a syllable of its own, so the boundary is plain.
+    # Which tone it was is the lexicon's guess, hence dearer than a reorder.
+    tone_missing: float = -2.5
+    tone1_missing: float = -2.0  # the first-tone space left out (rupwu0 今天)
     # A stray lowercase/layout key typed by accident (fast typing, or left
     # behind by Backspace) is dropped rather than shown as a lone letter.
     drop: float = -6.5  # must stay below the rarest real syllable (ㄟ -5.9 + space)
+    # The same key twice in a row (cc96 for c96: a bounce or a double press).
+    # Zhuyin never needs that — a syllable cannot hold one symbol twice and a
+    # tone key sits between syllables — so it is the likeliest slip of all.
+    drop_double: float = -1.5
     punct_preferred: float = -1.0  # the configured style for Shift+symbol
     punct_alternative: float = -4.0  # the other style (still in the candidates)
     punct_layout_key: float = -6.0  # , . / ; - typed as literal punctuation
@@ -502,14 +516,24 @@ class Decoder:
         A syllable is 1-3 symbol keys followed by a tone key. Keys typed in
         canonical order cost nothing; any other order of the same symbols
         (ㄜㄉ˙ for ㄉㄜ˙, very common when typing fast) costs ``w.reorder``.
+
+        With the tolerance on, two more slips are read as syllables: the tone
+        key typed before the last symbol (ㄉˋㄚ), and the tone key left out
+        where the next key plainly starts another syllable (ㄏㄠ|ㄩㄥˋ). Both
+        were left as raw keys before — 248 stayed "248" and clm/4 came out
+        「cl用」 — and nothing in correction mode could turn them back.
         """
         n = len(keys)
         table: list[list[tuple[int, str, float]]] = [[] for _ in range(n)]
         layout = self.layout
         valid = self.lex.valid_syllables
+        tolerant = self.reorder_tolerance
+        w = self.w
+        doubles = self.drop_enabled
         for i in range(n):
             symbols: list[str] = []
-            for j in range(i, min(n, i + 4)):
+            extra = 0.0  # a double press absorbed inside this syllable
+            for j in range(i, min(n, i + 5)):
                 k = keys[j]
                 if k.numpad:
                     break
@@ -519,14 +543,71 @@ class Decoder:
                         syl = bopomofo.canonical(symbols, tone)
                         if syl is not None and syl in valid:
                             exact = bopomofo.compose_strict(symbols, tone) == syl
-                            if exact or self.reorder_tolerance:
-                                table[i].append((j + 1, syl, 0.0 if exact else self.w.reorder))
+                            if exact or tolerant:
+                                table[i].append((j + 1, syl, extra + (0.0 if exact else w.reorder)))
+                        # not the space: that one also separates words
+                        if tolerant and tone:
+                            alone = syl is not None and syl in valid
+                            self._early_tone(keys, j, symbols, tone, table[i],
+                                             extra + (w.tone_early_valid - w.tone_early if alone else 0.0))
                     break
                 sym = layout.symbol(k.char)
                 if sym is None:
                     break
+                if j > i + 1 and keys[j - 1].char == k.char and k.char in _LOWER and doubles and not extra:
+                    # the same key twice inside a syllable (gjpp4 順): a DROP
+                    # segment cannot sit inside a syllable, so absorb it here.
+                    # Not at the syllable's first key: there (ee/4) an ordinary
+                    # DROP before the syllable does it, and stays visible as 略過.
+                    extra = w.drop_double
+                    continue
+                if len(symbols) == 3:
+                    break
                 symbols.append(sym)
+                # the same key again is a double press (drop_double), not a
+                # syllable boundary whose tone was left out: 1jj6 is 不, not 不無
+                # Nor from a syllable that starts on a punctuation-position key
+                # (; / , . - are ㄤㄥㄝㄡㄦ): ;;th is the 片語 trigger, not ㄤ ㄤ.
+                if tolerant and j + 1 < n and keys[j + 1].char != k.char and keys[i].char.isalnum():
+                    self._missing_tone(keys[j + 1], j + 1, symbols, table[i], extra)
         return table
+
+    def _early_tone(self, keys: Sequence[Key], j: int, symbols: list[str], tone: str, out: list,
+                    extra: float = 0.0) -> None:
+        """``keys[j]`` is a tone typed before the syllable's last symbol(s):
+        add the syllable that ends after those symbols (in typed order only)."""
+        valid = self.lex.valid_syllables
+        more = list(symbols)
+        for m in range(j + 1, min(len(keys), j + 4 - len(symbols))):
+            k = keys[m]
+            sym = None if k.numpad else self.layout.symbol(k.char)
+            if sym is None:
+                return
+            more.append(sym)
+            syl = bopomofo.compose_strict(more, tone)
+            if syl is None:
+                return
+            if syl in valid:
+                out.append((m + 1, syl, extra + self.w.tone_early))
+
+    def _missing_tone(self, nxt: Key, end: int, symbols: list[str], out: list, extra: float = 0.0) -> None:
+        """``symbols`` (typed in order) end right before ``nxt``, a symbol key
+        that cannot continue them: a syllable whose tone key was left out.
+        Every tone that makes a real syllable is offered; the phrase decides."""
+        sym = None if nxt.numpad else self.layout.symbol(nxt.char)
+        # two symbols at least: a lone ㄔ ㄜ ㄩ read as 吃 額 於 made almost
+        # any letter a character (mvp -> 於vp, th -> 吃h)
+        if sym is None or len(symbols) < 2 or bopomofo.compose_strict(symbols) is None:
+            return
+        if bopomofo.compose_strict(symbols + [sym]) is not None:
+            return  # it could be the same syllable going on
+        valid = self.lex.valid_syllables
+        body = "".join(symbols)
+        w = self.w
+        for mark, cost in (("", w.tone1_missing), ("ˊ", w.tone_missing), ("ˇ", w.tone_missing),
+                           ("ˋ", w.tone_missing), ("˙", w.tone_missing)):
+            if body + mark in valid:
+                out.append((end, body + mark, extra + cost))
 
     def _edges_from(
         self, keys: Sequence[Key], i: int, limit: int, syllables: list,
@@ -602,7 +683,9 @@ class Decoder:
 
         # --- A stray key typed by accident produces nothing.
         if zhuyin and self.drop_enabled and ch in self.droppable and not k.numpad:
-            yield Segment(i, i + 1, "", Kind.DROP, w.drop)
+            # letters only: ;; :: .. -- typed twice mean something (片語, 符號)
+            double = ch in _LOWER and i + 1 < n and keys[i + 1].char == ch and not keys[i + 1].numpad
+            yield Segment(i, i + 1, "", Kind.DROP, w.drop_double if double else w.drop)
 
         # --- Unfinished syllable / code at the end of the buffer (shown raw + hint).
         if not zhuyin and limit == n:
