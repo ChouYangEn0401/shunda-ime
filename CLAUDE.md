@@ -49,6 +49,11 @@ Artifact(file_path="docs/index.html", root="docs",
    （`app.js` 的 `renderShortcuts`），還有面板自己的說明列（`ui/panels.py` 的 `*_HELP`）
 3. **首頁 Artifact**：重跑 `tools\make_docs_images.py`，更新 `docs/index.html` 的說明與
    圖說，再照 §1 重新發佈
+4. **首頁的版本籤**（`docs/index.html` 右上角 `<details class="ver">`）：手寫的版本清單。
+   每次 `set_version.py` 改了版號，就把右上角的版號、清單最上面「目前」那一筆一起改，
+   舊的那一筆照它的實際狀態標（測試版／候選版／正式版／未發佈／只有標籤）；使用者在
+   GitHub 發了 Release 之後，把那一版改成「正式版」並加下載連結。測試版都收在
+   「alpha.1 – alpha.N」那一列裡
 
 做法：commit 前問自己「這個改動有沒有讓哪一句說明變成錯的？」，用 grep 找舊名詞
 （例：改名、改按鍵、改版面）。使用者曾經發現說明還停在舊印象（「黃框」、「← → 在
