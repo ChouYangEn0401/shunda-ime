@@ -67,6 +67,15 @@
 - 使用者選過的候選會成為 **pin**（固定的邊），解碼時強制經過，其他邊不得跨越它。
 - **雜訊通道（Phase 4）**：同一音節內任意順序的按鍵都重排成標準順序（`bopomofo.canonical`，結果唯一），
   非標準順序收 `Weights.reorder` 成本。多按的雜鍵用 `DROP` 邊處理；少按/相鄰鍵為下一步，加在同一個音節表上。
+- 音節表（`_syllable_table`）另外收三種打錯，都由「注音打錯容錯」開關（`reorder_tolerance`）控制：
+  - **聲調打早**（`_early_tone`，`248` → ㄉㄚˋ）：`Weights.tone_early`；打到聲調為止本身已是音節時（`dj4` 酷）
+    用更貴的 `tone_early_valid`，否則「好酷喔」會讀成「好擴」
+  - **漏聲調**（`_missing_tone`，`clm/4` → 好用）：照順序的注音後面接著明顯是另一個音節開頭的注音鍵，就試每個聲調
+    （`tone_missing`，一聲空白 `tone1_missing`）。限制：至少兩個注音（單獨的 ㄔ ㄜ ㄩ 會把任何字母讀成字）、
+    開頭不是 `; / , . -` 位置的鍵（`;;` 片語）、下一鍵不是同一鍵（那是按兩下）
+  - **同一字母鍵按兩下**（`cc96`、`gjpp4`）：`Weights.drop_double`，遠比一般雜鍵便宜——注音裡同一個鍵不會連續出現。
+    在音節開頭用看得到的 `DROP`，在音節中間由音節吸收（`DROP` 邊放不進音節裡）
+  - 成效用 `python -m smartime.devtools.typo_eval` 量：600 句文件各做一種打錯，與正確打法的結果比
 - `decode(allow_english=False)` = 純中文模式：不產生 `EN` 邊，上排數字鍵只當注音（數字只來自數字鍵盤）。
 - `zh_alternatives()` 列出某位置起的所有中文讀法，供候選窗做「英文 → 中文」的跨類別換字。
 - 標點：`config.halfwidth_symbols` 中的符號鍵以半形為首選，其餘全形；`PUNCT_VARIANTS` 是候選窗的相關符號。
@@ -108,7 +117,8 @@
 ### 2.3 我的詞庫與學習（`userdict.py`）
 
 - 一個 SQLite 檔 `%APPDATA%\SmartIME\user.db`（WAL）：`entries(phrase, reading, kind, category, source, count, blocked, origin …)`，
-  `UNIQUE(phrase, reading)`；`snippets`（片語）。schema 2（`origin`）由舊檔自動升級。
+  `UNIQUE(phrase, reading)`；`snippets`（片語）。schema 2（`origin`）、schema 3（`snippets.category`，設定頁整理片語用，
+  不影響 `;;` 清單）由舊檔自動升級。
 - **只從明確的選擇學習**：候選窗選字、Tab 接受、單字選出新詞、修正模式最後停下的字。解碼器猜的、使用者沒動的字不學，
   所以猜錯不會自我強化（使用者對 Windows 輸入法的主要抱怨）。
 - **修正記成詞**（`Session._learn_choice`）：在中文句子裡只換掉一個字＝修正，`origin=fix`。左／右鄰字組成的兩字詞

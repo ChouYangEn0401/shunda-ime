@@ -297,7 +297,7 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
         <p class="eyebrow">開發中 · 0.8.0</p>
         <ul class="ver-list">
           <li><span class="v-name">alpha.10<span class="v-date">2026-10-13</span></span>
-            <span class="v-body"><span class="st st-current">測試版・目前</span><span class="v-note">繼續修：修正模式要更好用、片語多了要能管理、詞庫刪除後不跳回頂端</span></span></li>
+            <span class="v-body"><span class="st st-current">測試版・目前</span><span class="v-note">打錯更多種也認得（聲調打早、漏聲調、按兩下）；略過的鍵救得成注音符號；片語多了也管得動</span></span></li>
           <li><span class="v-name">rc.1<span class="v-date">2026-10-13</span></span>
             <span class="v-body"><span class="st st-alpha">候選版</span><span class="v-note">第一個候選版，只在本機建置。試用後還有要修的，回到 alpha 繼續。選字框的 Delete 能把湊錯的組合（開新）標成錯的</span></span></li>
           <li class="alphas"><details>
@@ -433,8 +433,8 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
 
   <div class="grid">
     <div class="cell"><b>不想打字，用說的</b><span>按住右 <kbd>Ctrl</kbd> 說話，放開就打在游標位置。不用學新的打字方式，動動嘴就好——而且聲音不會離開這台電腦。</span></div>
-    <div class="cell" data-accent="fix"><b>打反了也認得</b><span>同一個字的注音鍵順序顛倒照樣出字（<code>k27</code> → 的、<code>8a3</code> → 碼），提示會顯示正確順序。</span></div>
-    <div class="cell" data-accent="drop"><b>多按的鍵會被略過</b><span>快打時蹭到的單一字母不會變成亂碼，提示框會說「略過 e」，按 <kbd>↓</kbd> 隨時救回來。</span></div>
+    <div class="cell" data-accent="fix"><b>打反了、聲調打早或漏了也認得</b><span>注音鍵順序顛倒（<code>k27</code> → 的）、聲調打早（<code>248</code> → 大）、忘了打聲調（<code>clm/4</code> → 好用）照樣出字，解碼面板會標出哪裡是輸入法替你補的。</span></div>
+    <div class="cell" data-accent="drop"><b>多按的鍵會被略過</b><span>快打時蹭到的鍵、同一鍵按兩下都不會變成亂碼，提示框會說「略過 e」，按 <kbd>↓</kbd> 隨時救回來——要原樣的鍵、注音符號或這個音的字都可以。</span></div>
     <div class="cell" data-accent="memory"><b>會記住你的用詞</b><span>只從你明確的選擇學習。改錯字時連同前後文記成「詞」，下次同一句話就對了。</span></div>
     <div class="cell" data-accent="memory"><b>學錯了刪得掉</b><span>選字框停在那個詞上按 <kbd>Delete</kbd>：學過的詞忘掉，湊錯的組合（像「開新」）以後不會再湊在一起。也可以到設定頁的「自動收集」整批整理。</span></div>
     <div class="cell"><b>注音、拼音、倉頡共用一份詞庫</b><span>三種打法學到的東西互通，中英自動模式一次混用一種。</span></div>
