@@ -453,18 +453,39 @@
           <h3>新增片語</h3>
           <div class="row"><div class="full">
             <form class="snipform" id="snip-form" autocomplete="off">
-              <input type="text" id="snip-title" placeholder="標題（可省略），例如：我的地址" aria-label="標題">
-              <input type="text" id="snip-key" placeholder="關鍵字，例如：addr" aria-label="關鍵字">
+              <input type="text" id="snip-title" placeholder="標題（可省略），例如：我的地址" aria-label="標題" maxlength="40">
+              <input type="text" id="snip-key" placeholder="關鍵字，例如：addr" aria-label="關鍵字" maxlength="20">
+              <input type="text" id="snip-cat" placeholder="分類（可省略）" aria-label="分類" list="snip-cat-list" maxlength="20">
               <textarea id="snip-body" rows="3" placeholder="內容（可以多行）" aria-label="內容"></textarea>
+              <p class="note snip-dupnote" id="snip-dupnote" hidden></p>
               <div class="snip-edit-acts"><button class="btn primary" type="submit">加入</button></div>
             </form>
-            <p class="note" style="margin-bottom:0">關鍵字用英文字母最快：打 <code>;;addr</code> 就只剩下關鍵字是 addr 開頭的片語。沒有關鍵字也可以，從清單選。</p>
+            <datalist id="snip-cat-list"></datalist>
+            <p class="note" style="margin-bottom:0">關鍵字用英文字母最快：打 <code>;;addr</code> 就只剩下關鍵字是 addr 開頭的片語。沒有關鍵字也可以，從清單選。分類只用來在這頁整理（例如「客服」「地址」），不影響打字。</p>
           </div></div>
         </div>
 
         <div class="group">
           <h3>我的片語 <span class="note" style="letter-spacing:0" id="snip-count"></span></h3>
-          <div class="row"><div class="full"><div class="snip-list" id="snip-list"></div></div></div>
+          <div class="row"><div class="full">
+            <div class="dict-tools">
+              <div class="chips" id="snip-cats" role="group" aria-label="分類" hidden></div>
+              <div class="dict-tools-right">
+                <div class="seg small" id="snip-sort" role="group" aria-label="排序">
+                  <button data-sort="order" title=";; 清單的順序">自訂順序</button><button data-sort="recent">最近用過</button><button data-sort="count">最常用</button><button data-sort="keyword">關鍵字</button>
+                </div>
+                <input type="search" id="snip-search" placeholder="搜尋關鍵字、標題或內容" aria-label="搜尋片語">
+              </div>
+            </div>
+            <div class="snip-bulk" id="snip-bulk" hidden></div>
+            <div class="dict-table snip-table" id="snip-scroll">
+              <table>
+                <thead><tr><th><input type="checkbox" id="snip-all" aria-label="全選看得到的片語"></th><th>關鍵字</th><th>片語</th><th>分類</th><th>用過</th><th></th></tr></thead>
+                <tbody id="snip-body-list"></tbody>
+              </table>
+            </div>
+            <p class="note" id="snip-foot" style="margin-bottom:0"></p>
+          </div></div>
         </div>
 
         <div class="group">

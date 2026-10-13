@@ -33,8 +33,32 @@ def sample_data(app) -> None:
     u.add("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ", "zh", "朋友")
     u.add("順打輸入法", "ㄕㄨㄣˋ-ㄉㄚˇ-ㄕㄨ-ㄖㄨˋ-ㄈㄚˇ", "zh", "專案術語")
     u.block("鬥號", "ㄉㄡˋ-ㄏㄠˋ")
-    u.add_snippet("範例市範例區示範路 100 號\n（請寄到這裡，謝謝）", "我的地址", "addr")
-    u.add_snippet("感謝您的來信！我們已經收到，會在兩個工作天內回覆您。", "", "thanks")
+    u.add_snippet("範例市範例區示範路 100 號\n（請寄到這裡，謝謝）", "我的地址", "addr", "地址")
+    u.add_snippet("感謝您的來信！我們已經收到，會在兩個工作天內回覆您。", "", "thanks", "客服")
+    # enough to show how the list holds up when it gets long (分類, usage,
+    # a keyword two snippets share)
+    more = [
+        ("公司地址", "addr", "地址", "範例市信義區示範大道 5 號 12 樓\n範例科技股份有限公司"),
+        ("退貨流程", "return", "客服", "您好，退貨請在收到商品 7 天內申請：\n1. 登入會員中心\n2. 選擇訂單並按「申請退貨」"),
+        ("出貨時間", "ship", "客服", "訂單成立後 1–2 個工作天出貨，出貨後會再寄通知信給您。"),
+        ("營業時間", "hours", "客服", "客服時間：週一至週五 9:00–18:00（國定假日休息）。"),
+        ("", "sorry", "客服", "很抱歉造成您的不便，我們會儘快為您處理。"),
+        ("Email 簽名", "sig", "簽名", "陳怡君\n產品設計部 · 範例科技\n(02) 1234-5678"),
+        ("英文簽名", "sigen", "簽名", "Best regards,\nYi-Chun Chen"),
+        ("", "meet", "工作", "我們約下週二下午兩點開會可以嗎？會議連結稍後寄給您。"),
+        ("週報開頭", "weekly", "工作", "本週進度：\n- 完成：\n- 進行中：\n- 卡住的事："),
+        ("", "ok", "", "好的，沒問題！"),
+        ("", "brb", "", "我先離開一下，馬上回來。"),
+        ("匯款帳號", "bank", "", "範例銀行（代碼 000）帳號 0000-000-000000"),
+    ]
+    for title, keyword, category, body in more:
+        u.add_snippet(body, title, keyword, category)
+    for i in range(1, 25):
+        u.add_snippet(f"範例片語第 {i} 則：常用的一段話放在這裡。", "", f"t{i:02d}", "範例" if i % 3 else "")
+    rows = u.snippets()
+    for r, n in zip(rows, [6, 14, 0, 3, 9, 1, 0, 22, 0, 2, 0, 5, 1]):
+        for _ in range(n):
+            u.used_snippet(r["id"])
     u.add_custom_symbols("(=^・ω・^=)\n( ͡° ͜ʖ ͡°)\n★\n♥")
 
 

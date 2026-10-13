@@ -28,7 +28,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-SCHEMA_VERSION = 2  # 2: entries.origin
+SCHEMA_VERSION = 3  # 2: entries.origin, 3: snippets.category
 # Exports already poured into this dictionary, newest last (see merge_from).
 # Only enough to cover "I have a folder of these and lost track of which
 # ones I already did"; older ids fall off.
@@ -133,7 +133,8 @@ class UserDict:
                 sort INTEGER NOT NULL DEFAULT 0,
                 count INTEGER NOT NULL DEFAULT 0,
                 last_used REAL,
-                created REAL NOT NULL);
+                created REAL NOT NULL,
+                category TEXT NOT NULL DEFAULT '');
             CREATE TABLE IF NOT EXISTS custom_symbols (
                 id INTEGER PRIMARY KEY,
                 text TEXT NOT NULL UNIQUE,
@@ -148,7 +149,15 @@ class UserDict:
         columns = {r[1] for r in c.execute("PRAGMA table_info(entries)")}
         if "origin" not in columns:  # schema 1 -> 2
             c.execute("ALTER TABLE entries ADD COLUMN origin TEXT NOT NULL DEFAULT ''")
-            c.execute("UPDATE meta SET value=? WHERE key='schema'", (str(SCHEMA_VERSION),))
+        if "category" not in {r[1] for r in c.execute("PRAGMA table_info(snippets)")}:  # 2 -> 3
+            try:
+                c.execute("ALTER TABLE snippets ADD COLUMN category TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError as e:
+                # the IME and the settings app opened the old file at the same moment
+                if "duplicate column" not in str(e):
+                    raise
+        c.execute("UPDATE meta SET value=? WHERE key='schema' AND CAST(value AS INTEGER) < ?",
+                  (str(SCHEMA_VERSION), SCHEMA_VERSION))
         # 人工加入 arrived after the first release: give it to existing
         # dictionaries too, or Ctrl+D would write into a category that is
         # not there (and fall back to 常用詞 again).
@@ -428,13 +437,18 @@ class UserDict:
         return cur.rowcount
 
     # ------------------------------------------------------------ snippets (片語)
+    # A snippet's ``category`` (分類) is a free label for the settings page —
+    # with a few hundred snippets, "show me the 客服 ones" is how they stay
+    # manageable. The ;; list ignores it: it stays in the user's own order
+    # and is filtered by keyword, so nothing about typing changes.
+    SNIPPET_FIELDS = ("id", "title", "keyword", "body", "sort", "count", "last_used", "created", "category")
+
     def snippets(self, query: str = "") -> list[dict]:
         """In the user's order. With ``query``: keyword prefix matches
         first, then title / text matches (case-insensitive)."""
-        rows = [dict(zip(("id", "title", "keyword", "body", "sort", "count", "last_used", "created"), r))
+        rows = [dict(zip(self.SNIPPET_FIELDS, r))
                 for r in self._con.execute(
-                    "SELECT id, title, keyword, body, sort, count, last_used, created FROM snippets "
-                    "ORDER BY sort, id")]
+                    f"SELECT {', '.join(self.SNIPPET_FIELDS)} FROM snippets ORDER BY sort, id")]
         q = query.strip().lower()
         if not q:
             return rows
@@ -443,18 +457,18 @@ class UserDict:
                                                        or q in r["keyword"].lower())]
         return head + rest
 
-    def add_snippet(self, body: str, title: str = "", keyword: str = "") -> int:
+    def add_snippet(self, body: str, title: str = "", keyword: str = "", category: str = "") -> int:
         body = body.strip("\r\n")
         if not body.strip():
             raise ValueError("snippet is empty")
         sort = self._con.execute("SELECT coalesce(max(sort), 0) + 1 FROM snippets").fetchone()[0]
         cur = self._con.execute(
-            "INSERT INTO snippets (title, keyword, body, sort, created) VALUES (?, ?, ?, ?, ?)",
-            (title.strip(), keyword.strip(), body, sort, time.time()))
+            "INSERT INTO snippets (title, keyword, body, sort, created, category) VALUES (?, ?, ?, ?, ?, ?)",
+            (title.strip(), keyword.strip(), body, sort, time.time(), category.strip()))
         return int(cur.lastrowid)
 
     def update_snippet(self, snippet_id: int, **fields) -> None:
-        for key in ("title", "keyword", "body", "sort"):
+        for key in ("title", "keyword", "body", "sort", "category"):
             if key in fields and fields[key] is not None:
                 value = fields[key]
                 if key == "body":
@@ -466,7 +480,8 @@ class UserDict:
                 self._con.execute(f"UPDATE snippets SET {key}=? WHERE id=?", (value, snippet_id))
 
     def move_snippet(self, snippet_id: int, delta: int) -> None:
-        """Move one place up (-1) or down (+1) in the user's order."""
+        """Move one place up (-1) or down (+1) in the user's order; a large
+        delta moves it to the top or the bottom."""
         ids = [r[0] for r in self._con.execute("SELECT id FROM snippets ORDER BY sort, id")]
         if snippet_id not in ids:
             return
@@ -478,6 +493,24 @@ class UserDict:
 
     def delete_snippet(self, snippet_id: int) -> None:
         self._con.execute("DELETE FROM snippets WHERE id=?", (snippet_id,))
+
+    def _many(self, sql: str, rows: list[tuple]) -> int:
+        """One transaction (one disk sync) for a whole selection, not one per row."""
+        self._con.execute("BEGIN")
+        try:
+            cur = self._con.executemany(sql, rows)
+        except BaseException:
+            self._con.execute("ROLLBACK")
+            raise
+        self._con.execute("COMMIT")
+        return max(0, cur.rowcount)
+
+    def delete_snippets(self, ids: list[int]) -> int:
+        """Several at once (the settings page's checkboxes). Returns how many."""
+        return self._many("DELETE FROM snippets WHERE id=?", [(int(i),) for i in ids])
+
+    def set_snippets_category(self, ids: list[int], category: str) -> int:
+        return self._many("UPDATE snippets SET category=? WHERE id=?", [(category.strip(), int(i)) for i in ids])
 
     def used_snippet(self, snippet_id: int) -> None:
         self._con.execute("UPDATE snippets SET count = count + 1, last_used = ? WHERE id=?",
@@ -597,12 +630,22 @@ class UserDict:
             has_snippets = src.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='snippets'").fetchone() is not None
             if has_snippets:
-                mine = {r[0] for r in self._con.execute("SELECT body FROM snippets")}
-                for title, keyword, body in src.execute("SELECT title, keyword, body FROM snippets ORDER BY sort, id"):
-                    if body not in mine:  # same text already here: keep mine
-                        self.add_snippet(body, title, keyword)
-                        mine.add(body)
+                # schema 3 added the 分類; an older export has none
+                has_cat = "category" in {r[1] for r in src.execute("PRAGMA table_info(snippets)")}
+                cat_col = "category" if has_cat else "''"
+                mine = dict(self._con.execute("SELECT body, category FROM snippets"))
+                for title, keyword, body, category in src.execute(
+                        f"SELECT title, keyword, body, {cat_col} FROM snippets ORDER BY sort, id"):
+                    if body not in mine:
+                        self.add_snippet(body, title, keyword, category or "")
+                        mine[body] = category or ""
                         report["snippets"] += 1
+                    elif category and not mine[body]:
+                        # same text already here: keep mine, but take the
+                        # other machine's 分類 if mine has none (like words)
+                        self._con.execute("UPDATE snippets SET category=? WHERE body=? AND category=''",
+                                          (category, body))
+                        mine[body] = category
             has_custom_symbols = src.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='custom_symbols'").fetchone() is not None
             if has_custom_symbols:

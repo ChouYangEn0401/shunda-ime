@@ -761,87 +761,313 @@
 
   // ------------------------------------------------------------ 片語 (snippets)
   // Saved texts typed with ;; + keyword, or from the symbol panel's 片語 tab.
+  // Kept manageable at a few hundred: one line per snippet, search, sort,
+  // 分類 chips, and checkboxes to delete or file many at once. The whole
+  // list is filtered here in the page (a few hundred rows is nothing to
+  // send), and every change redraws it in place without losing the scroll
+  // position or a half-edited row.
+  const SNIP_SORTS = {
+    order: (a, b) => a.pos - b.pos,
+    recent: (a, b) => (b.last_used || 0) - (a.last_used || 0) || b.created - a.created,
+    count: (a, b) => b.count - a.count || (b.last_used || 0) - (a.last_used || 0) || a.pos - b.pos,
+    keyword: (a, b) => (!a.keyword) - (!b.keyword) ||
+      a.keyword.localeCompare(b.keyword, "en", { sensitivity: "base" }) || a.pos - b.pos,
+  };
+  let snipRows = [];
+  let snipSort = "order";
+  try { snipSort = localStorage.getItem("smartime-snip-sort") || "order"; } catch (e) { /* storage may be blocked */ }
+  if (!SNIP_SORTS[snipSort]) snipSort = "order";
+  let snipQuery = "";
+  let snipCat = null;  // null: 全部, "": 未分類, else that 分類
+  const snipSel = new Set();
+  let snipEditor = null;  // { id, tr }: the open editor survives redraws
+  let snipConfirm = false;  // the selection bar is asking "delete N?"
+
   async function loadSnippets() {
     let rows;
     try { rows = await api("GET", "/api/snippets"); } catch (e) { toast(e.message, true); return; }
-    const list = document.getElementById("snip-list");
-    document.getElementById("snip-count").textContent = rows.length ? `${rows.length} 個` : "";
-    list.innerHTML = "";
-    if (!rows.length) {
-      list.innerHTML = '<p class="note" style="margin:0">還沒有片語。上面加入第一個，例如常用的回覆、地址或簽名；之後打字時打 <kbd>;</kbd><kbd>;</kbd> 就能叫出來。</p>';
-      return;
-    }
-    rows.forEach((r, i) => list.appendChild(snippetCard(r, i, rows.length)));
+    snipRows = rows.map((r, i) => Object.assign(r, { pos: i }));
+    if (snipEditor && !snipRows.some(r => r.id === snipEditor.id)) snipEditor = null;
+    renderSnippets();
   }
 
-  function snippetCard(r, i, n) {
-    const card = document.createElement("div");
-    card.className = "snip";
-    const head = document.createElement("div"); head.className = "snip-head";
-    const title = document.createElement("b"); title.textContent = r.title || r.body.split("\n")[0].slice(0, 30);
-    head.appendChild(title);
+  function firstLine(text) {
+    const lines = text.trim().split(/\r?\n/);
+    return lines[0] + (lines.length > 1 ? " …" : "");
+  }
+
+  function snipVisible() {
+    const q = snipQuery.toLowerCase();
+    return snipRows.filter(r => (snipCat === null || r.category === snipCat) &&
+      (!q || [r.keyword, r.title, r.body, r.category].some(s => s.toLowerCase().includes(q))))
+      .sort(SNIP_SORTS[snipSort]);
+  }
+
+  function renderSnippets() {
+    const scroll = document.getElementById("snip-scroll");
+    const keep = scroll.scrollTop;
+    const cats = [...new Set(snipRows.map(r => r.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
+    if (snipCat && !cats.includes(snipCat)) snipCat = null;
+    renderSnipCats(cats);
+    const datalist = document.getElementById("snip-cat-list");
+    datalist.innerHTML = "";
+    cats.forEach(c => { const o = document.createElement("option"); o.value = c; datalist.appendChild(o); });
+    document.querySelectorAll("#snip-sort [data-sort]").forEach(b =>
+      b.setAttribute("aria-pressed", b.dataset.sort === snipSort ? "true" : "false"));
+    const rows = snipVisible();
+    // only what you can see stays selected: a search never hides something about to be deleted
+    const shown = new Set(rows.map(r => r.id));
+    [...snipSel].forEach(id => { if (!shown.has(id)) snipSel.delete(id); });
+    const canMove = snipSort === "order" && !snipQuery && snipCat === null;
+    const dup = new Map();
+    snipRows.forEach(r => { const k = r.keyword.toLowerCase(); if (k) dup.set(k, (dup.get(k) || 0) + 1); });
+    const body = document.getElementById("snip-body-list");
+    body.innerHTML = "";
+    rows.forEach((r, i) => body.appendChild(snipEditor && snipEditor.id === r.id
+      ? snipEditor.tr : snippetRow(r, i, rows.length, canMove, dup)));
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="6" class="note empty">${snipRows.length ? "找不到符合的片語。" :
+        "還沒有片語。上面加入第一個，例如常用的回覆、地址或簽名；之後打字時打 <kbd>;</kbd><kbd>;</kbd> 就能叫出來。"}</td></tr>`;
+    }
+    document.getElementById("snip-count").textContent = snipRows.length ? `${snipRows.length} 個` : "";
+    const foot = [];
+    if (rows.length !== snipRows.length) foot.push(`符合 ${rows.length} 個（共 ${snipRows.length} 個）。`);
+    if (snipRows.length > 1) foot.push(canMove ? "這個順序就是打 ;; 時清單的順序，用 ⤒ ↑ ↓ 調整。"
+      : "要調整順序：排序選「自訂順序」、分類選「全部」並清空搜尋。");
+    document.getElementById("snip-foot").textContent = foot.join(" ");
+    syncSnipSelection(rows);
+    scroll.scrollTop = keep;
+  }
+
+  function renderSnipCats(cats) {
+    const chips = document.getElementById("snip-cats");
+    chips.hidden = !cats.length;
+    chips.innerHTML = "";
+    const items = [[null, "全部", snipRows.length], ...cats.map(c => [c, c, snipRows.filter(r => r.category === c).length])];
+    const none = snipRows.filter(r => !r.category).length;
+    if (none && cats.length) items.push(["", "未分類", none]);
+    items.forEach(([value, label, n]) => {
+      const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.textContent = label;
+      const sp = document.createElement("span"); sp.className = "n"; sp.textContent = n; b.appendChild(sp);
+      b.setAttribute("aria-pressed", value === snipCat ? "true" : "false");
+      b.addEventListener("click", () => { snipCat = value; snipConfirm = false; renderSnippets(); });
+      chips.appendChild(b);
+    });
+  }
+
+  function snippetRow(r, i, n, canMove, dup) {
+    const tr = document.createElement("tr");
+    tr.dataset.id = r.id;
+    tr.classList.toggle("picked", snipSel.has(r.id));
+    const tdCheck = document.createElement("td"); tdCheck.className = "check";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = snipSel.has(r.id);
+    cb.setAttribute("aria-label", `選取「${r.title || r.keyword || firstLine(r.body)}」`);
+    cb.addEventListener("change", () => {
+      if (cb.checked) snipSel.add(r.id); else snipSel.delete(r.id);
+      tr.classList.toggle("picked", cb.checked);
+      snipConfirm = false;
+      syncSnipSelection();
+    });
+    tdCheck.appendChild(cb);
+    const tdKey = document.createElement("td");
     if (r.keyword) {
       const kw = document.createElement("code"); kw.className = "snip-key"; kw.textContent = `;;${r.keyword}`;
-      kw.title = "打字時打這個就會叫出來"; head.appendChild(kw);
+      if (dup.get(r.keyword.toLowerCase()) > 1) {
+        kw.classList.add("dup");
+        kw.title = `還有別的片語也用「${r.keyword}」：打 ;;${r.keyword} 時會一起列出來`;
+      } else {
+        kw.title = "打字時打這個就會叫出來";
+      }
+      tdKey.appendChild(kw);
+    } else {
+      tdKey.className = "when"; tdKey.textContent = "—";
     }
-    if (r.count) { const u = document.createElement("span"); u.className = "note"; u.textContent = `用過 ${r.count} 次`; head.appendChild(u); }
-    const acts = document.createElement("span"); acts.className = "snip-acts";
-    const mk = (label, cls, fn, disabled) => {
+    const tdText = document.createElement("td"); tdText.className = "snip-text"; tdText.title = r.body;
+    if (r.title) { const b = document.createElement("b"); b.textContent = r.title; tdText.append(b, " "); }
+    const line = document.createElement("span"); line.textContent = firstLine(r.body);
+    if (r.title) line.className = "note";
+    tdText.appendChild(line);
+    const tdCat = document.createElement("td"); tdCat.className = "when"; tdCat.textContent = r.category;
+    const tdUsed = document.createElement("td"); tdUsed.className = "when";
+    tdUsed.textContent = r.count ? `${r.count} 次 · ${ago(r.last_used)}` : "還沒用過";
+    const tdAct = document.createElement("td"); tdAct.className = "actions";
+    const mk = (label, title, cls, fn, disabled) => {
       const b = document.createElement("button"); b.type = "button"; b.className = "btn small" + (cls ? " " + cls : "");
-      b.textContent = label; b.disabled = !!disabled; b.addEventListener("click", fn); acts.appendChild(b);
+      b.textContent = label; if (title) { b.title = title; b.setAttribute("aria-label", title); }
+      b.disabled = !!disabled; b.addEventListener("click", fn); tdAct.appendChild(b);
     };
-    mk("↑", "", () => moveSnippet(r.id, -1), i === 0);
-    mk("↓", "", () => moveSnippet(r.id, 1), i === n - 1);
-    mk("編輯", "", () => card.replaceWith(snippetEditor(r)));
-    mk("刪除", "danger", async () => {
-      try { await api("DELETE", `/api/snippets/${r.id}`); toast("已刪除片語"); loadSnippets(); }
-      catch (e) { toast(e.message, true); }
-    });
-    head.appendChild(acts);
-    const body = document.createElement("div"); body.className = "snip-body"; body.textContent = r.body;
-    card.append(head, body);
-    return card;
+    if (canMove) {
+      mk("⤒", "移到最前面", "move", () => moveSnippet(r.id, "top"), i === 0);
+      mk("↑", "往前一個", "move", () => moveSnippet(r.id, -1), i === 0);
+      mk("↓", "往後一個", "move", () => moveSnippet(r.id, 1), i === n - 1);
+    }
+    mk("編輯", "", "", () => { snipEditor = { id: r.id, tr: snippetEditor(r) }; renderSnippets(); });
+    mk("刪除", "", "danger", () => deleteSnippet(r));
+    tr.append(tdCheck, tdKey, tdText, tdCat, tdUsed, tdAct);
+    return tr;
+  }
+
+  // "已經有 2 個片語用 addr": allowed (;;addr lists them all and the preview
+  // tells them apart — a family of addresses can share one keyword), but
+  // said out loud so it is never an accident.
+  function dupNote(el, keyword, selfId) {
+    const k = keyword.trim();
+    const others = k ? snipRows.filter(r => r.id !== selfId && r.keyword.toLowerCase() === k.toLowerCase()).length : 0;
+    el.hidden = !others;
+    el.textContent = others ? `已經有 ${others} 個片語用「${k}」當關鍵字：可以照樣儲存，打 ;;${k} 時會一起列出來。` : "";
   }
 
   function snippetEditor(r) {
-    const form = document.createElement("form");
-    form.className = "snip snipform editing";
-    form.innerHTML = `<input type="text" aria-label="標題" placeholder="標題（可省略）">
-      <input type="text" aria-label="關鍵字" placeholder="關鍵字">
-      <textarea rows="3" aria-label="內容"></textarea>
+    const tr = document.createElement("tr"); tr.className = "editing";
+    const td = document.createElement("td"); td.colSpan = 6;
+    const form = document.createElement("form"); form.className = "snipform"; form.autocomplete = "off";
+    form.innerHTML = `<input type="text" aria-label="標題" placeholder="標題（可省略）" maxlength="40">
+      <input type="text" aria-label="關鍵字" placeholder="關鍵字" maxlength="20">
+      <input type="text" aria-label="分類" placeholder="分類（可省略）" list="snip-cat-list" maxlength="20">
+      <textarea rows="4" aria-label="內容"></textarea>
+      <p class="note snip-dupnote" hidden></p>
       <div class="snip-edit-acts"><button class="btn primary small" type="submit">儲存</button>
       <button class="btn small" type="button">取消</button></div>`;
-    const [t, k] = form.querySelectorAll("input");
+    const [t, k, c] = form.querySelectorAll("input");
     const body = form.querySelector("textarea");
-    t.value = r.title; k.value = r.keyword; body.value = r.body;
+    const note = form.querySelector(".snip-dupnote");
+    t.value = r.title; k.value = r.keyword; c.value = r.category; body.value = r.body;
+    k.addEventListener("input", () => dupNote(note, k.value, r.id));
+    dupNote(note, k.value, r.id);
+    const close = () => { snipEditor = null; renderSnippets(); };
     form.addEventListener("submit", async e => {
       e.preventDefault();
       try {
-        await api("PATCH", `/api/snippets/${r.id}`, { title: t.value, keyword: k.value, body: body.value });
-        toast("已儲存片語"); loadSnippets();
+        await api("PATCH", `/api/snippets/${r.id}`, { title: t.value, keyword: k.value, category: c.value, body: body.value });
+        toast("已儲存片語");
+        snipEditor = null;
+        loadSnippets();
       } catch (err) { toast(err.message, true); }
     });
-    form.querySelector("button[type=button]").addEventListener("click", loadSnippets);
+    form.querySelector("button[type=button]").addEventListener("click", close);
+    form.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
+    td.appendChild(form);
+    tr.appendChild(td);
     setTimeout(() => body.focus(), 0);
-    return form;
+    return tr;
   }
 
-  async function moveSnippet(id, delta) {
-    try { await api("PATCH", `/api/snippets/${id}`, { move: delta }); loadSnippets(); }
+  function syncSnipSelection(rows) {
+    rows = rows || snipVisible();
+    const all = document.getElementById("snip-all");
+    all.checked = rows.length > 0 && rows.every(r => snipSel.has(r.id));
+    all.indeterminate = !all.checked && rows.some(r => snipSel.has(r.id));
+    all.disabled = !rows.length;
+    renderSnipBulk();
+  }
+
+  // The selection bar: file the checked snippets under a 分類, or delete
+  // them — deleting asks first, right here in the bar (no dialog boxes).
+  function renderSnipBulk() {
+    const bar = document.getElementById("snip-bulk");
+    const n = snipSel.size;
+    bar.hidden = !n;
+    bar.innerHTML = "";
+    bar.classList.toggle("asking", !!(n && snipConfirm));
+    if (!n) { snipConfirm = false; return; }
+    const btn = (label, cls, fn) => {
+      const b = document.createElement("button"); b.type = "button"; b.className = "btn small" + (cls ? " " + cls : "");
+      b.textContent = label; b.addEventListener("click", fn); return b;
+    };
+    if (snipConfirm) {
+      const q = document.createElement("span"); q.textContent = `刪除勾選的 ${n} 個片語？刪了就不能復原。`;
+      bar.append(q, btn("確定刪除", "danger", bulkDelete), btn("取消", "", () => { snipConfirm = false; renderSnipBulk(); }));
+      return;
+    }
+    const label = document.createElement("b"); label.textContent = `已選 ${n} 個`;
+    const cat = document.createElement("input"); cat.type = "text"; cat.maxLength = 20;
+    cat.setAttribute("list", "snip-cat-list"); cat.placeholder = "分類名稱"; cat.setAttribute("aria-label", "分類名稱");
+    cat.title = "留空＝改成未分類";
+    cat.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); bulkCategory(cat.value); } });
+    bar.append(label, cat, btn("設定分類", "", () => bulkCategory(cat.value)),
+      btn("刪除…", "danger", () => { snipConfirm = true; renderSnipBulk(); }),
+      btn("取消勾選", "", () => { snipSel.clear(); renderSnippets(); }));
+  }
+
+  async function bulkDelete() {
+    const ids = [...snipSel];
+    try {
+      const r = await api("POST", "/api/snippets/bulk", { ids, action: "delete" });
+      toast(`已刪除 ${r.changed} 個片語`);
+      snipSel.clear();
+      snipConfirm = false;
+      loadSnippets();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function bulkCategory(name) {
+    const ids = [...snipSel];
+    const cat = name.trim();
+    try {
+      const r = await api("POST", "/api/snippets/bulk", { ids, action: "category", category: cat });
+      toast(cat ? `${r.changed} 個片語放進「${cat}」` : `${r.changed} 個片語改成未分類`);
+      snipSel.clear();
+      loadSnippets();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function deleteSnippet(r) {
+    // gone at once; the list stays where it was
+    snipRows = snipRows.filter(x => x !== r);
+    snipSel.delete(r.id);
+    renderSnippets();
+    try { await api("DELETE", `/api/snippets/${r.id}`); toast("已刪除片語"); }
+    catch (e) { toast(e.message, true); loadSnippets(); }
+  }
+
+  async function moveSnippet(id, move) {
+    try { await api("PATCH", `/api/snippets/${id}`, { move }); loadSnippets(); }
     catch (e) { toast(e.message, true); }
   }
 
+  document.getElementById("snip-all").addEventListener("change", e => {
+    const rows = snipVisible();
+    rows.forEach(r => { if (e.target.checked) snipSel.add(r.id); else snipSel.delete(r.id); });
+    snipConfirm = false;
+    renderSnippets();
+  });
+  document.getElementById("snip-search").addEventListener("input", e => {
+    snipQuery = e.target.value.trim();
+    snipConfirm = false;
+    renderSnippets();
+  });
+  document.querySelectorAll("#snip-sort [data-sort]").forEach(b => b.addEventListener("click", () => {
+    snipSort = b.dataset.sort;
+    try { localStorage.setItem("smartime-snip-sort", snipSort); } catch (e) { /* storage may be blocked */ }
+    renderSnippets();
+  }));
+
+  const snipKeyEl = document.getElementById("snip-key");
+  snipKeyEl.addEventListener("input", () => dupNote(document.getElementById("snip-dupnote"), snipKeyEl.value, null));
   document.getElementById("snip-form").addEventListener("submit", async e => {
     e.preventDefault();
     const title = document.getElementById("snip-title");
-    const key = document.getElementById("snip-key");
+    const cat = document.getElementById("snip-cat");
     const body = document.getElementById("snip-body");
+    let added;
     try {
-      await api("POST", "/api/snippets", { title: title.value, keyword: key.value, body: body.value });
-      toast("已加入片語");
-      title.value = ""; key.value = ""; body.value = "";
-      loadSnippets();
-    } catch (err) { toast(err.message, true); }
+      added = await api("POST", "/api/snippets",
+        { title: title.value, keyword: snipKeyEl.value, category: cat.value, body: body.value });
+    } catch (err) { toast(err.message, true); return; }
+    toast("已加入片語");
+    // the 分類 stays filled in: adding several of one kind in a row is common
+    title.value = ""; snipKeyEl.value = ""; body.value = "";
+    document.getElementById("snip-dupnote").hidden = true;
+    await loadSnippets();
+    if (!snipVisible().some(r => r.id === added.id)) {  // hidden by a filter: show it anyway
+      snipCat = null; snipQuery = ""; document.getElementById("snip-search").value = "";
+      renderSnippets();
+    }
+    const tr = document.querySelector(`#snip-body-list tr[data-id="${added.id}"]`);
+    if (tr) {
+      const scroll = document.getElementById("snip-scroll");
+      scroll.scrollTop = Math.max(0, tr.offsetTop - scroll.clientHeight / 2);
+    }
   });
 
   // ------------------------------------------------------------ 我的符號 (custom symbols)

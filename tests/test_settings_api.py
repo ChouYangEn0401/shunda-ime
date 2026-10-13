@@ -111,6 +111,44 @@ def test_snippets_add_edit_reorder_delete(server):
     assert [r["id"] for r in call(server, "GET", "/api/snippets")[1]] == [a["id"]]
 
 
+def test_many_snippets_categories_bulk_actions_and_move_to_top(server):
+    """「我的片語」數量太多以後要有辦法管理: a 分類 per snippet, checkboxes
+    that delete or file many at once, and ⤒ instead of fifty ↑ clicks."""
+    ids = [call(server, "POST", "/api/snippets", {"body": f"第 {i} 則", "keyword": f"k{i}",
+                                                  "category": "客服" if i < 3 else ""})[1]["id"] for i in range(6)]
+    rows = call(server, "GET", "/api/snippets")[1]
+    assert [r["category"] for r in rows] == ["客服", "客服", "客服", "", "", ""]
+    # ⤒ / bottom: all the way in the user's order (the ;; list order)
+    assert call(server, "PATCH", f"/api/snippets/{ids[4]}", {"move": "top"})[0] == 200
+    assert call(server, "PATCH", f"/api/snippets/{ids[0]}", {"move": "bottom"})[0] == 200
+    order = [r["id"] for r in call(server, "GET", "/api/snippets")[1]]
+    assert order[0] == ids[4] and order[-1] == ids[0]
+    assert call(server, "PATCH", f"/api/snippets/{ids[1]}", {"move": "up"})[0] == 400
+    # edit the 分類 of one
+    assert call(server, "PATCH", f"/api/snippets/{ids[5]}", {"category": "地址"})[0] == 200
+    # bulk: file two under a 分類, then delete three
+    status, r = call(server, "POST", "/api/snippets/bulk", {"ids": [ids[3], ids[4]], "action": "category", "category": "常用"})
+    assert status == 200 and r["changed"] == 2
+    cats = {r["id"]: r["category"] for r in call(server, "GET", "/api/snippets")[1]}
+    assert (cats[ids[3]], cats[ids[4]], cats[ids[5]]) == ("常用", "常用", "地址")
+    status, r = call(server, "POST", "/api/snippets/bulk", {"ids": ids[:3], "action": "delete"})
+    assert status == 200 and r["changed"] == 3
+    assert sorted(r["id"] for r in call(server, "GET", "/api/snippets")[1]) == sorted(ids[3:])
+    # nothing ticked, or something unknown: refused, nothing changes
+    assert call(server, "POST", "/api/snippets/bulk", {"ids": [], "action": "delete"})[0] == 400
+    assert call(server, "POST", "/api/snippets/bulk", {"ids": ["x"], "action": "delete"})[0] == 400
+    assert call(server, "POST", "/api/snippets/bulk", {"ids": [ids[3]], "action": "explode"})[0] == 400
+    assert len(call(server, "GET", "/api/snippets")[1]) == 3
+
+
+def test_duplicate_snippet_keywords_are_allowed(server):
+    """Two addresses can share ;;addr: the ;; list shows both with a preview
+    (the settings page points the duplicate out, it does not refuse it)."""
+    call(server, "POST", "/api/snippets", {"title": "家", "keyword": "addr", "body": "家裡地址"})
+    call(server, "POST", "/api/snippets", {"title": "公司", "keyword": "addr", "body": "公司地址"})
+    assert [r["title"] for r in server.app.user.snippets("addr")] == ["家", "公司"]
+
+
 def test_add_list_move_and_delete_entries(server):
     status, r = call(server, "POST", "/api/reading", {"text": "陳怡君"})
     assert status == 200 and r["kind"] == "zh" and len(r["reading"].split()) == 3

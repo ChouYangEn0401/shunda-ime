@@ -294,20 +294,36 @@ class SettingsApp:
     def snippets(self) -> list[dict]:
         return self.user.snippets()
 
+    SNIPPET_LIMITS = {"title": 40, "keyword": 20, "category": 20}
+
     def add_snippet(self, body: dict) -> dict:
         text = str(body.get("body", ""))
         if not text.strip():
             raise ApiError(400, "請輸入片語的內容")
         if len(text) > 4000:
             raise ApiError(400, "片語太長（最多 4000 字）")
-        return {"id": self.user.add_snippet(text, str(body.get("title", ""))[:40], str(body.get("keyword", ""))[:20])}
+        short = {k: str(body.get(k, ""))[:n] for k, n in self.SNIPPET_LIMITS.items()}
+        return {"id": self.user.add_snippet(text, short["title"], short["keyword"], short["category"])}
 
     def update_snippet(self, snippet_id: int, body: dict) -> dict:
         if "move" in body:
-            self.user.move_snippet(snippet_id, -1 if int(body["move"]) < 0 else 1)
-        fields = {k: body[k] for k in ("title", "keyword", "body") if k in body}
+            # -1 / 1 one place; "top" / "bottom" all the way (a long list)
+            move = body["move"]
+            delta = {"top": -1_000_000, "bottom": 1_000_000}.get(move)
+            if delta is None:
+                try:
+                    delta = -1 if int(move) < 0 else 1
+                except (TypeError, ValueError) as e:
+                    raise ApiError(400, "move 只能是 -1、1、top、bottom") from e
+            self.user.move_snippet(snippet_id, delta)
+        fields = {k: body[k] for k in ("title", "keyword", "body", "category") if k in body}
         if "body" in fields and not str(fields["body"]).strip():
             raise ApiError(400, "片語的內容不能是空的")
+        if "body" in fields and len(str(fields["body"])) > 4000:
+            raise ApiError(400, "片語太長（最多 4000 字）")
+        for k, n in self.SNIPPET_LIMITS.items():
+            if k in fields:
+                fields[k] = str(fields[k])[:n]
         try:
             self.user.update_snippet(snippet_id, **fields)
         except ValueError as e:
@@ -317,6 +333,20 @@ class SettingsApp:
     def delete_snippet(self, snippet_id: int) -> dict:
         self.user.delete_snippet(snippet_id)
         return {"ok": True}
+
+    def bulk_snippets(self, body: dict) -> dict:
+        """The checkboxes: {"ids": [...], "action": "delete"} or
+        {"ids": [...], "action": "category", "category": "客服"} ("" = none)."""
+        ids = body.get("ids")
+        if not isinstance(ids, list) or not ids or not all(isinstance(i, int) for i in ids):
+            raise ApiError(400, "請先勾選片語")
+        action = body.get("action")
+        if action == "delete":
+            return {"changed": self.user.delete_snippets(ids)}
+        if action == "category":
+            category = str(body.get("category", ""))[: self.SNIPPET_LIMITS["category"]]
+            return {"changed": self.user.set_snippets_category(ids, category)}
+        raise ApiError(400, "不支援的動作")
 
     # ---------------------------------------------------------- 我的符號 (custom_symbols)
     def custom_symbols(self) -> list[str]:
@@ -600,6 +630,7 @@ class _Handler(BaseHTTPRequestHandler):
             ("POST", "/api/categories"): lambda: app.add_category(self._json_body()),
             ("GET", "/api/snippets"): app.snippets,
             ("POST", "/api/snippets"): lambda: app.add_snippet(self._json_body()),
+            ("POST", "/api/snippets/bulk"): lambda: app.bulk_snippets(self._json_body()),
             ("GET", "/api/custom-symbols"): app.custom_symbols,
             ("POST", "/api/custom-symbols"): lambda: app.add_custom_symbols(self._json_body()),
             ("POST", "/api/custom-symbols/remove"): lambda: app.remove_custom_symbol(self._json_body()),

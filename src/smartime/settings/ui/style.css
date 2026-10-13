@@ -214,20 +214,31 @@ tr.blocked td { color: var(--muted); }
 .dict-table tbody tr:hover td { background: color-mix(in srgb, var(--accent-soft) 35%, transparent); }
 .dict-more { text-align: center; padding: 10px; }
 
-/* 片語 */
-.snipform { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.6fr); gap: 8px; }
+/* 片語: the add/edit form, and a compact one-line-per-snippet list (same box as 我的詞庫) */
+.snipform { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.6fr) minmax(0, 0.6fr); gap: 8px; }
 .snipform textarea { grid-column: 1 / -1; font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 6px 10px; resize: vertical; min-height: 64px; }
 .snip-edit-acts { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
-.snip-list { display: grid; gap: 10px; }
-.snip { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
-.snip.editing { background: color-mix(in srgb, var(--accent-soft) 30%, transparent); }
-.snip-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.snip-dupnote { grid-column: 1 / -1; margin: 0; color: var(--plan); }
 .snip-key { background: color-mix(in srgb, #7c3aed 12%, transparent); color: #7c3aed; border-radius: 5px; padding: 0 6px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .snip-key { color: #b79cff; } }
 :root[data-theme="dark"] .snip-key { color: #b79cff; }
-.snip-acts { margin-left: auto; display: flex; gap: 6px; }
-.snip-acts .btn[disabled] { opacity: .35; cursor: default; }
-.snip-body { margin-top: 6px; white-space: pre-wrap; color: var(--muted); font-size: 14px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.snip-key.dup { background: var(--plan-soft); color: var(--plan); }
+.dict-table.snip-table { height: auto; max-height: 470px; }
+.dict-table.snip-table th:nth-child(1) { width: 40px; } .dict-table.snip-table th:nth-child(2) { width: 15%; }
+.dict-table.snip-table th:nth-child(3) { width: auto; } .dict-table.snip-table th:nth-child(4) { width: 12%; }
+.dict-table.snip-table th:nth-child(5) { width: 14%; } .dict-table.snip-table th:nth-child(6) { width: 232px; }
+.snip-table input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; vertical-align: middle; }
+.snip-table td.check, .snip-table th:first-child { text-align: center; padding-inline: 0; }
+.snip-table .snip-text b { font-weight: 500; }
+.dict-table.snip-table td.actions { display: table-cell; }
+.snip-table td.actions .btn + .btn { margin-left: 4px; }
+.snip-table .btn.move { padding-inline: 7px; }
+.snip-table .btn[disabled] { opacity: .35; cursor: default; }
+.snip-table tbody tr.picked td { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
+.snip-table tbody tr.editing td { height: auto; padding: 10px 12px; white-space: normal; overflow: visible; background: color-mix(in srgb, var(--accent-soft) 30%, transparent); }
+.snip-bulk { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; padding: 6px 10px; border: 1px solid var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent-soft) 45%, transparent); font-size: 14px; }
+.snip-bulk input[type="text"] { width: 130px; padding: 2px 8px; font-size: 13px; }
+.snip-bulk.asking { border-color: var(--warn); background: var(--warn-soft); }
 .kao-sample { display: flex; flex-wrap: wrap; gap: 8px; }
 .kao-sample span { border: 1px solid var(--line); border-radius: 6px; padding: 2px 10px; background: var(--key); }
 .sym-list { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -301,6 +312,12 @@ tr.blocked td { color: var(--muted); }
   .dict-table table { table-layout: auto; }
   .dict-tools-right { margin-left: 0; }
   .snipform { grid-template-columns: minmax(0, 1fr); }
+  /* narrow window: keyword, text and actions only, so an open editor fits */
+  .dict-table.snip-table table { table-layout: fixed; }
+  .snip-table th:nth-child(4), .snip-table td:nth-child(4), .snip-table th:nth-child(5), .snip-table td:nth-child(5) { display: none; }
+  .dict-table.snip-table th:nth-child(1) { width: 36px; } .dict-table.snip-table th:nth-child(2) { width: 28%; }
+  .dict-table.snip-table th:nth-child(6) { width: 132px; }
+  .dict-table.snip-table td.actions { white-space: normal; height: auto; padding-block: 4px; line-height: 2; }
   .row { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
