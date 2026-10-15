@@ -5,14 +5,19 @@ Everything here runs on the service's main thread, which pumps messages."""
 from __future__ import annotations
 
 import ctypes
+import logging
 import threading
+import time
 from ctypes import wintypes
 
 from ..engine.keys import INJECTED_TAG
 
+log = logging.getLogger(__name__)
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 gdi32 = ctypes.WinDLL("gdi32")
+wtsapi32 = ctypes.WinDLL("wtsapi32", use_last_error=True)
+dwmapi = ctypes.WinDLL("dwmapi")
 
 WH_KEYBOARD_LL = 13
 WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP = 0x0100, 0x0101, 0x0104, 0x0105
@@ -28,8 +33,16 @@ KEYEVENTF_UNICODE = 0x0004
 WS_POPUP, WS_VISIBLE, WS_BORDER = 0x80000000, 0x10000000, 0x00800000
 WS_EX_TOPMOST, WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE = 0x8, 0x80, 0x08000000
 SS_CENTER, SS_CENTERIMAGE = 0x1, 0x200
-SW_HIDE, SW_SHOWNOACTIVATE = 0, 4
-HWND_MESSAGE = wintypes.HWND(-3)
+SW_HIDE = 0
+HWND_TOPMOST = wintypes.HWND(-1)
+SWP_NOACTIVATE, SWP_SHOWWINDOW = 0x0010, 0x0040
+MONITOR_DEFAULTTOPRIMARY = 1
+DWMWA_CLOAKED = 14
+# Broadcasts: they reach top-level windows only, never message-only ones.
+WM_POWERBROADCAST, WM_DEVICECHANGE, WM_WTSSESSION_CHANGE = 0x0218, 0x0219, 0x02B1
+PBT_APMSUSPEND, PBT_APMRESUMESUSPEND, PBT_APMRESUMEAUTOMATIC = 0x4, 0x7, 0x12
+WTS_SESSION_LOCK, WTS_SESSION_UNLOCK = 0x7, 0x8
+DBT_DEVNODES_CHANGED = 0x0007
 
 
 class KBDLLHOOKSTRUCT(ctypes.Structure):
@@ -53,6 +66,11 @@ class _U(ctypes.Union):
 
 class INPUT(ctypes.Structure):
     _fields_ = [("type", wintypes.DWORD), ("u", _U)]
+
+
+class MONITORINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT),
+                ("dwFlags", wintypes.DWORD)]
 
 
 HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_ssize_t, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
@@ -82,6 +100,19 @@ user32.SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int]
 user32.SetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPCWSTR]
 user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
 user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                ctypes.c_int, wintypes.UINT]
+user32.IsWindow.argtypes = [wintypes.HWND]
+user32.IsWindowVisible.argtypes = [wintypes.HWND]
+user32.DestroyWindow.argtypes = [wintypes.HWND]
+user32.GetForegroundWindow.restype = wintypes.HWND
+user32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
+user32.MonitorFromWindow.restype = wintypes.HMONITOR
+user32.GetMonitorInfoW.argtypes = [wintypes.HMONITOR, ctypes.POINTER(MONITORINFO)]
+user32.GetAsyncKeyState.argtypes = [ctypes.c_int]
+user32.GetAsyncKeyState.restype = ctypes.c_short
+wtsapi32.WTSRegisterSessionNotification.argtypes = [wintypes.HWND, wintypes.DWORD]
+dwmapi.DwmGetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
 user32.SetTimer.argtypes = [wintypes.HWND, ctypes.c_size_t, wintypes.UINT, wintypes.LPVOID]
 user32.KillTimer.argtypes = [wintypes.HWND, ctypes.c_size_t]
 user32.PostThreadMessageW.argtypes = [wintypes.DWORD, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
@@ -114,9 +145,13 @@ def type_text(text: str) -> None:
 
 
 class MessageWindow:
-    """A hidden window whose procedure dispatches WM_APP+n messages to
-    Python callbacks; worker threads post to it to run code on the main
-    thread."""
+    """A hidden window whose procedure dispatches messages to Python
+    callbacks; worker threads post to it to run code on the main thread.
+
+    Top-level (never shown), not message-only: sleep/resume and device
+    changes are broadcast, and broadcasts skip message-only windows."""
+
+    PASS_ON = {WM_POWERBROADCAST, WM_DEVICECHANGE}  # Windows reads the answer: give the default one
 
     def __init__(self, handlers: dict):
         self.handlers = handlers
@@ -124,7 +159,10 @@ class MessageWindow:
         hinst = kernel32.GetModuleHandleW(None)
         wc = WNDCLASSW(lpfnWndProc=self._proc, hInstance=hinst, lpszClassName="SmartIMEVoiceMsg")
         user32.RegisterClassW(ctypes.byref(wc))
-        self.hwnd = user32.CreateWindowExW(0, "SmartIMEVoiceMsg", "", 0, 0, 0, 0, 0, HWND_MESSAGE, None, hinst, None)
+        self.hwnd = user32.CreateWindowExW(WS_EX_TOOLWINDOW, "SmartIMEVoiceMsg", "", WS_POPUP,
+                                           0, 0, 0, 0, None, None, hinst, None)
+        if not wtsapi32.WTSRegisterSessionNotification(self.hwnd, 0):  # NOTIFY_FOR_THIS_SESSION
+            log.warning("no lock/unlock notifications (error %d)", ctypes.get_last_error())
 
     def _wndproc(self, hwnd, msg, wparam, lparam):
         handler = self.handlers.get(msg)
@@ -132,36 +170,92 @@ class MessageWindow:
             try:
                 handler(wparam, lparam)
             except Exception:  # noqa: BLE001 - never let an exception cross into Windows
-                import logging
-
-                logging.getLogger(__name__).exception("message handler failed")
-            return 0
+                log.exception("message handler failed")
+            if msg not in self.PASS_ON:
+                return 0
         return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
 
     def post(self, msg: int, wparam: int = 0, lparam: int = 0) -> None:
         user32.PostMessageW(self.hwnd, msg, wparam, lparam)
 
 
+def bottom_center(area: tuple[int, int, int, int], w: int, h: int, margin: int = 40) -> tuple[int, int]:
+    """Where the indicator goes in a monitor's work area (left, top, right, bottom)."""
+    left, _, right, bottom = area
+    return left + (right - left - w) // 2, bottom - h - margin
+
+
+def work_area() -> tuple[int, int, int, int]:
+    """Work area of the monitor the user is looking at: the one with the
+    foreground window (the primary monitor when there is none)."""
+    mon = user32.MonitorFromWindow(user32.GetForegroundWindow(), MONITOR_DEFAULTTOPRIMARY)
+    info = MONITORINFO(cbSize=ctypes.sizeof(MONITORINFO))
+    if mon and user32.GetMonitorInfoW(mon, ctypes.byref(info)):
+        r = info.rcWork
+        return r.left, r.top, r.right, r.bottom
+    return 0, 0, user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+
+
+def key_down(vk: int) -> bool:
+    """Is the key physically held right now (no hook needed)? False while
+    another desktop (lock screen, UAC) has the keyboard."""
+    return bool(user32.GetAsyncKeyState(vk) & 0x8000)
+
+
 class Indicator:
-    """A small floating label near the bottom of the screen that never takes
-    the focus (the text must go to the window the user was typing in)."""
+    """A small floating label at the bottom of the screen the user is
+    working on; it never takes the focus (the text must go to the window the
+    user was typing in).
+
+    Reported: after a while — a full-screen film on the other monitor, sleep —
+    the label stopped appearing although recording worked. It used to be
+    one window, placed once on the primary monitor at start-up and shown
+    with ShowWindow, which keeps whatever z-order and virtual desktop the
+    window had. Now every appearance gets a fresh window on the current
+    monitor and virtual desktop, put back on top of the topmost windows."""
+
+    W, H = 460, 46
 
     def __init__(self) -> None:
-        sw, sh = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
-        w, h = 460, 46
-        self.hwnd = user32.CreateWindowExW(
+        self.hwnd = None
+        self.font = gdi32.CreateFontW(-20, 0, 0, 0, 500, 0, 0, 0, 1, 0, 0, 0, 0, "Microsoft JhengHei UI")
+        self._warned = False
+
+    def _create(self):
+        hwnd = user32.CreateWindowExW(
             WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, "STATIC", "",
             WS_POPUP | WS_BORDER | SS_CENTER | SS_CENTERIMAGE,
-            (sw - w) // 2, sh - h - 90, w, h, None, None, kernel32.GetModuleHandleW(None), None)
-        font = gdi32.CreateFontW(-20, 0, 0, 0, 500, 0, 0, 0, 1, 0, 0, 0, 0, "Microsoft JhengHei UI")
-        user32.SendMessageW(self.hwnd, WM_SETFONT, font, 1)
+            0, 0, self.W, self.H, None, None, kernel32.GetModuleHandleW(None), None)
+        if hwnd:
+            user32.SendMessageW(hwnd, WM_SETFONT, self.font, 0)
+        return hwnd
 
     def show(self, text: str) -> None:
+        if not (self.hwnd and user32.IsWindow(self.hwnd) and user32.IsWindowVisible(self.hwnd)):
+            if self.hwnd and user32.IsWindow(self.hwnd):
+                user32.DestroyWindow(self.hwnd)
+            self.hwnd = self._create()
+            if not self.hwnd:
+                self._warn(f"cannot create the indicator window (error {ctypes.get_last_error()})")
+                return
         user32.SetWindowTextW(self.hwnd, text)
-        user32.ShowWindow(self.hwnd, SW_SHOWNOACTIVATE)
+        x, y = bottom_center(work_area(), self.W, self.H)
+        if not user32.SetWindowPos(self.hwnd, HWND_TOPMOST, x, y, self.W, self.H, SWP_NOACTIVATE | SWP_SHOWWINDOW):
+            self._warn(f"SetWindowPos failed (error {ctypes.get_last_error()})")
+        cloaked = wintypes.DWORD()
+        dwmapi.DwmGetWindowAttribute(self.hwnd, DWMWA_CLOAKED, ctypes.byref(cloaked), ctypes.sizeof(cloaked))
+        if cloaked.value or not user32.IsWindowVisible(self.hwnd):
+            self._warn(f"indicator not visible at ({x}, {y}): cloaked={cloaked.value}")
+
+    def _warn(self, message: str) -> None:
+        """Once per run: voice.log says why the label was missing."""
+        if not self._warned:
+            self._warned = True
+            log.warning(message)
 
     def hide(self) -> None:
-        user32.ShowWindow(self.hwnd, SW_HIDE)
+        if self.hwnd:
+            user32.ShowWindow(self.hwnd, SW_HIDE)
 
 
 class PushToTalkHook:
@@ -173,46 +267,89 @@ class PushToTalkHook:
     window. Keys are never swallowed."""
 
     PRESS, RELEASE, CANCEL = WM_APP + 1, WM_APP + 2, WM_APP + 3
+    REINSTALL = WM_APP + 20  # a thread message to the hook's own thread
 
-    def __init__(self, target: MessageWindow, accept_injected: bool = False):
+    def __init__(self, target: MessageWindow, accept_injected: bool = False, start: bool = True):
         self.target = target
         self.accept_injected = accept_injected  # devtools.voice_test presses right Ctrl with SendInput
         self.down = False
         self.combo = False
+        # Last right-Ctrl key-down seen, keyboard auto-repeats included: while
+        # the key is really held they keep coming, so a stale time means the
+        # release happened somewhere the hook could not see.
+        self.last_down = 0.0
         self.handle = None
         self._proc = HOOKPROC(self._hook)
         self._thread_id = 0
+        if not start:  # tests drive on_key() directly
+            return
         ready = threading.Event()
         self._thread = threading.Thread(target=self._run, args=(ready,), name="ptt-hook", daemon=True)
         self._thread.start()
         ready.wait(5)
 
+    def _install(self):
+        return user32.SetWindowsHookExW(WH_KEYBOARD_LL, self._proc, kernel32.GetModuleHandleW(None), 0)
+
     def _run(self, ready: threading.Event) -> None:
         self._thread_id = kernel32.GetCurrentThreadId()
-        self.handle = user32.SetWindowsHookExW(WH_KEYBOARD_LL, self._proc, kernel32.GetModuleHandleW(None), 0)
+        self.handle = self._install()
         ready.set()
-        run_message_loop()  # hook callbacks are delivered while this thread waits for messages
+        # hook callbacks are delivered while this thread waits for messages
+        msg = wintypes.MSG()
+        while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            if msg.hwnd is None and msg.message == self.REINSTALL:
+                self._reinstall_now()
+                continue
+            user32.TranslateMessage(ctypes.byref(msg))
+            user32.DispatchMessageW(ctypes.byref(msg))
         if self.handle:
             user32.UnhookWindowsHookEx(self.handle)
             self.handle = None
+
+    def _reinstall_now(self) -> None:
+        """Windows removes a low-level hook that once answered too slowly,
+        without telling anyone (busy right after resume, or under a game's
+        load). A new hook first, then the old one goes: no key is missed."""
+        new = self._install()
+        if not new:
+            log.warning("cannot reinstall the keyboard hook (error %d)", ctypes.get_last_error())
+            return
+        old, self.handle = self.handle, new
+        if old:
+            user32.UnhookWindowsHookEx(old)  # fails harmlessly if Windows removed it already
+
+    def reinstall(self) -> None:
+        """From any thread."""
+        if self._thread_id:
+            user32.PostThreadMessageW(self._thread_id, self.REINSTALL, 0, 0)
+
+    def reset(self) -> None:
+        """Forget a press whose release went elsewhere (sleep, lock screen,
+        UAC prompt), so the next press starts afresh."""
+        self.down = self.combo = False
 
     def _hook(self, code, wparam, lparam):
         if code == 0:
             k = ctypes.cast(lparam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
             ours = self.accept_injected and k.dwExtraInfo == INJECTED_TAG
             if ours or not k.flags & LLKHF_INJECTED:
-                is_down = wparam in (WM_KEYDOWN, WM_SYSKEYDOWN)
-                if k.vkCode == VK_RCONTROL:
-                    if is_down and not self.down:
-                        self.down, self.combo = True, False
-                        self.target.post(self.PRESS)
-                    elif not is_down and self.down:
-                        self.down = False
-                        self.target.post(self.CANCEL if self.combo else self.RELEASE)
-                elif is_down and self.down and not self.combo:
-                    self.combo = True  # right Ctrl + another key = a shortcut
-                    self.target.post(self.CANCEL)
+                self.on_key(k.vkCode, wparam in (WM_KEYDOWN, WM_SYSKEYDOWN))
         return user32.CallNextHookEx(None, code, wparam, lparam)
+
+    def on_key(self, vk: int, is_down: bool) -> None:
+        if vk == VK_RCONTROL:
+            if is_down:
+                self.last_down = time.monotonic()
+                if not self.down:
+                    self.down, self.combo = True, False
+                    self.target.post(self.PRESS)
+            elif self.down:
+                self.down = False
+                self.target.post(self.CANCEL if self.combo else self.RELEASE)
+        elif is_down and self.down and not self.combo:
+            self.combo = True  # right Ctrl + another key = a shortcut
+            self.target.post(self.CANCEL)
 
     def close(self) -> None:
         if self._thread_id:

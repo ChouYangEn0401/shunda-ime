@@ -246,14 +246,30 @@
 - 啟動：輸入法 `onActivate` 時若 `voice_enabled` 就 `launch.start()`；設定頁打開開關時也會啟動。mutex
   `Local\SmartIME.Voice` 保證只有一個。服務每 3 秒讀 `config.json`：關掉就自行結束，換模型就在背景重新載入。
 - 按鍵：`WH_KEYBOARD_LL` 放在專用執行緒（自己的訊息迴圈），不攔截任何按鍵，只記狀態並 PostMessage 給主執行緒，
-  所以主執行緒開麥克風或打長文字時不會拖慢整台電腦的鍵盤（Windows 也會移除逾時的 hook）。
+  所以主執行緒開麥克風或打長文字時不會拖慢整台電腦的鍵盤。
   右 Ctrl 按下 → 開麥克風；放開 → 辨識；中途按了其他鍵 → 取消（那是快捷鍵）；不到 0.35 秒 → 忽略。
+- hook 看不到的事（服務會跨好幾次睡眠活好幾週，所以都要自己處理）：
+  - 睡眠、鎖定：放開右 Ctrl 可能發生在 hook 看不到的地方。睡眠／鎖定前關麥克風、丟掉錄音、忘掉這次按下。
+    主視窗因此是隱藏的頂層視窗（不是 message-only），才收得到 `WM_POWERBROADCAST`、`WM_DEVICECHANGE` 這些廣播；
+    鎖定／解鎖用 `WTSRegisterSessionNotification`。
+  - 漏掉的放開（UAC 視窗等）：每 3 秒檢查，`GetAsyncKeyState` 說沒按著**而且**超過 2 秒沒收到右 Ctrl 的自動重複，
+    才算放開了——兩個訊號都要同意，任一個失靈（防外掛擋了 `GetAsyncKeyState`、關掉自動重複）都不會切掉還在講話的人。
+    這種錄音直接丟掉、提示「沒有送出」，不打字：放開那一刻在哪個視窗已經不知道了。
+  - Windows 會**不通知地**移除回應太慢的 low-level hook（剛喚醒、遊戲負載重時）。喚醒、解鎖後重新掛一次；
+    右 Ctrl 按著但 hook 連續兩次檢查都沒看到，也重新掛。
+  - 裝置清單（PortAudio 只讀一次）在裝置變動（`DBT_DEVNODES_CHANGED`）、喚醒後才重讀，等 2 秒沒有新變動再讀。
+    以前每 30 秒重讀一次；實測每次重讀在 PortAudio 裡漏 2 個 handle（一天約 5,800 個）。
+  - 辨識失敗（GPU 經過休眠或驅動重設後常見）：重新載入模型、同一段音再辨識一次。
+- 提示框（「錄音中」）每次出現都是新視窗，放在前景視窗所在螢幕的工作區下方，用 `SetWindowPos(HWND_TOPMOST)`
+  放回最上層：以前只建一次、開機時算好主螢幕位置、用 `ShowWindow` 顯示，用久了（另一個螢幕全螢幕看片、睡眠）
+  會被蓋住或留在別的虛擬桌面。顯示後若被 DWM 隱藏（cloaked）或不可見，`voice.log` 會記一行原因。
 - 辨識（`asr.py`）：`auto` = 有 CUDA 且 Breeze 已下載 → Breeze-ASR-25（faster-whisper／CTranslate2，float16），
   否則 SenseVoice Small（sherpa-onnx，int8，CPU）。模型在 `%LOCALAPPDATA%\SmartIME\models`（設定頁下載，可續傳）。
 - 後處理（`text.py`）：OpenCC **s2tw**（只換字形；s2twp 會把使用者說的「文件」換成「檔案」）、去掉中文字間空白、
   SenseVoice 的全大寫英文改回小寫但保留縮寫（API、MVP）、接回被拆開的縮寫（`MV P` → MVP）、我的詞庫裡的英文拼法優先。
 - 輸出：`SendInput` 的 `KEYEVENTF_UNICODE`（App 收到 `VK_PACKET`，本輸入法一律放行）。提示框是
   `WS_EX_NOACTIVATE` 的小視窗，不搶焦點，文字才會打進原本的視窗。
+- 長度：放開時只留前 2 分鐘（`MAX_SECONDS`）的音，超過的部分不會辨識。
 - 隱私：只在按住時開麥克風；紀錄檔（`logs\voice.log`）只記音檔秒數、耗時與字數，不記內容。
 - 驗證：`python -m smartime.devtools.voice_test [--engine breeze|sensevoice]`：以錄好的音檔代替麥克風，
   其餘全是真的（SendInput 按右 Ctrl、辨識、打進啟用本輸入法的文字框）；同樣等閒置 5 秒、碰到鍵盤滑鼠就停。

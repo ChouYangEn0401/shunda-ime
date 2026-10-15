@@ -29,8 +29,19 @@ from . import asr, text, win
 
 log = logging.getLogger("smartime.voice")
 MIN_SECONDS = 0.35  # shorter = an accidental tap — or a tap that opens the IME's symbol panel
-TIMER_CONFIG, TIMER_HELD = 1, 2
+TIMER_CONFIG, TIMER_HELD, TIMER_DEVICES = 1, 2, 3
 MAX_SECONDS = 120
+REPEAT_GAP = 2.0  # a held key auto-repeats several times a second; this long without one = not held
+DEVICE_SETTLE_MS = 2000  # devices come and go in bursts (and late after resume): refresh once it is quiet
+
+
+def release_missed(physically_down: bool, since_last_down: float) -> bool:
+    """While recording: was right Ctrl let go somewhere the hook could not
+    see (sleep, lock screen, UAC prompt, a hook Windows removed)? Both
+    signals have to say so, so one of them misbehaving (an anti-cheat
+    blocking GetAsyncKeyState, auto-repeat turned off) never cuts off
+    someone who is still talking."""
+    return not physically_down and since_last_down > REPEAT_GAP
 RESULT = win.WM_APP + 10
 STATUS = win.WM_APP + 11
 HIDE = win.WM_APP + 12
@@ -76,18 +87,32 @@ class Recorder:
                                      callback=lambda data, frames, t, status: self.chunks.append(data.copy()))
         self.stream.start()
 
+    def _close(self, abort: bool) -> None:
+        """Close the stream even when stopping it fails (a microphone that
+        went away during sleep): an unclosed stream keeps the device open."""
+        stream, self.stream = self.stream, None
+        if stream is None:
+            return
+        try:
+            stream.abort() if abort else stream.stop()
+        finally:
+            stream.close()
+
     def stop(self):
         import numpy as np
 
         if self.stream is None:
             return None, 0.0
-        self.stream.stop()
-        self.stream.close()
-        self.stream = None
+        self._close(abort=False)
         seconds = time.monotonic() - self.started
         if not self.chunks:
             return None, seconds
         return np.concatenate(self.chunks)[:, 0], seconds
+
+    def cancel(self) -> None:
+        """Stop at once and throw the audio away."""
+        self._close(abort=True)
+        self.chunks = []
 
 
 class VoiceService:
@@ -101,8 +126,8 @@ class VoiceService:
         self.recorder = recorder or Recorder()
         self.recording = False
         self.press_error = ""  # microphone problem, shown only if the key is really held
+        self.hook_suspect = 0  # timer ticks in a row with right Ctrl held but unseen by the hook
         self.mic = microphone()
-        self.mic_checked = time.monotonic()
         self.msg = win.MessageWindow({
             win.PushToTalkHook.PRESS: lambda w, l: self.on_press(),
             win.PushToTalkHook.RELEASE: lambda w, l: self.on_release(),
@@ -111,6 +136,9 @@ class VoiceService:
             STATUS: lambda w, l: self.on_status(),
             HIDE: lambda w, l: self.indicator.hide(),
             win.WM_TIMER: lambda w, l: self.on_timer(w),
+            win.WM_POWERBROADCAST: lambda w, l: self.on_power(w),
+            win.WM_WTSSESSION_CHANGE: lambda w, l: self.on_session(w),
+            win.WM_DEVICECHANGE: lambda w, l: self.on_device_change(w),
         })
         self.indicator = win.Indicator()
         self.hook = win.PushToTalkHook(self.msg, accept_injected)
@@ -164,7 +192,7 @@ class VoiceService:
                 t0 = time.perf_counter()
                 mine = self._my_words()
                 hot = " ".join(mine) if self.config.voice_hotwords else ""
-                raw = self.engine.transcribe(audio, hot)
+                raw = self._transcribe(audio, hot)
                 out = text.clean(raw, traditional=self.config.voice_traditional, known=mine)
                 log.info("recognized %.1fs of audio in %.2fs (%d chars)",
                          len(audio) / asr.SAMPLE_RATE, time.perf_counter() - t0, len(out))
@@ -173,6 +201,19 @@ class VoiceService:
                 log.exception("recognition failed")
                 self.results.put(("error", f"辨識失敗：{e}"))
             self.msg.post(RESULT)
+
+    def _transcribe(self, audio, hot: str) -> str:
+        """A model on the GPU can fail every call after hibernation or a
+        display driver reset, until it is loaded again: reload once and
+        retry, instead of failing until the service restarts."""
+        try:
+            return self.engine.transcribe(audio, hot)
+        except Exception:  # noqa: BLE001
+            log.exception("recognition failed; loading the speech engine again and retrying once")
+        self.load_engine()
+        if self.engine is None:
+            raise RuntimeError(self.engine_error or "語音模型無法載入")
+        return self.engine.transcribe(audio, hot)
 
     def _my_words(self) -> list[str]:
         try:
@@ -220,18 +261,33 @@ class VoiceService:
             self.indicator.show(f"● 錄音中（{name}）… 放開右 Ctrl 結束")
 
     def on_cancel(self) -> None:
+        self.cancel_recording()
+
+    def cancel_recording(self, message: str = "") -> None:
+        """Close the microphone and throw the audio away."""
         win.user32.KillTimer(self.msg.hwnd, TIMER_HELD)
         if self.recording:
-            self.recorder.stop()
-            self.recording = False
-        self.indicator.hide()
+            self.recording = False  # first: a failing stop must not leave it "recording"
+            try:
+                self.recorder.cancel()
+            except Exception:  # noqa: BLE001
+                log.exception("cannot close the microphone")
+        if message:
+            self.flash(message, seconds=4)
+        else:
+            self.indicator.hide()
 
     def on_release(self) -> None:
         win.user32.KillTimer(self.msg.hwnd, TIMER_HELD)
         if not self.recording:
             return
         self.recording = False
-        audio, seconds = self.recorder.stop()
+        try:
+            audio, seconds = self.recorder.stop()
+        except Exception as e:  # noqa: BLE001 - e.g. the microphone was unplugged
+            log.exception("cannot stop the recording")
+            self.flash(f"錄音中斷：{e}")
+            return
         if audio is None or seconds < MIN_SECONDS:
             self.indicator.hide()
             return
@@ -257,10 +313,15 @@ class VoiceService:
         threading.Timer(seconds, lambda: self.msg.post(HIDE)).start()
 
     def on_timer(self, which: int = TIMER_CONFIG) -> None:
-        """Every few seconds: follow settings changes; exit when turned off."""
+        """Every few seconds: check the push-to-talk state, follow settings
+        changes; exit when turned off."""
         if which == TIMER_HELD:
             self.on_held()
             return
+        if which == TIMER_DEVICES:
+            self.refresh_devices()
+            return
+        self.check_keys()
         cfg = Config.load(self.config_path)
         if not cfg.voice_enabled:
             log.info("voice input turned off; exiting")
@@ -274,13 +335,74 @@ class VoiceService:
         if changed:
             log.info("engine changed to %s; reloading", cfg.voice_engine)
             self.jobs.put(RELOAD)
-        if not self.recording and time.monotonic() - self.mic_checked > 30:
-            # a headset connected or removed since: keep Settings truthful
-            self.mic_checked = time.monotonic()
-            mic = microphone(refresh=True)
-            if mic != self.mic:
-                self.mic = mic
-                self.write_status()
+
+    def check_keys(self) -> None:
+        """The hook only knows what it was shown. A release it never saw
+        (sleep, lock screen, UAC prompt) kept the microphone open and the
+        audio growing (64 KB a second) until some other key was pressed,
+        and a right Ctrl pressed first typed what had been recorded before
+        the computer slept. A hook Windows removed made push-to-talk
+        silently dead until the service restarted."""
+        held = win.key_down(win.VK_RCONTROL)
+        since = time.monotonic() - self.hook.last_down
+        if self.recording and release_missed(held, since):
+            log.warning("right Ctrl is no longer held but its release was not seen; recording discarded")
+            self.cancel_recording("沒有收到放開右 Ctrl 的訊號，這段錄音沒有送出")
+            self.hook.reset()
+            self.hook.reinstall()
+        elif self.hook.down and release_missed(held, since):
+            self.hook.reset()
+        if held and not self.hook.down and since > REPEAT_GAP:
+            self.hook_suspect += 1
+            if self.hook_suspect >= 2:
+                log.warning("right Ctrl is held but the keyboard hook sees nothing; installing it again")
+                self.hook.reinstall()
+                self.hook_suspect = 0
+        else:
+            self.hook_suspect = 0
+
+    # ------------------------------------------------------------ sleep, lock, devices
+    def on_power(self, event: int) -> None:
+        if event == win.PBT_APMSUSPEND:
+            log.info("going to sleep")
+            self.cancel_recording()
+            self.hook.reset()
+        elif event in (win.PBT_APMRESUMEAUTOMATIC, win.PBT_APMRESUMESUSPEND):
+            log.info("resumed from sleep")
+            self.after_wake()
+
+    def on_session(self, event: int) -> None:
+        if event == win.WTS_SESSION_LOCK:
+            self.cancel_recording()
+            self.hook.reset()
+        elif event == win.WTS_SESSION_UNLOCK:
+            self.after_wake()
+
+    def after_wake(self) -> None:
+        self.hook.reinstall()
+        self.schedule_device_refresh()
+
+    def on_device_change(self, event: int) -> None:
+        if event == win.DBT_DEVNODES_CHANGED:  # a headset connected or removed
+            self.schedule_device_refresh()
+
+    def schedule_device_refresh(self) -> None:
+        win.user32.SetTimer(self.msg.hwnd, TIMER_DEVICES, DEVICE_SETTLE_MS, None)  # restarts if pending
+
+    def refresh_devices(self) -> None:
+        """Re-read the audio devices (PortAudio lists them once) so Settings
+        and the next recording see a headset connected since. Only when
+        something changed: every re-read leaks two handles inside PortAudio
+        (measured), and it used to run every 30 seconds — about 5,800 a day
+        in a process that lives across sleeps for weeks."""
+        win.user32.KillTimer(self.msg.hwnd, TIMER_DEVICES)
+        if self.recording:
+            self.schedule_device_refresh()  # never while recording
+            return
+        mic = microphone(refresh=True)
+        if mic != self.mic:
+            self.mic = mic
+            self.write_status()
 
 
 def _setup_logging() -> None:

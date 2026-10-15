@@ -60,6 +60,9 @@ class ClipRecorder:
     def stop(self):
         return self.audio, time.monotonic() - self.started
 
+    def cancel(self) -> None:
+        pass
+
 
 def _arg(name: str, default: str = "") -> str:
     argv = sys.argv[1:]
