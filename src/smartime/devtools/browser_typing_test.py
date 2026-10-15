@@ -56,8 +56,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>""" + TITLE + 
 <label>cancel</label><div id="cancel" class="f" contenteditable="true"></div>
 <label>cancel_ta</label><textarea id="cancel_ta" class="f"></textarea>
 <label>chat (Ctrl+Enter sends)</label><textarea id="chat" class="f"></textarea>
+<label>sw_a → sw_b (the page moves the focus mid-composition, like an editor opening its terminal)</label>
+<textarea id="sw_a" class="f"></textarea><textarea id="sw_b" class="f"></textarea>
 <script>
-const ids = ["ta","ce","react","cancel","cancel_ta","chat"];
+const ids = ["ta","ce","react","cancel","cancel_ta","chat","sw_a","sw_b"];
 let sent = [];
 const ev = [];
 let target = "ta", interrupted = false;
@@ -80,6 +82,8 @@ async function poll(){
     if(c.cmd==="prepare"){ target=c.target; interrupted=false; ev.length=0; sent=[];
       ids.forEach(i=>{const el=document.getElementById(i); if(el.tagName==="TEXTAREA") el.value=""; else el.innerHTML=""; el.classList.toggle("on", i===target);});
       document.getElementById("cap").textContent=c.caption; const el=document.getElementById(target); el.focus();
+      fetch("/ack",{method:"POST",body:String(c.n)}); report(); }
+    if(c.cmd==="focus"){ ev.push("focus -> "+c.target); document.getElementById(c.target).focus();
       fetch("/ack",{method:"POST",body:String(c.n)}); report(); }
   }catch(e){}
   setTimeout(poll,60);
@@ -235,7 +239,9 @@ def main() -> int:
         print("ABORT: Edge/Chrome not found")
         return 2
     only_interrupt = "--interrupt-only" in sys.argv[1:]
-    cases = [] if only_interrupt else [(f, s, tt.expected_text(s)) for f in FIELDS for s in SCENARIOS_PER_FIELD]
+    only_switch = "--switch-only" in sys.argv[1:]
+    cases = [] if only_interrupt or only_switch else [(f, s, tt.expected_text(s)) for f in FIELDS
+                                                      for s in SCENARIOS_PER_FIELD]
     print("waiting until keyboard/mouse have been idle for 5 s ...")
     if not tt.wait_until_idle():
         print("ABORT: the computer is in use; try again later (no keys were sent)")
@@ -315,9 +321,32 @@ def main() -> int:
             print(f"{'PASS' if ok else 'FAIL'}  {field:6} {label!r:36} -> {got!r}"
                   + ("" if ok else f"  (expected {expected!r})"))
 
-        # The user ends the composition: the text must appear exactly once.
+        # The page moves the focus to another field mid-composition (VS Code
+        # opening its terminal): what was typed stays where it was typed,
+        # and the new field gets only what is typed there. Reported: 「打字時
+        # terminal 跳出來就會直接卡住壞掉」 — the old composition, correction
+        # mode included, came along into the new field.
         n0 = len(cases) + 10
         if not only_interrupt:
+            for k, (before, label) in enumerate((("rm,6u2/4", "composing"), ("rm,6u2/4{ESC}", "correction mode"))):
+                prepare(n0 + 20 + 2 * k, "sw_a", f"focus moves to another field while {label}: 決定 | focus → | 我")
+                tt.type_script(tap, before)
+                tt.pump(0.4)
+                with state.lock:
+                    state.cmd = {"cmd": "focus", "n": n0 + 21 + 2 * k, "target": "sw_b"}
+                end = time.monotonic() + 5
+                while state.ack != n0 + 21 + 2 * k and time.monotonic() < end:
+                    tt.pump(0.05)
+                tt.pump(0.6)
+                tt.type_script(tap, "ji3{ENTER}")
+                tt.pump(0.6)
+                values = state.report.get("values", {})
+                a, b = values.get("sw_a", ""), values.get("sw_b", "")
+                ok = b == "我" and a == "決定"
+                failures += not ok
+                print(f"{'PASS' if ok else 'FAIL'}  switch {label:28} -> sw_a {a!r}, sw_b {b!r}"
+                      + ("" if ok else "  (expected sw_a '決定', sw_b '我')"))
+        if not only_interrupt and not only_switch:
             prepare(n0, "ta", "mouse click while composing: 我們 | click at the start | 你")
             tt.type_script(tap, "ji3ap7")
             tt.pump(0.3)
@@ -342,7 +371,7 @@ def main() -> int:
 
         # An editor that interrupts the composition: what stays in the field?
         script = "ji3ap7rup wu0dk3u3283b/6dj94k27vu jp6"
-        for k, field in enumerate(("cancel", "cancel_ta")):
+        for k, field in enumerate(() if only_switch else ("cancel", "cancel_ta")):
             prepare(len(cases) + 1 + k, field, f"interrupt test [{field}]  keys: {script}")
             tt.type_script(tap, script + "{ENTER}")
             tt.pump(0.6)

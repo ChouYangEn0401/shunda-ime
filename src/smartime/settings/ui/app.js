@@ -1469,6 +1469,17 @@
       renderUpdate(await api("GET", "/api/update" + (force ? "?force=1" : "")));
     } catch (e) { document.getElementById("update-status").textContent = e.message; }
   }
+  document.getElementById("restart-ime").addEventListener("click", async e => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const r = await api("POST", "/api/restart");
+      toast(r.backend ? "輸入法已重新啟動，下一個按鍵就是新的狀態" + (r.voice ? "；語音服務幾秒後回來" : "")
+                      : "輸入法沒有在執行；下一次打字時會自己啟動");
+    } catch (err) { toast(err.message, true); }
+    setTimeout(() => { btn.disabled = false; }, 3000);
+  });
+
   document.getElementById("update-check").addEventListener("click", async () => {
     document.getElementById("update-status").textContent = "檢查中…";
     await loadUpdate(true);

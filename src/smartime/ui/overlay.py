@@ -284,6 +284,17 @@ class Overlay:
     def _follow(self) -> None:
         if self._shown is None:
             return
+        owner = self._owner
+        in_front = getattr(owner, "still_in_front", None)
+        if in_front is not None and not in_front():
+            # the user went to another program: the panel stays with the
+            # composition, not on top of whatever is in front now (it comes
+            # back with the next key typed there)
+            with self._lock:
+                if self._owner is owner:
+                    self._want = None
+            self._update()
+            return
         if not self._place(resize=False) and time.monotonic() - self._last_anchor_at > LOST_ANCHOR_SECONDS:
             # the app lost the composition (focus moved, window closed …)
             with self._lock:

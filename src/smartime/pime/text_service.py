@@ -20,7 +20,7 @@ from ..engine.keys import (
 )
 from .. import PRODUCT_NAME
 from ..engine.session import Engine, Mode, Session
-from .winapp import KEEP_APPS, foreground_app, foreground_elevated, mouse_clicked, send_key_again
+from .winapp import KEEP_APPS, foreground_app, foreground_elevated, foreground_pid, mouse_clicked, send_key_again
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ MODE_MENU_IDS = {10: Mode.AUTO, 11: Mode.CHINESE, 12: Mode.ENGLISH, 13: Mode.PIN
 # page that owns each of the longer lists.
 ID_SETTINGS_PUNCT, ID_SETTINGS_DICT, ID_SETTINGS_KEYS = 5, 6, 7
 ID_UPDATE = 8
+ID_RESTART = 9  # 重新啟動輸入法: this backend exits, the launcher starts a fresh one
 TOGGLES = {  # id: (config field, label)
     20: ("autocomplete", "接續建議（Tab 接詞）"),
     21: ("composing_indicator", "組字中顯示小點"),
@@ -64,6 +65,10 @@ MODE_ICONS = {Mode.AUTO: "auto.ico", Mode.CHINESE: "chinese.ico", Mode.ENGLISH: 
               Mode.PINYIN: "pinyin.ico", Mode.CANGJIE: "cangjie.ico"}
 
 MESSAGE_DURATION = 3600  # seconds; we hide the message explicitly
+# A Chromium editor that re-renders ends the composition as a reaction to
+# our own update, so right after it; a focus that moves (the editor opens its
+# terminal) ends it whenever that happens. Only the first kind keeps the text.
+KEEP_WINDOW = 0.35  # seconds after our last composition update
 # What we put in PIME's own message window when we draw the hint ourselves.
 # The window has to exist: PIME places it right under the caret and moves it
 # on every composition update, which is how this process learns where the
@@ -143,6 +148,8 @@ class SmartTextService:
         self._clicked_while_composing = False
         self._passthrough_at = 0.0
         self._composing_app = ""
+        self._composing_pid = 0  # the foreground window's process when this composition started
+        self._updated_at = 0.0  # when our last reply updated the composition
 
     # ------------------------------------------------------------------
     def handle(self, msg: dict) -> dict:
@@ -218,6 +225,13 @@ class SmartTextService:
                 s.set_mode(MODE_MENU_IDS[command])
             elif command in SETTINGS_SECTIONS:
                 self._open_settings(SETTINGS_SECTIONS[command])
+            elif command == ID_RESTART:
+                from .. import restart
+
+                log.info("restart chosen from the tray menu")
+                s.reset()
+                self._clear_ui(reply)
+                restart.exit_backend_soon()  # after this reply has gone out
             elif command in TOGGLES:
                 field, _ = TOGGLES[command]
                 self._set_config(field, not getattr(self.engine.config, field))
@@ -245,11 +259,20 @@ class SmartTextService:
                 # the text vanished ("後面的內容遺失"). In that case keep the
                 # buffer, so the next update re-sends the whole text.
                 app = foreground_app()
-                keep = s.composing and self._spontaneous_end(app)
+                since = time.monotonic() - self._updated_at
+                keep = s.composing and since <= KEEP_WINDOW and self._spontaneous_end(app)
                 if s.composing:
-                    log.info("composition ended by the app: app=%s chars=%d keys=%d correcting=%s kept=%s",
-                             app or "?", len(s.decoding.text), len(s.keys), s.correcting, keep)
+                    log.info("composition ended by the app: app=%s chars=%d keys=%d correcting=%s "
+                             "%.0f ms after our update kept=%s",
+                             app or "?", len(s.decoding.text), len(s.keys), s.correcting, since * 1000, keep)
                 if keep:
+                    # Reported: 「打字時 terminal 跳出來就會直接卡住壞掉」. A kept
+                    # composition must not stay in correction mode: if it was
+                    # the focus that moved after all, the next keys would be
+                    # commands acting on the old text (ji3 gave 覺3訂).
+                    if s.correcting:
+                        s.exit_correction()
+                        s.cursor = len(s.keys)  # and typing goes on at the end
                     self._composing = False  # PIME starts a new composition
                     self._clear_ui(reply, composition=False)
                 else:
@@ -301,6 +324,7 @@ class SmartTextService:
         if v.commit:
             reply["commitString"] = v.commit
         reply["compositionString"] = v.composition
+        self._updated_at = time.monotonic()
         if v.composition:
             reply["compositionCursor"] = v.cursor
 
@@ -355,6 +379,7 @@ class SmartTextService:
             message = ""
             if v.composition:
                 self._composing_app = foreground_app()  # where this composition lives
+                self._composing_pid = foreground_pid()
         self._composing = bool(v.composition)
         if message != self._message:
             if message:
@@ -436,6 +461,16 @@ class SmartTextService:
             log.exception("cannot send the key again")
             return False
 
+    def still_in_front(self) -> bool:
+        """For the panel window (called from its own thread): is the program
+        this composition lives in still the one in front? Reported: the
+        correction panel stayed on screen over File Explorer after the
+        user had gone there — a PIME window left visible in the other
+        program kept it anchored. UWP apps (ApplicationFrameHost) and
+        WebView2 apps keep the same front window while typing, so they
+        compare equal."""
+        return not self._composing_pid or foreground_pid() == self._composing_pid
+
     def _spontaneous_end(self, app: str) -> bool:
         """The composition ended without the user doing anything: no mouse
         button held, no key just sent to the app, same app as when typing
@@ -473,6 +508,7 @@ class SmartTextService:
                   {"text": "設定…", "id": ID_SETTINGS},
                   {},
                   {"text": "檢查更新…", "id": ID_UPDATE},
+                  {"text": "重新啟動輸入法（卡住時）", "id": ID_RESTART},
                   {"text": f"關於{PRODUCT_NAME}", "id": ID_ABOUT}]
         return items
 

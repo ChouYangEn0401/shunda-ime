@@ -23,7 +23,7 @@ import sys
 import threading
 import time
 
-from .. import paths
+from .. import paths, restart
 from ..config import Config
 from . import asr, text, win
 
@@ -422,8 +422,13 @@ class VoiceService:
             return
         self.check_keys()
         cfg = Config.load(self.config_path)
-        if not cfg.voice_enabled:
-            log.info("voice input turned off; exiting")
+        flag = restart.voice_flag()
+        again = flag.exists()
+        if again:
+            flag.unlink(missing_ok=True)
+        if not cfg.voice_enabled or again:
+            # turned off, or 重新啟動輸入法: whoever asked starts a new one
+            log.info("voice input turned off; exiting" if not again else "restart requested; exiting")
             self.hook.close()
             self.jobs.put(None)
             status_path().unlink(missing_ok=True)
@@ -530,6 +535,7 @@ def main() -> int:
         log.info("already running")
         return 0
     log.info("voice service starting")
+    restart.voice_flag().unlink(missing_ok=True)  # meant for the one before this
     VoiceService()
     win.run_message_loop()
     return 0

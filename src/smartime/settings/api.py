@@ -28,7 +28,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from .. import PRODUCT_NAME, __version__, paths, practice
+from .. import PRODUCT_NAME, __version__, paths, practice, restart
 from ..config import Config
 from ..engine.layouts import get_layout
 from ..engine.lexicon import Lexicon
@@ -113,6 +113,15 @@ class SettingsApp:
         if patch.get("voice_enabled") is True:
             voice_launch.start()  # the service exits by itself when turned off
         return new.to_dict()
+
+    # ---------------------------------------------------------- 重新啟動輸入法
+    def restart_ime(self) -> dict:
+        """Something stuck: start the backend and the voice service afresh."""
+        backend = restart.restart_backend()
+        voice = Config.load(self.config_path).voice_enabled
+        if voice:
+            restart.start_voice_when_gone(voice_launch.start, voice_launch.running)
+        return {"backend": backend, "voice": voice}
 
     # ---------------------------------------------------------- 修字練習
     def practice_state(self) -> dict:
@@ -660,6 +669,7 @@ class _Handler(BaseHTTPRequestHandler):
             ("GET", "/api/update"): lambda: app.update_state(
                 (query.get("force") or ["0"])[0] == "1"),
             ("POST", "/api/update/install"): app.install_update,
+            ("POST", "/api/restart"): app.restart_ime,
             ("GET", "/api/practice"): app.practice_state,
             ("POST", "/api/practice/done"): lambda: app.practice_done(self._json_body()),
             ("POST", "/api/practice/active"): lambda: app.practice_active(self._json_body()),

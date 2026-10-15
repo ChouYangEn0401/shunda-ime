@@ -197,8 +197,20 @@
   `forced=true` = App 結束組字：一般是使用者造成的（點別處、Ctrl+Enter 送出、換視窗），文字已留在文件裡 → 重設緩衝區。
   **例外：Chromium/Electron 的編輯器重繪時會自己結束組字，但頁面上還留著舊的組字**，下一個組字會把它整段蓋掉
   （「長句後面內容遺失」，`browser_typing_test` 可重現）。所以前景是 `winapp.KEEP_APPS` 裡的 App、和開始組字時同一個、
-  1.5 秒內沒有按鍵交給 App、滑鼠沒有按下（含「按過」位元）時，保留緩衝區，下一鍵把整段重新送出。
-  設定 `keep_on_app_interrupt` 可關掉；紀錄檔的 `kept=` 欄位記下每次判斷（只記 App 名稱與長度）。
+  1.5 秒內沒有按鍵交給 App、滑鼠沒有按下（含「按過」位元），**而且結束緊接在我們上一次更新組字之後**（`KEEP_WINDOW`
+  0.35 秒：重繪是頁面對我們的更新起的反應）時，保留緩衝區，下一鍵把整段重新送出。
+  同一個 App 裡**焦點移到別的輸入框**（VS Code 打開終端機）也是 `forced=true`、同一個 App、沒有滑鼠，但頁面已經把字送進舊的框，
+  再送一次就重複了（回報「terminal 跳出來就會直接卡住壞掉」：`browser_typing_test --switch-only` 重現出 決定我、修正模式下
+  覺3訂）——它發生在任意時間，不會剛好緊接在更新之後，靠時間分開；Chromium 沒有系統游標，看位置的做法行不通。
+  就算保留了，也一律離開修正模式、游標回到最後：之後的鍵是字，不是對舊文字下的指令。
+  設定 `keep_on_app_interrupt` 可關掉；紀錄檔記下每次的 App、長度、離我們上次更新幾毫秒和 `kept=`（不記內容）。
+- 面板跟著「開始組字時前景視窗的那個程式」：使用者換到別的程式，面板就收起來（`SmartTextService.still_in_front`，面板執行緒
+  每 40 ms 問一次）。以前別的程式裡殘留一個看得見的 PIME 視窗，面板就會跟著它浮在新的程式上面（截圖：修正模式面板蓋在檔案總管上）。
+  UWP（ApplicationFrameHost）、WebView2 的 App 打字時前景視窗不變，不受影響。
+- **重新啟動輸入法**（`restart.py`，系統匣選單和設定頁「關於 → 遇到問題」）：只重啟我們自己的行程。後端啟動時把 pid 寫進
+  `backend.pid`；系統匣是後端回覆完自己結束，設定頁是確認那個 pid 還是 Python 才結束它；PIMELauncher 會馬上開新的後端，
+  各 App 的下一個按鍵就是新的 session。語音服務看到 `voice-restart` 旗標就自己結束，再由設定頁（或下一次 onActivate）啟動。
+  不碰 PIMELauncher：重開它失敗會讓整台電腦沒有輸入法。
 - Launcher 以**小寫** GUID 對應後端（`init` 的 `id` 必須是小寫）；找不到後端時**不會回覆**，客戶端會卡住。
 - **圖示快取陷阱**：PIME 的 LangBarButton 有「整個 App 行程共用」的圖示快取，任何一個輸入情境停用或關閉時
   （`onDeactivate`、`close`）會 `DestroyIcon` 全部；同一個 App 其他視窗的模式按鈕就拿著死掉的 handle（圖示消失或變成別的圖）。

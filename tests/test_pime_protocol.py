@@ -428,3 +428,67 @@ def test_tray_menu_choice_applies_and_is_saved(engine, tmp_path):
     svc.handle({"method": "onCommand", "seqNum": 1, "id": cid})
     assert engine.config.panel_theme == "dark"
     assert "dark" in engine.config_path.read_text(encoding="utf-8")
+
+
+def test_focus_moved_later_in_a_browser_does_not_carry_the_text(engine, monkeypatch):
+    """Reported: 「打字時 terminal 跳出來就會直接卡住壞掉」. The editor opened
+    its terminal: Chromium committed 決定 where it was typed and the focus
+    moved; carrying the buffer over typed 決定 again in the terminal. An end
+    that does not come right after our own update is not a re-render."""
+    import smartime.pime.text_service as ts
+
+    _fake_desktop(monkeypatch, "Code.exe")
+    monkeypatch.setattr(ts, "KEEP_WINDOW", -1.0)  # the end came long after our last update
+    msgs = [
+        {"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True},
+        *typing(10, "rm,6u2/4"),
+        {"method": "onCompositionTerminated", "seqNum": 50, "forced": True},
+        *typing(60, "ji3"),
+    ]
+    replies = {r["seqNum"]: r for r in exchange(engine, msgs)}
+    assert replies[65]["compositionString"] == "我"
+
+
+def test_a_kept_composition_never_stays_in_correction_mode(engine, monkeypatch):
+    """Kept (right after our update, in a browser) while in correction mode:
+    the next keys must be typing, not commands acting on the old text (the
+    report's ji3 became 覺3訂: j swapped a character, i left the mode)."""
+    _fake_desktop(monkeypatch, "msedge.exe")
+    esc = key_msg(30, "filterKeyDown", vk=0x1B)
+    msgs = [
+        {"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True},
+        *typing(10, "rm,6u2/4"),
+        esc, dict(esc, method="onKeyDown", seqNum=31),
+        {"method": "onCompositionTerminated", "seqNum": 50, "forced": True},
+        *typing(60, "ji3"),
+    ]
+    replies = {r["seqNum"]: r for r in exchange(engine, msgs)}
+    assert replies[65]["compositionString"] == "決定我"
+
+
+def test_the_panel_leaves_with_the_program(engine, monkeypatch):
+    """The panel window asks its owner whether the program it was composing
+    in is still in front; another program in front means hide."""
+    import smartime.pime.text_service as ts
+
+    svc = ts.SmartTextService(engine, Path("icons"))
+    assert svc.still_in_front()  # nothing composed yet
+    svc._composing_pid = 1234
+    monkeypatch.setattr(ts, "foreground_pid", lambda: 1234)
+    assert svc.still_in_front()
+    monkeypatch.setattr(ts, "foreground_pid", lambda: 999)
+    assert not svc.still_in_front()
+
+
+def test_restart_from_the_tray_menu(engine, monkeypatch):
+    import smartime.pime.text_service as ts
+    from smartime import restart
+
+    asked = []
+    monkeypatch.setattr(restart, "exit_backend_soon", lambda: asked.append(1))
+    svc = ts.SmartTextService(engine, Path("icons"))
+    for m in typing(10, "ji3"):
+        svc.handle(m)
+    reply = svc.handle({"method": "onCommand", "seqNum": 40, "id": ts.ID_RESTART})
+    assert asked == [1] and reply["compositionString"] == "" and not svc.session.composing
+    assert any(i.get("id") == ts.ID_RESTART for i in svc._menu())

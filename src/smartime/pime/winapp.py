@@ -130,6 +130,18 @@ def mouse_clicked() -> bool:
     return any(st & 0x8001 for st in states)
 
 
+def foreground_pid() -> int:
+    """Process of the foreground window, 0 if none. Cheap: no handle opened."""
+    if os.name != "nt":
+        return 0
+    hwnd = _user32.GetForegroundWindow()
+    if not hwnd:
+        return 0
+    pid = wintypes.DWORD()
+    _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    return pid.value
+
+
 def foreground_app() -> str:
     """e.g. "Code.exe", "msedge.exe"; "" if it cannot be determined."""
     if os.name != "nt":

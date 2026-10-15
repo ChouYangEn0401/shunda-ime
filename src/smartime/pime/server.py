@@ -98,6 +98,9 @@ def serve(stdin, stdout, engine: Engine, icon_dir: Path) -> None:
 def main(icon_dir: Path) -> None:
     setup_logging()
     log.info("backend starting (python %s)", sys.version.split()[0])
+    from .. import restart
+
+    restart.record_backend()  # 設定頁「重新啟動輸入法」 ends this process
     try:
         engine = build_engine()
     except Exception:
