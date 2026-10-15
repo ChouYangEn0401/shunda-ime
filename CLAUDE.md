@@ -74,9 +74,10 @@ Artifact(file_path="docs/index.html", root="docs",
 一年後用 `git log` 要看得懂為什麼。不要覆蓋 `dist/` 裡已發佈的檔案、不要 push、
 不要建 GitHub Release（使用者自己來）。
 
-版本號：交給使用者測試的版本用 `tools\set_version.py 0.8.0-alpha.N` 往上加（一天好幾個
-也可以），單獨一個 commit；乾淨的 `0.8.0` 只有使用者說可以發佈時才用。CHANGELOG 用
-正式版的標題（`## 0.8.0（開發中）`），alpha 期間持續往裡面加。
+版本號：交給使用者測試的版本用 `tools\set_version.py 0.9.0-alpha.N` 往上加（一天好幾個
+也可以），單獨一個 commit；乾淨的 `0.9.0` 只有使用者說可以發佈時才用。CHANGELOG 用
+正式版的標題（`## 0.9.0（開發中）`），alpha 期間持續往裡面加。（0.8.0 試到 rc.2 沒有發佈，
+使用者決定回到測試版並改用 0.9.0，版號順序不能倒退。）
 
 ## 6. 改完要自己驗
 
