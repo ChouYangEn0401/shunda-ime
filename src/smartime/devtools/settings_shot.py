@@ -83,7 +83,11 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         os.environ["SMARTIME_USER_DIR"] = str(Path(tmp) / "user")
         from ..settings.api import SettingsApp, SettingsServer
+        from ..voice import launch as voice_launch
 
+        # --set voice_enabled=true started the real voice service (a global
+        # keyboard hook, the model on the GPU) on the throwaway folder
+        voice_launch.start = lambda: True
         app = SettingsApp()
         sample_data(app)
         if args.set:
