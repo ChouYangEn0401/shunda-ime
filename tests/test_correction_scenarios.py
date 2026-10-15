@@ -243,3 +243,16 @@ def test_r_then_esc_gives_the_character_back(session):
     assert "重打中" in v.notice
     _, v = run(session, "{ESC}")
     assert v.correcting and v.composition == "我的" and v.cursor == 0
+
+
+@pytest.mark.xfail(strict=True, reason="reported 2026-10-15; how to move a key across the word boundary "
+                                       "is still to be decided")
+def test_a_key_the_english_word_swallowed_can_be_given_back(session):
+    """Reported (screenshot): Fable then 你 typed with no space — the s of
+    ㄋㄧˇ joined the word (Fables) and u3 became 以, and nothing in
+    correction mode could undo it. Even deleting the s and retyping 以 as
+    su3 with r glued the s to Fable again."""
+    _, v = run(session, "cjo6djo4Fablesu3")
+    assert v.composition == "回饋Fables以"
+    _, v = run(session, "{ESC}vhxvrsu3")
+    assert v.composition == "回饋Fable你"
