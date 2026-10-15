@@ -245,14 +245,44 @@ def test_r_then_esc_gives_the_character_back(session):
     assert v.correcting and v.composition == "我的" and v.cursor == 0
 
 
-@pytest.mark.xfail(strict=True, reason="reported 2026-10-15; how to move a key across the word boundary "
-                                       "is still to be decided")
-def test_a_key_the_english_word_swallowed_can_be_given_back(session):
+def test_a_retyped_character_does_not_join_the_english_word_before_it(session):
     """Reported (screenshot): Fable then 你 typed with no space — the s of
-    ㄋㄧˇ joined the word (Fables) and u3 became 以, and nothing in
-    correction mode could undo it. Even deleting the s and retyping 以 as
-    su3 with r glued the s to Fable again."""
+    ㄋㄧˇ joined the word (Fables) and u3 became 以. Deleting the s and
+    retyping 以 as su3 with r glued the s to Fable again."""
     _, v = run(session, "cjo6djo4Fablesu3")
     assert v.composition == "回饋Fables以"
     _, v = run(session, "{ESC}vhxvrsu3")
-    assert v.composition == "回饋Fable你"
+    assert v.correcting and v.composition == "回饋Fable你"
+
+
+@pytest.mark.xfail(strict=True, reason="proposal A (2026-10-15): ↓ on the next character offers the key back")
+def test_the_next_character_can_take_back_the_key_the_english_word_swallowed(session):
+    """The same report, fixed where the user looks: ↓ on 以 offers 你,
+    reading ㄋㄧˇ with the s the word took."""
+    run(session, "cjo6djo4Fablesu3{ESC}")
+    _, v = run(session, "{DOWN}")
+    assert "你" in v.candidates
+
+
+def test_retyping_with_r_is_done_only_when_the_syllable_is(session):
+    """Reported: 低一下 -> 點一下 was very hard. r on 低, then 2: the 2
+    joined the u␣ of 一 and read 低 again, r took that as done, and the
+    rest of 2u03 became commands — u undid, 3 re-toned 一 — giving 以下."""
+    _, v = run(session, "2u u vu84{ESC}hhr2u0")
+    assert not v.correcting  # ㄉㄧㄢ is not a character yet
+    _, v = run(session, "3")
+    assert v.correcting and v.composition == "點一下" and v.cursor == 0
+    out, _ = run(session, "{ENTER}")
+    assert out == "點一下"
+
+
+def test_typing_into_the_middle_makes_characters_of_its_own(session):
+    """The same fix without correction mode: ← to 一, Backspace takes 低,
+    and 2u03 typed there must not borrow keys from 一 (it read 低眼下)."""
+    _, v = run(session, "2u u vu84{LEFT}{LEFT}{BS}2u03")
+    assert v.composition == "點一下" and v.cursor == 1
+
+
+def test_esc_while_retyping_gives_back_the_old_character_after_a_half_typed_one(session):
+    _, v = run(session, "2u u vu84{ESC}hhr2u0{ESC}")
+    assert v.correcting and v.composition == "低一下"

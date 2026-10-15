@@ -242,9 +242,15 @@ class Decoder:
 
     # ------------------------------------------------------------------
     def decode(self, keys: Sequence[Key], pins: Sequence[Segment] = (), allow_english: bool = True,
-               scheme: str = "zhuyin") -> Decoding:
+               scheme: str = "zhuyin", joints: Sequence[int] = ()) -> Decoding:
         """``allow_english=False`` is a pure Chinese mode: no English tokens.
-        ``scheme``: how Chinese is typed (zhuyin, pinyin, cangjie)."""
+        ``scheme``: how Chinese is typed (zhuyin, pinyin, cangjie).
+
+        ``joints``: positions no syllable or word may straddle — where keys
+        typed into the middle of the composition meet the keys that were
+        there. A phrase may still span one at a syllable joint, so 氣 typed
+        after 天 still reads in context as 天氣. An unfinished syllable may
+        stop at one, as it may at the end."""
         n = len(keys)
         if n == 0:
             return Decoding((), 0.0)
@@ -261,6 +267,14 @@ class Decoder:
             limit[i] = next_start
             if i in pin_at:
                 next_start = i
+        # cut[i]: how far one syllable or token starting at i may reach
+        joint_set = {j for j in joints if 0 < j < n}
+        cut = [n] * (n + 1)
+        nxt = n
+        for i in range(n, -1, -1):
+            cut[i] = min(nxt, limit[i])
+            if i in joint_set:
+                nxt = i
 
         syllables = self._unit_table(keys, scheme)
 
@@ -276,7 +290,8 @@ class Decoder:
             if i in pin_at:
                 edges: list[Segment] = [pin_at[i]]
             else:
-                edges = list(self._edges_from(keys, i, limit[i], syllables, allow_english, scheme))
+                edges = list(self._edges_from(keys, i, limit[i], syllables, allow_english, scheme,
+                                              cut, joint_set))
             for seg in edges:
                 for state, (score, _, _, _) in best[i].items():
                     lang, prev_kind = state
@@ -612,34 +627,39 @@ class Decoder:
     def _edges_from(
         self, keys: Sequence[Key], i: int, limit: int, syllables: list,
         allow_english: bool = True, scheme: str = "zhuyin",
+        cut: Sequence[int] | None = None, joints: frozenset | set = frozenset(),
     ) -> Iterator[Segment]:
         w = self.w
         n = len(keys)
         k = keys[i]
         ch = k.char
         zhuyin = scheme == "zhuyin"
+        if cut is None:
+            cut = [limit] * (n + 1)
+        tok = cut[i]  # one token (a word, a number, a code) ends here at the latest
+        open_end = tok == n or tok in joints  # an unfinished syllable may stop here
 
         # --- Chinese phrases: chains of syllables (zhuyin, pinyin) or codes
         #     (Cangjie) looked up in the lexicon.
         if scheme == "pinyin":
-            yield from self._py_edges(i, limit, syllables)
+            yield from self._py_edges(i, tok, syllables)
         elif scheme == "cangjie":
-            yield from self._cj_edges(i, limit, syllables)
+            yield from self._cj_edges(i, tok, syllables)
         else:
-            yield from self._zh_edges(i, limit, syllables)
+            yield from self._zh_edges(i, limit, syllables, cut)
             if self.crazy:
-                yield from self._abbr_edges(keys, i, limit)
+                yield from self._abbr_edges(keys, i, tok)
 
         # --- English / alphanumeric tokens, output exactly as typed.
         if allow_english and ch in _EN_CHARS and not k.numpad:
             j = i
             has_letter = False
-            while j < limit and j - i < MAX_EN_LEN:
+            while j < tok and j - i < MAX_EN_LEN:
                 c = keys[j].char
                 if c in _EN_CHARS and not keys[j].numpad:
                     has_letter = has_letter or c in _LETTERS
                     j += 1
-                elif c == "'" and j > i and j + 1 < limit and keys[j + 1].char in _LETTERS:
+                elif c == "'" and j > i and j + 1 < tok and keys[j + 1].char in _LETTERS:
                     j += 1  # apostrophe inside a word: don't, it's
                     continue
                 else:
@@ -656,7 +676,7 @@ class Decoder:
         numbers_ok = allow_english or not zhuyin
         if ch in _DIGITS and (numbers_ok or k.numpad):
             j = i
-            while j < limit and keys[j].char in _DIGITS and (numbers_ok or keys[j].numpad):
+            while j < tok and keys[j].char in _DIGITS and (numbers_ok or keys[j].numpad):
                 j += 1
                 yield Segment(i, j, "".join(x.char for x in keys[i:j]), Kind.NUM, w.num)
 
@@ -687,17 +707,18 @@ class Decoder:
             double = ch in _LOWER and i + 1 < n and keys[i + 1].char == ch and not keys[i + 1].numpad
             yield Segment(i, i + 1, "", Kind.DROP, w.drop_double if double else w.drop)
 
-        # --- Unfinished syllable / code at the end of the buffer (shown raw + hint).
-        if not zhuyin and limit == n:
-            tail = "".join(x.char for x in keys[i:n])
-            if all(not x.numpad and x.char in _LOWER for x in keys[i:n]) and (
+        # --- Unfinished syllable / code at the end of the buffer, or where
+        #     keys typed into the middle meet the rest (shown raw + hint).
+        if not zhuyin and open_end:
+            tail = "".join(x.char for x in keys[i:tok])
+            if all(not x.numpad and x.char in _LOWER for x in keys[i:tok]) and (
                     (scheme == "pinyin" and tail in self.lex.pinyin.prefixes)
                     or (scheme == "cangjie" and len(tail) <= 5)):
-                yield Segment(i, n, tail, Kind.PENDING,
+                yield Segment(i, tok, tail, Kind.PENDING,
                               w.pending_pinyin if scheme == "pinyin" else w.pending_cangjie)
-        elif limit == n and 0 < n - i <= 3:
+        elif open_end and 0 < tok - i <= 3:
             symbols = []
-            for x in keys[i:n]:
+            for x in keys[i:tok]:
                 sym = None if x.numpad else self.layout.symbol(x.char)
                 if sym is None:
                     break
@@ -705,7 +726,7 @@ class Decoder:
             else:
                 canon = bopomofo.canonical(symbols)
                 if canon is not None and canon in self.lex.partial_syllables:
-                    yield Segment(i, n, "".join(x.char for x in keys[i:n]), Kind.PENDING, w.pending)
+                    yield Segment(i, tok, "".join(x.char for x in keys[i:tok]), Kind.PENDING, w.pending)
 
         # --- Fallback so that every position stays reachable.
         yield Segment(i, i + 1, ch, Kind.LITERAL, w.literal)
@@ -755,11 +776,14 @@ class Decoder:
             if found >= 2:
                 return
 
-    def _zh_edges(self, i: int, limit: int, syllables: list[list[tuple[int, str, float]]]) -> Iterator[Segment]:
+    def _zh_edges(self, i: int, limit: int, syllables: list[list[tuple[int, str, float]]],
+                  cut: Sequence[int]) -> Iterator[Segment]:
+        """Phrases from ``i`` up to ``limit`` (the next pin); each syllable
+        starting at p ends by ``cut[p]`` (the next joint)."""
         lex = self.lex
         max_len = lex.max_phrase_syllables
         # Depth-first over syllable chains: (end, readings, bounds, channel cost)
-        stack = [(end, (syl,), (i, end), cost) for end, syl, cost in syllables[i] if end <= limit]
+        stack = [(end, (syl,), (i, end), cost) for end, syl, cost in syllables[i] if end <= cut[i]]
         while stack:
             end, readings, bounds, cost = stack.pop()
             reading = "-".join(readings)
@@ -769,7 +793,7 @@ class Decoder:
                 yield Segment(i, end, text, Kind.ZH, score + cost, readings, bounds)
             if len(readings) < max_len and end < limit and lex.has_reading_prefix(reading):
                 for nxt_end, syl, nxt_cost in syllables[end]:
-                    if nxt_end <= limit:
+                    if nxt_end <= cut[end]:
                         stack.append((nxt_end, readings + (syl,), bounds + (nxt_end,), cost + nxt_cost))
 
     def _en_score(self, word: str, delimited: bool = False) -> float:

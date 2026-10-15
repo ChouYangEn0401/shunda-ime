@@ -54,7 +54,7 @@ class CorrectionMixin:
         self._cycle: _Cycle | None = None
         self._clear_armed = False  # D pressed once: the next D clears everything
         self._retype_at: int | None = None  # r: typing one replacement character here
-        self._retype_saved: tuple | None = None  # (keys, pins, text) before r, for Esc
+        self._retype_saved: tuple | None = None  # (keys, pins, joints, text) before r, for Esc
         self._redecide_span = 0  # R pressed in a row: how many extra units it covers
 
     def enter_correction(self) -> None:
@@ -63,6 +63,7 @@ class CorrectionMixin:
         self._cycle = None
         self._clear_armed = False
         self._retype_at = None
+        self._run_end = None
         self._redecide_span = 0
         self.suggestion = None
         # at the end: the last real character (not a trailing space, so
@@ -295,9 +296,10 @@ class CorrectionMixin:
             return
         self._snapshot()
         a = self._dropped_before(t[0])
-        self._retype_saved = (list(self.keys), list(self.pins), t[2])
+        self._retype_saved = (list(self.keys), list(self.pins), list(self.joints), t[2])
         self._delete_keys(a, t[1])
         self.cursor = a
+        self._run_end = None  # the retyped keys start a run of their own
         self.exit_correction()
         if not self.keys:
             self._reset_buffer()
@@ -317,9 +319,10 @@ class CorrectionMixin:
         if saved is None or a is None:
             return False
         self._retype_at = None
-        keys, pins, text = saved
+        keys, pins, joints, text = saved
         self.keys[:] = keys
         self.pins = list(pins)
+        self.joints = list(joints)
         self._redecode()
         self.enter_correction()
         self.cursor = a
@@ -329,10 +332,19 @@ class CorrectionMixin:
 
     def _retype_done(self) -> None:
         """After a key typed in r mode: back to correction mode once the
-        replacement is a finished Chinese character."""
+        replacement is a finished Chinese character.
+
+        In zhuyin "finished" also means the last key typed ends a syllable
+        (a tone key or the space): 2u reads as 低 with the tone left out,
+        and stopping there turned the rest of 2u03 (點) into commands —
+        u undid, 3 re-toned — and 點一下 came out as 以下."""
         a = self._retype_at
         if a is None:
             return
+        if self.scheme == "zhuyin" and self.cursor > a:
+            last = self.keys[self.cursor - 1].char
+            if last != " " and self.engine.layout.tone(last) is None:
+                return
         seg = next((s for s in self.decoding.segments if s.start <= a < s.end), None)
         if seg is not None and seg.kind is Kind.ZH and self.cursor in seg.bounds and self.cursor > a:
             self._retype_at = None

@@ -330,6 +330,10 @@ class Session(CorrectionMixin):
         self.chinese_mode = self.mode if self.mode is not Mode.ENGLISH else Mode.AUTO
         self.keys: list[Key] = []
         self.pins: list[Segment] = []
+        # Where keys typed into the middle meet the keys already there: no
+        # syllable or word may straddle them (decoder.decode's ``joints``).
+        self.joints: list[int] = []
+        self._run_end: int | None = None  # end of the keys being typed into the middle right now
         self.cursor = 0  # position in self.keys
         self.decoding = Decoding((), 0.0)
         self.cand: CandidateList | None = None
@@ -343,9 +347,9 @@ class Session(CorrectionMixin):
         self._palette_down_at: float | None = None  # the symbol-panel key went down (alone) at
         self._shift_scan = 0
         # Undo inside the composition (Ctrl+Z / Ctrl+Y, and u in correction
-        # mode): (keys, pins, cursor) before each edit.
-        self._history: list[tuple[list[Key], list[Segment], int]] = []
-        self._redo: list[tuple[list[Key], list[Segment], int]] = []
+        # mode): (keys, pins, cursor, joints) before each edit.
+        self._history: list[tuple[list[Key], list[Segment], int, list[int]]] = []
+        self._redo: list[tuple[list[Key], list[Segment], int, list[int]]] = []
         self._typing_run = False  # the last step is a run of typing that may still grow
         self.hand_back: KeyInput | None = None  # see key_down / take_hand_back
         self.smart: Smart | None = None  # 超智慧推薦 (experimental)
@@ -752,7 +756,7 @@ class Session(CorrectionMixin):
         punctuation completes something."""
         if typing and self._typing_run:
             return
-        self._history.append((list(self.keys), list(self.pins), self.cursor))
+        self._history.append((list(self.keys), list(self.pins), self.cursor, list(self.joints)))
         del self._history[:-100]
         self._redo.clear()
         self._typing_run = typing
@@ -768,8 +772,9 @@ class Session(CorrectionMixin):
         if not source:
             self._notice = empty
             return False
-        target.append((list(self.keys), list(self.pins), self.cursor))
-        self.keys, self.pins, self.cursor = source.pop()
+        target.append((list(self.keys), list(self.pins), self.cursor, list(self.joints)))
+        self.keys, self.pins, self.cursor, self.joints = source.pop()
+        self._run_end = None
         self.cand = None
         if not self.keys:
             history, redo = self._history, self._redo
@@ -789,6 +794,8 @@ class Session(CorrectionMixin):
     def _insert(self, k: Key) -> None:
         self._checkpoint(typing=True)
         pos = self.cursor
+        middle = pos < len(self.keys)
+        continuing = self._run_end == pos
         self.keys.insert(pos, k)
         kept = []
         for p in self.pins:
@@ -798,6 +805,14 @@ class Session(CorrectionMixin):
                 kept.append(p)
             # a pin that spans the insertion point is dropped
         self.pins = kept
+        self.joints = [j + 1 if j >= pos else j for j in self.joints]  # the run's right edge moves on
+        if not continuing and (middle or self._retype_at is not None):
+            # Typed into the middle (or r): these keys make characters of
+            # their own and must not join the neighbours'. 低一下 with 低
+            # deleted and ㄉㄧㄢˇ typed in its place read 2 + u␣ as 低 again,
+            # Fable + ㄋㄧˇ became Fables 以.
+            self.joints = sorted({*self.joints, pos, *((pos + 1,) if middle else ())})
+        self._run_end = pos + 1 if (continuing or middle or self._retype_at is not None) else None
         self.cursor = pos + 1
         self._redecode()
         here = next((s for s in self.decoding.segments if s.start <= pos < s.end), None)
@@ -856,10 +871,13 @@ class Session(CorrectionMixin):
             elif p.start >= b:
                 kept.append(_shift_segment(p, -width))
         self.pins = kept
+        self.joints = sorted({j - width if j >= b else j for j in self.joints if j <= a or j >= b})
         if self.cursor >= b:
             self.cursor -= width
         elif self.cursor > a:
             self.cursor = a
+        if self._run_end is not None:  # Backspace inside the run: it goes on from here
+            self._run_end = self._run_end - width if self._run_end >= b else min(self._run_end, a)
 
     def _delete_unit(self, before: bool) -> None:
         """Backspace / Delete: remove exactly one character you can see —
@@ -926,6 +944,7 @@ class Session(CorrectionMixin):
     def _move_unit(self, delta: int) -> None:
         self._typing_run = False  # typing somewhere else is a new undo step
         self._retype_at = None
+        self._run_end = None
         units = self.decoding.units()
         if delta < 0:
             prev = [a for a, b, _, _ in units if b <= self.cursor]
@@ -963,6 +982,8 @@ class Session(CorrectionMixin):
         self._text_here = ""
         self.keys.clear()
         self.pins.clear()
+        self.joints.clear()
+        self._run_end = None
         self.cursor = 0
         self.decoding = Decoding((), 0.0)
         self.suggestion = None
@@ -976,7 +997,7 @@ class Session(CorrectionMixin):
 
     def _redecode(self) -> None:
         self.decoding = self.engine.decoder.decode(self.keys, self.pins, allow_english=self.mode is Mode.AUTO,
-                                                   scheme=self.scheme)
+                                                   scheme=self.scheme, joints=self.joints)
         self._snap_cursor()
         self._update_suggestion()
 
