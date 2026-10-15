@@ -46,6 +46,7 @@
     try { localStorage.setItem("smartime-view", id); } catch (e) { /* storage may be blocked */ }
     if (id === "dict") loadEntries();
     if (id === "voice") loadVoice();
+    if (id === "practice") loadPractice();
     if (id === "snippets") { loadSnippets(); loadCustomSymbols(); loadSymbolsExtra(); }
   }
   rail.forEach(b => b.addEventListener("click", () => show(b.dataset.view)));
@@ -1212,6 +1213,96 @@
 
   // ------------------------------------------------------------ voice
   let voiceTimer = 0;
+  // ------------------------------------------------------------ 修字練習
+  // Typed with the real IME in a text box on this page. While a box has the
+  // focus the page keeps telling the IME "practising" (it expires on its own
+  // a few seconds after the last word), so nothing here is learned.
+  let practiceTimer = null;
+  function practiceActive(on) {
+    clearInterval(practiceTimer);
+    practiceTimer = null;
+    api("POST", "/api/practice/active", { on }).catch(() => {});
+    if (on) practiceTimer = setInterval(() => api("POST", "/api/practice/active", { on: true }).catch(() => {}), 8000);
+  }
+  document.addEventListener("visibilitychange", () => { if (document.hidden && practiceTimer) practiceActive(false); });
+
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  async function loadPractice() {
+    let data;
+    try { data = await api("GET", "/api/practice"); } catch (e) { toast(e.message, true); return; }
+    const done = new Set(data.done);
+    const list = document.getElementById("practice-levels");
+    const progress = () => {
+      document.getElementById("practice-progress").textContent = `${done.size} / ${data.levels.length} 過關`;
+    };
+    list.innerHTML = "";
+    data.levels.forEach((lv, i) => {
+      const row = el("div", "row practice" + (done.has(lv.id) ? " passed" : ""));
+      const body = el("div");
+      const head = el("div", "label");
+      head.append(el("span", "p-num", String(i + 1)), document.createTextNode(lv.title + " "),
+                  el("span", "badge later", lv.skill));
+      const pass = el("span", "badge done p-pass", "✓ 過關");
+      pass.hidden = !done.has(lv.id);
+      head.append(" ", pass);
+      const how = el("div", "desc");
+      how.append(lv.note ? "照這樣打：" : "照平常那樣打：", el("b", "", lv.type_text),
+                 lv.note ? `（${lv.note}）` : "", "　", el("span", "p-keys", "按鍵 " + lv.keys.replace(/ /g, "␣")));
+      const goal = el("div", "desc");
+      goal.append("目標：", el("b", "p-target", lv.target));
+      const box = el("input", "p-box");
+      box.type = "text";
+      box.placeholder = "在這裡用順打輸入法打字…";
+      box.setAttribute("aria-label", `第 ${i + 1} 關：打出「${lv.target}」`);
+      const foot = el("div", "p-foot");
+      const hintBtn = el("button", "btn small", "看提示");
+      const clear = el("button", "btn small", "清空重來");
+      const result = el("span", "p-result");
+      foot.append(hintBtn, clear, result);
+      const hint = el("div", "desc p-hint");
+      hint.innerHTML = lv.hint;  // our own text, with <kbd>
+      hint.hidden = true;
+      body.append(head, how, goal, box, foot, hint);
+      row.append(body);
+      list.append(row);
+
+      let composing = false;
+      const check = () => {
+        if (composing) return;
+        const v = box.value.trim();
+        if (v === lv.target) {
+          result.textContent = "對了！";
+          row.classList.add("passed");
+          pass.hidden = false;
+          if (!done.has(lv.id)) {
+            done.add(lv.id);
+            progress();
+            api("POST", "/api/practice/done", { id: lv.id }).catch(() => {});
+          }
+        } else {
+          result.textContent = v ? "還不一樣，再改改看（看提示也行）" : "";
+        }
+      };
+      box.addEventListener("compositionstart", () => { composing = true; });
+      box.addEventListener("compositionend", () => { composing = false; check(); });
+      box.addEventListener("input", e => { if (!e.isComposing) check(); });
+      box.addEventListener("focus", () => practiceActive(true));
+      box.addEventListener("blur", () => practiceActive(false));
+      hintBtn.addEventListener("click", () => {
+        hint.hidden = !hint.hidden;
+        hintBtn.textContent = hint.hidden ? "看提示" : "收起提示";
+      });
+      clear.addEventListener("click", () => { box.value = ""; result.textContent = ""; box.focus(); });
+    });
+    progress();
+  }
+
   async function loadVoice() {
     let v;
     try { v = await api("GET", "/api/voice"); } catch (e) { return; }

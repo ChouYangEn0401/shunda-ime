@@ -28,8 +28,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from .. import PRODUCT_NAME, __version__, paths
+from .. import PRODUCT_NAME, __version__, paths, practice
 from ..config import Config
+from ..engine.layouts import get_layout
 from ..engine.lexicon import Lexicon
 from ..engine.userdict import UserDict
 from ..voice import launch as voice_launch
@@ -112,6 +113,22 @@ class SettingsApp:
         if patch.get("voice_enabled") is True:
             voice_launch.start()  # the service exits by itself when turned off
         return new.to_dict()
+
+    # ---------------------------------------------------------- 修字練習
+    def practice_state(self) -> dict:
+        layout = get_layout(Config.load(self.config_path).layout)
+        return {"levels": practice.levels_for(self.lexicon, layout), "done": practice.done()}
+
+    @staticmethod
+    def practice_done(body: dict) -> dict:
+        return {"done": practice.mark_done(str(body.get("id", "")))}
+
+    @staticmethod
+    def practice_active(body: dict) -> dict:
+        """The page's practice box got or lost the focus (renewed every few
+        seconds while it has it): the IME learns nothing meanwhile."""
+        practice.set_active(bool(body.get("on")))
+        return {"ok": True}
 
     # ---------------------------------------------------------- voice input
     def busy(self) -> bool:
@@ -643,6 +660,9 @@ class _Handler(BaseHTTPRequestHandler):
             ("GET", "/api/update"): lambda: app.update_state(
                 (query.get("force") or ["0"])[0] == "1"),
             ("POST", "/api/update/install"): app.install_update,
+            ("GET", "/api/practice"): app.practice_state,
+            ("POST", "/api/practice/done"): lambda: app.practice_done(self._json_body()),
+            ("POST", "/api/practice/active"): lambda: app.practice_active(self._json_body()),
             ("GET", "/api/voice"): app.voice_state,
             ("POST", "/api/voice/download"): lambda: app.start_download(str(self._json_body().get("key", ""))),
             ("POST", "/api/voice/install"): app.install_voice,

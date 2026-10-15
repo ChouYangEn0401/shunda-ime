@@ -215,8 +215,10 @@ def test_a_dropped_zhuyin_key_can_become_the_symbol_or_a_character(session):
     tone, so it was dropped, and the only way back was the letter p."""
     _, v = run(session, "x8 px8 ")
     assert v.composition == "拉拉"
-    _, v = run(session, "{DOWN}{S-TAB}")  # the 略過的鍵 group
-    assert v.candidates[:3] == ["p", "ㄣ", "恩"]
+    # right before the character the window opens on, the 略過的鍵 group
+    # comes first (it used to be last, behind Shift+Tab)
+    _, v = run(session, "{DOWN}")
+    assert v.candidates[:3] == ["p", "ㄣ", "恩"] and v.candidate_index > 2  # still opens on what is there
     _, v = run(session, "2")
     assert v.composition == "拉ㄣ拉"
 

@@ -18,6 +18,7 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
 
+from .. import practice
 from ..config import Config
 from . import bopomofo
 from .decoder import (
@@ -1042,7 +1043,15 @@ class Session(CorrectionMixin):
         return CandidateList(items, self.cfg.candidates_per_page, multi=self.cfg.candidate_multi_column, **kw)
 
     def _open_candidates(self) -> None:
-        items = self._regroup_candidates() + self._candidate_items() + self._drop_candidates()
+        dropped = self._drop_candidates()
+        t = self._target_unit()
+        start = self.decoding.units()[t][0] if t is not None else self.cursor
+        if dropped and any(c.pin is not None and c.pin.end == start for c in dropped):
+            # right before this character: the panel says 「↓ 可以救回」,
+            # so they lead instead of waiting past every homophone of 畫
+            items = self._regroup_candidates() + dropped + self._candidate_items()
+        else:
+            items = self._regroup_candidates() + self._candidate_items() + dropped
         if items:
             self.cand = self._new_list(items)
             # start on what is on screen now (your own words are listed
@@ -1503,8 +1512,8 @@ class Session(CorrectionMixin):
         """Remember an explicit choice (candidate picked, Tab accepted).
         True if the phrase was new to my memory."""
         user = self.engine.user
-        if user is None or not self.cfg.learn:
-            return False
+        if user is None or not self.cfg.learn or practice.active():
+            return False  # 修字練習: the sentences are made up, nothing to learn from them
         if seg.kind is Kind.ZH:
             new = user.learn(seg.text, "-".join(seg.readings), "zh", origin)
         elif seg.kind is Kind.EN:
@@ -1623,6 +1632,9 @@ class Session(CorrectionMixin):
         if c.joint is not None:
             self._notice = "這是另一種分法，不是學過的詞"
             return
+        if practice.active():
+            self._notice = "練習中不會改動你的詞庫"
+            return
         if seg is None:
             # Not a decoded word: a symbol, a kaomoji, a snippet, or a 超智慧
             # 推薦 continuation (those carry a Suggestion instead of a pin).
@@ -1709,6 +1721,9 @@ class Session(CorrectionMixin):
     def _add_to_dict(self, phrase: str, reading: str, kind: str) -> None:
         user = self.engine.user
         if user is None:
+            return
+        if practice.active():
+            self._notice = "練習中不會改動你的詞庫"
             return
         category = self.cfg.default_category if kind == "zh" else "常用英文"
         user.add(phrase, reading, kind, category)

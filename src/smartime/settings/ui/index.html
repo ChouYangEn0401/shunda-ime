@@ -30,6 +30,7 @@
       <button data-view="dict"><span class="glyph">詞</span>我的詞庫</button>
       <button data-view="snippets"><span class="glyph">❞</span>片語與顏文字</button>
       <button data-view="keys"><span class="glyph">⌨</span>快捷鍵</button>
+      <button data-view="practice"><span class="glyph">練</span>修字練習</button>
       <button data-view="voice"><span class="glyph">◉</span>語音輸入</button>
       <button data-view="data"><span class="glyph">⇅</span>資料與隱私</button>
       <button data-view="about"><span class="glyph">i</span>關於</button>
@@ -636,6 +637,17 @@
             </table>
             <p class="note" style="margin-bottom:0">模型存在 <code>%LOCALAPPDATA%\SmartIME\models</code>，只需下載一次。</p>
           </div></div>
+        </div>
+      </section>
+
+      <!-- ============ 修字練習 ============ -->
+      <section class="view" id="view-practice" hidden>
+        <h2>修字練習</h2>
+        <p class="lead">輸入法難免讀錯。每一關都是它真的會讀錯的句子（句子都是編的）：在框裡用順打輸入法照著打，看它錯在哪，再用修正模式（<kbd>Esc</kbd>）改成目標，改好按 <kbd>Enter</kbd> 送出，對了就過關。</p>
+        <p class="callout">練習的時候輸入法<b>不會學習</b>，也不會改動你的詞庫。如果一打就對了，代表你的詞庫已經學過這個詞，直接送出也算過關。</p>
+        <div class="group">
+          <h3>關卡 <span class="badge done" id="practice-progress"></span></h3>
+          <div id="practice-levels"></div>
         </div>
       </section>
 
