@@ -83,7 +83,7 @@ py -3.13 -m venv .venv
 | 面板、UI | ＋ `python -m smartime.devtools.panel_check out_dir`（實機，會打字到真的文字框） |
 | 設定頁 | ＋ `python -m smartime.devtools.settings_shot out_dir --view <頁面>`（headless Edge，會回報 JS 錯誤） |
 | 鍵盤處理 | ＋ `python -m smartime.devtools.tsf_typing_test`（EDIT＝IMM32 路徑）與 `--richedit`（TSF 路徑） |
-| 安裝檔 | ＋ `tools\test_installer.ps1 -Setup <exe> -RestoreDev`（需系統管理員，一次 UAC） |
+| 安裝檔 | ＋ `tools\test_installer.ps1 -Setup <exe>`（在「以系統管理員身分執行」的 PowerShell 裡跑；沒有管理員權限會直接停下，什麼都不動） |
 
 實機測試（`panel_check`、`tsf_typing_test`）**會真的在這台電腦上打字**。
 它們會等電腦閒置 5 秒才開始、遇到真人輸入就中止、結束後還原原本的輸入法，
@@ -102,6 +102,12 @@ powershell -ExecutionPolicy Bypass -File scripts\dev-reload.ps1 -Rebuild   # 連
 
 後端在被使用時會一直握著 `smartime.db`，所以 `dev-reload` 會先停掉
 PIMELauncher、做完事再用 `explorer.exe` 重新啟動它（這樣它不屬於這個主控台）。
+
+**只有裝了官方 PIME 的電腦能切到開發模式。** `install.ps1` 會先解除安裝已經裝好的
+順打；如果這台電腦沒有官方 PIME，PIME 核心（PIMELauncher.exe 和兩個
+PIMETextService.dll）就是順打安裝檔帶來的，解除安裝時會一起被移除，輸入法就整個消失。
+所以這種電腦上 `install.ps1`（含 `-Dev`）和 `test_installer.ps1 -RestoreDev` 會拒絕執行、
+什麼都不動；要更新就直接執行 `dist\ShundaIME-Setup-<版本>.exe`。
 
 ---
 
@@ -152,7 +158,8 @@ PIME 官方安裝檔本身不會被散佈，也不會被執行——它會連帶
 
 出版本前：
 
-1. `tools\test_installer.ps1 -Setup dist\...exe -RestoreDev`（乾淨安裝、takeover、移除後未重開機重裝）
+1. 在系統管理員 PowerShell 裡跑 `tools\test_installer.ps1 -Setup dist\...exe`
+   （乾淨安裝、takeover、移除後未重開機重裝；跑完電腦上就是這個安裝檔裝的版本）
 2. 更新 `CHANGELOG.md`
 3. 打 tag、推上去、在 GitHub 上發佈 Release 並附上安裝檔
    （設定頁的「檢查更新」看的就是 Releases API 的 `tag_name` 和 `.exe` 附件）

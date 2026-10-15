@@ -233,7 +233,7 @@
 - 64 位元系統工具用 `{sys}`（Inno Setup 是 32 位元程式，`Sysnative` 在 64 位元 cmd 裡看不到）。
 - 移除：core 模式連 PIME 核心、自動啟動、COM 註冊一起移除；shared 模式保留 PIME 官方版與它的輸入法。
   都不刪 `%APPDATA%\SmartIME`。
-- 發行前驗證：`tools\test_installer.ps1 -Setup <exe> -FreshUserData`（一次 UAC）：共用 → takeover → 移除 →
+- 發行前驗證：`tools\test_installer.ps1 -Setup <exe> -FreshUserData`（在系統管理員 PowerShell 裡跑，沒有權限會直接停下）：共用 → takeover → 移除 →
   乾淨電腦安裝（沒有 PIME、沒有使用者資料）→ 原地升級，每步檢查註冊、檔案、自動啟動、待刪除檔案、語言清單並實際打字。
   安裝檔還沒有程式碼簽章。
 
@@ -270,6 +270,8 @@
   要改版本用 `.venv\Scripts\python tools\set_version.py 0.4.0`，它會一起改 `pyproject.toml` 與 `ime.json`
   （PIME 要字面值）；不帶參數則列出各處版本並檢查一致。`tests/test_backend_files.py` 會擋下不一致。CHANGELOG 手寫。
 - `install.ps1 -Dev`：`<PIME>\smartime` 變成指向 `repo\backend` 的 junction；改完 Python 程式後，在系統匣 PIME 圖示選「Restart PIME」重啟後端即可。
+  只能用在裝了官方 PIME 的電腦：它會先解除安裝已安裝的順打，而 core 模式的解除安裝會連 PIME 核心一起移除，
+  所以 core 模式的電腦上 `install.ps1` 與 `install-admin.ps1` 會拒絕執行（見 CONTRIBUTING「開發模式安裝」）。
 - 改 `ime.json`（名稱、GUID、圖示）後需重新執行安裝（會重新登錄 TSF 語言設定檔）。
 - 不安裝也能測：`python -m smartime.devtools.simulate --steps "<按鍵>"`；測試使用同一套模擬器。
 - `tests/test_reported_issues.py` 記錄使用者回報的問題；未修好時用 xfail(strict)，修好就移除標記成為回歸測試。

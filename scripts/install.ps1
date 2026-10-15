@@ -80,6 +80,17 @@ if ($pthLines -notcontains '..') {
 }
 
 # 4. Admin part ---------------------------------------------------------------
+# Checked here as well as in install-admin.ps1, so the answer comes before
+# the UAC prompt.
+$installedKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D0A6055C-3F02-41F7-992F-4BADAC52DDB5}_is1'
+$officialKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PIME'
+if ((Test-Path $installedKey) -and -not (Test-Path $officialKey)) {
+    throw ("This PC's PIME core (PIMELauncher.exe, PIMETextService.dll) came with ShundaIME-Setup, " +
+           "not with the official PIME. This script would first run that installer's uninstaller, " +
+           "which removes the core too, and the IME would stop working. Nothing was changed. " +
+           "Update by running dist\ShundaIME-Setup-<version>.exe instead.")
+}
+
 $mode = 'Copy'
 if ($Dev) { $mode = 'Dev' }
 Step "Installing into $Pime\smartime ($mode mode) - accept the UAC prompt"

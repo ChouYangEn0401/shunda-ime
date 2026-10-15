@@ -32,6 +32,14 @@ param(
     [switch]$RestoreDev
 )
 
+# Not elevated, Setup.exe and its uninstaller still elevate themselves, but
+# the steps in between fail: the run uninstalls the IME and cannot put it back.
+$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Host 'Run this from an elevated PowerShell (Run as administrator). Nothing was changed.' -ForegroundColor Red
+    exit 1
+}
+
 $ErrorActionPreference = 'Continue'
 $out = Join-Path $env:TEMP 'smartime-installer-test'
 New-Item -ItemType Directory -Force -Path $out | Out-Null

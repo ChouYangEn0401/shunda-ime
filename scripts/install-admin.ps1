@@ -30,6 +30,13 @@ try {
     # A version installed with the Setup.exe installer: remove it with its own
     # uninstaller, so "Apps & features" does not keep a stale entry.
     $uninstKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D0A6055C-3F02-41F7-992F-4BADAC52DDB5}_is1'
+    # Without the official PIME, that installer also provided the PIME core,
+    # and its uninstaller removes the core: nothing below would put it back.
+    $officialKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PIME'
+    if ((Test-Path $uninstKey) -and -not (Test-Path $officialKey)) {
+        throw ('the installed Shunda IME provides the PIME core; uninstalling it would remove ' +
+               'PIMELauncher.exe and PIMETextService.dll. Nothing was changed.')
+    }
     if (Test-Path $uninstKey) {
         $uninst = ((Get-ItemProperty $uninstKey).UninstallString).Trim('"')
         if (Test-Path $uninst) {
