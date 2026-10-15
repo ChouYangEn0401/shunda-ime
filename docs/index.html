@@ -288,7 +288,7 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
   <!-- Version list: written by hand, updated with every version (CLAUDE.md §3).
        It ships with the page so the local copy opens offline. -->
   <details class="ver" id="ver">
-    <summary aria-label="版本：目前開發中 0.9.0-alpha.1，點開看所有版本"><i class="dot"></i><b>v0.9.0-alpha.1</b>開發中<span class="chev" aria-hidden="true">▼</span></summary>
+    <summary aria-label="版本：目前開發中 0.9.0-alpha.2，點開看所有版本"><i class="dot"></i><b>v0.9.0-alpha.2</b>開發中<span class="chev" aria-hidden="true">▼</span></summary>
     <div class="ver-pop">
       <h3>版本</h3>
       <p class="intro">「下載安裝檔」拿到的是最新的正式版。測試版、候選版只在開發者的電腦上建置、試用，沒有公開下載——除非下面標成「正式版」並附了下載連結。</p>
@@ -296,8 +296,10 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
       <div class="ver-group">
         <p class="eyebrow">開發中 · 0.9.0</p>
         <ul class="ver-list">
+          <li><span class="v-name">alpha.2<span class="v-date">2026-10-15</span></span>
+            <span class="v-body"><span class="st st-current">測試版・目前</span><span class="v-note">修正模式重新分組：↓ 列出英文／數字和中文的其他分法，Shift+←/→ 自己推分界；設定頁「修字練習」12 關</span></span></li>
           <li><span class="v-name">alpha.1<span class="v-date">2026-10-15</span></span>
-            <span class="v-body"><span class="st st-current">測試版・目前</span><span class="v-note">在句子中間打字、r 重打不再黏到旁邊的字（低一下 → 點一下）；語音：說過的話不丟、長度不限、錄音秒數、睡眠鎖定不出怪事、可閒置釋放模型</span></span></li>
+            <span class="v-body"><span class="st st-alpha">測試版</span><span class="v-note">在句子中間打字、r 重打不再黏到旁邊的字（低一下 → 點一下）；語音：說過的話不丟、長度不限、錄音秒數、睡眠鎖定不出怪事、可閒置釋放模型</span></span></li>
         </ul>
       </div>
 
@@ -510,6 +512,9 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
         <p>組字中按 <kbd>Esc</kbd>，鍵盤變成指令。<kbd>h</kbd> <kbd>l</kbd> 移動、
           <kbd>j</kbd> <kbd>k</kbd> 換字、<kbd>R</kbd> 重新判定、<kbd>v</kbd> 切換「國字／注音／按鍵」三種檢視。
           只有明確的指令會離開，其他鍵都不會不小心打出字。</p>
+        <p>英文或數字跟中文黏在一起（<code>games以</code>、<code>10284</code>）時，<kbd>↓</kbd> 直接列出其他分法
+          （<code>game｜你</code>、<code>10｜大</code>），也可以用 <kbd>Shift</kbd>+<kbd>←</kbd> <kbd>→</kbd> 自己推分界。
+          設定頁的「修字練習」有 12 關真的會遇到的錯，可以先玩一遍。</p>
       </div>
       <figure>
         <img src="images/correction.png" alt="修正模式的解碼面板，琥珀色外框，三列對齊顯示按鍵、注音、國字">
