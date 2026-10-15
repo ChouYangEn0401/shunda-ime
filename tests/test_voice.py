@@ -123,8 +123,18 @@ def test_recorder_closes_the_stream_even_when_stopping_fails():
 
 
 class _Recorder:
-    def __init__(self):
-        self.cancelled = 0
+    def __init__(self, seconds=5.0):
+        self.cancelled = self.stopped = self.started = 0
+        self.seconds = seconds
+
+    def start(self):
+        self.started += 1
+
+    def stop(self):
+        import numpy as np
+
+        self.stopped += 1
+        return np.zeros(int(self.seconds * 16000), dtype=np.float32), self.seconds
 
     def cancel(self):
         self.cancelled += 1
@@ -144,16 +154,19 @@ class _Hook:
 class _Indicator:
     def __init__(self):
         self.hidden = 0
+        self.text = ""
 
     def show(self, text):
-        pass
+        self.text = text
 
     def hide(self):
         self.hidden += 1
 
 
-def _service(tmp_path, monkeypatch, *, held=False):
+def _service(tmp_path, monkeypatch, *, held=False, foreground=7):
     """A VoiceService without its window, hook, microphone or model."""
+    import queue
+    import time
     import types
 
     from smartime.config import Config
@@ -161,11 +174,17 @@ def _service(tmp_path, monkeypatch, *, held=False):
 
     monkeypatch.setattr(win.user32, "SetTimer", lambda *a: 1)
     monkeypatch.setattr(win.user32, "KillTimer", lambda *a: 1)
+    monkeypatch.setattr(win.user32, "GetForegroundWindow", lambda: foreground)
     monkeypatch.setattr(win, "key_down", lambda vk: held)
     s = object.__new__(service.VoiceService)
-    s.msg = types.SimpleNamespace(hwnd=None, post=lambda *a: None)
+    s.posted = []
+    s.msg = types.SimpleNamespace(hwnd=None, post=lambda *a: s.posted.append(a))
     s.recorder, s.hook, s.indicator = _Recorder(), _Hook(), _Indicator()
-    s.recording, s.hook_suspect, s.mic = False, 0, "mic"
+    s.recording, s.recording_since, s.hook_suspect, s.mic = False, 0.0, 0, "mic"
+    s.press_window, s.press_error, s.locked, s.pending_notice, s.shown = 7, "", False, "", 0
+    s.engine, s.engine_error, s.unloaded, s.reload_queued = None, "", False, False
+    s.last_used = time.monotonic()
+    s.jobs, s.results = queue.Queue(), queue.Queue()
     s.flashed = []
     s.flash = lambda message, seconds=2.5: s.flashed.append(message)
     cfg = Config()
@@ -176,28 +195,139 @@ def _service(tmp_path, monkeypatch, *, held=False):
     return s
 
 
-def test_sleep_and_lock_close_the_microphone_and_forget_the_press(tmp_path, monkeypatch):
-    from smartime.voice import win
+def test_sleep_and_lock_keep_what_was_said_for_the_clipboard(tmp_path, monkeypatch):
+    from smartime.voice import service, win
 
     s = _service(tmp_path, monkeypatch)
     for event in (lambda: s.on_power(win.PBT_APMSUSPEND), lambda: s.on_session(win.WTS_SESSION_LOCK)):
         s.recording, s.hook.down = True, True
         event()
-        assert not s.recording and not s.hook.down
-    assert s.recorder.cancelled == 2 and not s.flashed  # nothing typed, nothing to say
+        assert not s.recording and not s.hook.down  # microphone closed, press forgotten
+        audio, delivery = s.jobs.get_nowait()
+        assert len(audio) and delivery == service.CLIPBOARD  # recognized, not thrown away
+    assert s.recorder.cancelled == 0
     s.on_power(win.PBT_APMRESUMEAUTOMATIC)
     s.on_session(win.WTS_SESSION_UNLOCK)
     assert s.hook.reinstalled == 2  # Windows may have dropped the hook meanwhile
 
 
-def test_a_release_the_hook_missed_discards_the_recording(tmp_path, monkeypatch):
+def test_a_release_the_hook_missed_still_gives_the_text(tmp_path, monkeypatch):
     import time
+
+    from smartime.voice import service
 
     s = _service(tmp_path, monkeypatch, held=False)
     s.recording, s.hook.down, s.hook.last_down = True, True, time.monotonic() - 60
     s.check_keys()
-    assert not s.recording and s.recorder.cancelled == 1 and not s.hook.down
-    assert s.hook.reinstalled == 1 and "沒有送出" in s.flashed[0]
+    assert not s.recording and not s.hook.down and s.hook.reinstalled == 1
+    assert s.recorder.cancelled == 0 and s.jobs.get_nowait()[1] == service.SAME_WINDOW
+
+
+def _deliver(s, monkeypatch, delivery, clipboard_ok=True):
+    from smartime.voice import win
+
+    typed, clip = [], []
+    monkeypatch.setattr(win, "type_text", typed.append)
+    monkeypatch.setattr(win, "set_clipboard", lambda hwnd, t: clip.append(t) or clipboard_ok)
+    s.results.put(("text", "今天開會", delivery))
+    s.on_result()
+    return typed, clip
+
+
+def test_the_text_goes_where_the_user_dictated_or_to_the_clipboard(tmp_path, monkeypatch):
+    from smartime.voice import service
+
+    s = _service(tmp_path, monkeypatch, foreground=7)  # the same window as at the press
+    assert _deliver(s, monkeypatch, service.SAME_WINDOW) == (["今天開會"], [])
+    s = _service(tmp_path, monkeypatch, foreground=99)  # the focus moved on meanwhile
+    assert _deliver(s, monkeypatch, service.SAME_WINDOW) == ([], ["今天開會"])
+    assert "剪貼簿" in s.flashed[0]
+    s = _service(tmp_path, monkeypatch, foreground=7)  # after sleep: never typed
+    assert _deliver(s, monkeypatch, service.CLIPBOARD) == ([], ["今天開會"])
+    s = _service(tmp_path, monkeypatch, foreground=99)  # clipboard busy: typing beats losing it
+    assert _deliver(s, monkeypatch, service.CLIPBOARD, clipboard_ok=False) == (["今天開會"], ["今天開會"])
+
+
+def test_a_notice_waits_for_the_screen_to_be_unlocked(tmp_path, monkeypatch):
+    from smartime.voice import service, win
+
+    s = _service(tmp_path, monkeypatch)
+    s.locked = True
+    _deliver(s, monkeypatch, service.CLIPBOARD)
+    assert not s.flashed and s.pending_notice
+    s.on_session(win.WTS_SESSION_UNLOCK)
+    assert "剪貼簿" in s.flashed[0] and not s.pending_notice
+
+
+def test_a_long_dictation_is_not_cut_at_two_minutes(tmp_path, monkeypatch):
+    s = _service(tmp_path, monkeypatch)
+    s.recorder = _Recorder(seconds=600)
+    s.recording = True
+    s.on_release()
+    audio, _ = s.jobs.get_nowait()
+    assert len(audio) == 600 * 16000  # it used to keep only the first 120 s, without a word
+
+
+def test_an_old_flash_does_not_hide_a_newer_message(tmp_path, monkeypatch):
+    from smartime.voice import service
+
+    import types
+
+    monkeypatch.setattr(service.threading, "Timer", lambda *a: types.SimpleNamespace(start=lambda: None))
+    s = _service(tmp_path, monkeypatch)
+    service.VoiceService.flash(s, "沒有聽到內容")  # its timer will hide it later...
+    old = s.shown
+    s.recording, s.recording_since = True, 0.0
+    s.on_tick()  # ...but recording has started again meanwhile
+    s.hide_if(old)
+    assert s.indicator.hidden == 0 and "錄音中" in s.indicator.text
+    s.hide_if(s.shown)
+    assert s.indicator.hidden == 1
+
+
+def test_an_idle_model_is_released_and_loaded_again_while_talking(tmp_path, monkeypatch):
+    import time
+
+    from smartime.voice import service
+
+    s = _service(tmp_path, monkeypatch)
+    s.engine = object()
+    s.maybe_unload()
+    assert s.engine is not None  # off by default
+    s.config.voice_unload_minutes = 10
+    s.last_used = time.monotonic() - 11 * 60
+    s.maybe_unload()
+    assert s.engine is None and s.unloaded
+    s.on_press()
+    s.on_press()  # (already recording: nothing more)
+    assert s.jobs.get_nowait() == service.RELOAD and s.jobs.empty()  # loading starts at the press
+
+    class Engine:
+        def transcribe(self, audio, hot):
+            return "好"
+
+    s.reload_queued, loads = False, []
+    s.load_engine = lambda: (loads.append(1), setattr(s, "engine", Engine()), setattr(s, "unloaded", False))
+    s.engine, s.unloaded = None, True  # released again before the reload ran
+    s._my_words = lambda: []
+    s.recognize([0.0] * 16000, service.TYPE)
+    assert loads == [1] and s.results.get_nowait() == ("text", "好", service.TYPE)
+
+
+def test_long_audio_is_cut_at_the_pauses():
+    import numpy as np
+
+    from smartime.voice import asr
+
+    rng = np.random.default_rng(0)
+    sec = asr.SAMPLE_RATE
+    speech = lambda s: rng.normal(0, 0.3, int(s * sec)).astype(np.float32)  # noqa: E731
+    silence = lambda s: np.zeros(int(s * sec), dtype=np.float32)  # noqa: E731
+    audio = np.concatenate([speech(22), silence(0.5), speech(21), silence(0.5), speech(10)])
+    pieces = asr.split_at_pauses(audio)
+    assert np.array_equal(np.concatenate(pieces), audio)  # nothing lost or doubled
+    assert all(len(p) <= 25 * sec for p in pieces)
+    assert abs(len(pieces[0]) - 22.25 * sec) < 0.3 * sec  # cut inside the pause
 
 
 def test_someone_still_talking_is_never_cut_off(tmp_path, monkeypatch):

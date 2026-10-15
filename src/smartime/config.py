@@ -142,6 +142,7 @@ class Config:
     voice_engine: str = "auto"  # "auto" | "breeze" (GPU) | "sensevoice" (CPU)
     voice_hotwords: bool = True  # my dictionary's own words help recognition
     voice_traditional: bool = True  # convert to Taiwan Traditional Chinese
+    voice_unload_minutes: int = 0  # release the model after this long idle; 0 = keep it loaded
 
     # Assistance
     spelling_hint: bool = True  # show zhuyin of the unfinished syllable
@@ -203,6 +204,8 @@ class Config:
             self.layout = "dachen"
         if self.voice_engine not in ("auto", "breeze", "sensevoice"):
             self.voice_engine = "auto"
+        if not isinstance(self.voice_unload_minutes, int) or not 0 <= self.voice_unload_minutes <= 1440:
+            self.voice_unload_minutes = 0
         if self.drop_stray_keys not in DROP_CHOICES:
             self.drop_stray_keys = "standard"
         if len(self.snippet_trigger) > 4 or self.snippet_trigger.strip() != self.snippet_trigger:

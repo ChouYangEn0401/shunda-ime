@@ -112,6 +112,16 @@ user32.GetMonitorInfoW.argtypes = [wintypes.HMONITOR, ctypes.POINTER(MONITORINFO
 user32.GetAsyncKeyState.argtypes = [ctypes.c_int]
 user32.GetAsyncKeyState.restype = ctypes.c_short
 wtsapi32.WTSRegisterSessionNotification.argtypes = [wintypes.HWND, wintypes.DWORD]
+user32.OpenClipboard.argtypes = [wintypes.HWND]
+user32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
+user32.SetClipboardData.restype = wintypes.HANDLE
+kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
+kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
+kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
+kernel32.GlobalLock.restype = ctypes.c_void_p
+kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
+kernel32.GlobalFree.argtypes = [wintypes.HGLOBAL]
+CF_UNICODETEXT, GMEM_MOVEABLE = 13, 0x0002
 dwmapi.DwmGetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
 user32.SetTimer.argtypes = [wintypes.HWND, ctypes.c_size_t, wintypes.UINT, wintypes.LPVOID]
 user32.KillTimer.argtypes = [wintypes.HWND, ctypes.c_size_t]
@@ -142,6 +152,31 @@ def type_text(text: str) -> None:
         chunk = events[i:i + 64]
         arr = (INPUT * len(chunk))(*chunk)
         user32.SendInput(len(chunk), arr, ctypes.sizeof(INPUT))
+
+
+def set_clipboard(hwnd, text: str) -> bool:
+    """Put text on the clipboard. Another program may hold it open for a
+    moment, so try for a little while."""
+    data = text.encode("utf-16-le") + b"\0\0"
+    for _ in range(25):
+        if user32.OpenClipboard(hwnd):
+            break
+        time.sleep(0.02)
+    else:
+        return False
+    try:
+        user32.EmptyClipboard()
+        handle = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
+        if not handle:
+            return False
+        ctypes.memmove(kernel32.GlobalLock(handle), data, len(data))
+        kernel32.GlobalUnlock(handle)
+        if not user32.SetClipboardData(CF_UNICODETEXT, handle):
+            kernel32.GlobalFree(handle)
+            return False
+        return True  # the clipboard owns the memory now
+    finally:
+        user32.CloseClipboard()
 
 
 class MessageWindow:

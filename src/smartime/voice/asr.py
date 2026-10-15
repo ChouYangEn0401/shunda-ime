@@ -68,15 +68,21 @@ class BreezeEngine:
         self.device = device
 
     def transcribe(self, audio, hotwords: str = "") -> str:
-        segments, _ = self.model.transcribe(
-            audio,
-            language="zh",
-            beam_size=5,
-            vad_filter=True,
-            condition_on_previous_text=False,
-            hotwords=hotwords or None,
-        )
-        return "".join(s.text for s in segments).strip()
+        """Cut at the pauses first, like SenseVoice: fed three minutes at
+        once, Whisper dropped a third of a repeated sentence (its
+        repetition guard), and a long dictation must not lose anything."""
+        texts = []
+        for piece in split_at_pauses(audio):
+            segments, _ = self.model.transcribe(
+                piece,
+                language="zh",
+                beam_size=5,
+                vad_filter=True,
+                condition_on_previous_text=False,
+                hotwords=hotwords or None,
+            )
+            texts.append("".join(s.text for s in segments).strip())
+        return " ".join(t for t in texts if t)  # text.clean joins Chinese back together
 
 
 class SenseVoiceEngine:
@@ -97,10 +103,33 @@ class SenseVoiceEngine:
         )
 
     def transcribe(self, audio, hotwords: str = "") -> str:
-        stream = self.rec.create_stream()
-        stream.accept_waveform(SAMPLE_RATE, audio)
-        self.rec.decode_stream(stream)
-        return stream.result.text.strip()
+        """SenseVoice takes one utterance at a time; a long dictation is cut
+        at its pauses (Breeze's faster-whisper does that by itself)."""
+        texts = []
+        for piece in split_at_pauses(audio):
+            stream = self.rec.create_stream()
+            stream.accept_waveform(SAMPLE_RATE, piece)
+            self.rec.decode_stream(stream)
+            texts.append(stream.result.text.strip())
+        return " ".join(t for t in texts if t)  # text.clean joins Chinese back together
+
+
+def split_at_pauses(audio, max_seconds: float = 25.0, search_seconds: float = 5.0) -> list:
+    """Pieces of at most ``max_seconds``, each cut at the quietest 20 ms in
+    the last ``search_seconds`` before the limit, so no word is cut in two."""
+    import numpy as np
+
+    max_len, window, frame = int(max_seconds * SAMPLE_RATE), int(search_seconds * SAMPLE_RATE), SAMPLE_RATE // 50
+    pieces, start = [], 0
+    while len(audio) - start > max_len:
+        lo = start + max_len - window
+        frames = window // frame
+        energy = (audio[lo:lo + frames * frame].reshape(frames, frame) ** 2).mean(axis=1)
+        cut = lo + int(np.argmin(energy)) * frame + frame // 2
+        pieces.append(audio[start:cut])
+        start = cut
+    pieces.append(audio[start:])
+    return pieces
 
 
 def create(engine: str):

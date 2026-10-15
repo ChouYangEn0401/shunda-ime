@@ -615,6 +615,10 @@
             </div>
           </div>
           <div class="row">
+            <div><div class="label">閒置後釋放模型</div><div class="desc">模型平常一直放在記憶體裡，按下去就能辨識（Breeze-ASR-25 用顯示卡時占約 3 GB 顯示卡記憶體）。設定時間的話，閒置這麼久就釋放；下次按住右 <kbd>Ctrl</kbd> 時一邊錄音一邊載入，說得很短的話放開後要多等幾秒。</div></div>
+            <select data-cfg="voice_unload_minutes" data-type="int" aria-label="閒置後釋放模型"><option value="0">不釋放</option><option value="10">10 分鐘</option><option value="30">30 分鐘</option><option value="60">1 小時</option></select>
+          </div>
+          <div class="row">
             <div><div class="label">用我的詞庫幫助辨識</div><div class="desc">「我的詞庫」裡自己加的詞（朋友名字、專案術語、英文詞）會被優先辨識。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="voice_hotwords" aria-label="詞庫熱詞"><span></span></label>
           </div>

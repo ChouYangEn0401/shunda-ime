@@ -29,9 +29,12 @@ from . import asr, text, win
 
 log = logging.getLogger("smartime.voice")
 MIN_SECONDS = 0.35  # shorter = an accidental tap — or a tap that opens the IME's symbol panel
-TIMER_CONFIG, TIMER_HELD, TIMER_DEVICES = 1, 2, 3
-MAX_SECONDS = 120
+TIMER_CONFIG, TIMER_HELD, TIMER_DEVICES, TIMER_TICK = 1, 2, 3, 4
 REPEAT_GAP = 2.0  # a held key auto-repeats several times a second; this long without one = not held
+# Where a recording's text goes. Someone who talked must never lose it, and
+# it must never be typed into a window they did not dictate into.
+TYPE, SAME_WINDOW, CLIPBOARD = "type", "same-window", "clipboard"
+CLIPBOARD_NOTICE = "沒收到放開右 Ctrl 的訊號：說的話放在剪貼簿，按 Ctrl+V 貼上"
 DEVICE_SETTLE_MS = 2000  # devices come and go in bursts (and late after resume): refresh once it is quiet
 
 
@@ -46,6 +49,7 @@ RESULT = win.WM_APP + 10
 STATUS = win.WM_APP + 11
 HIDE = win.WM_APP + 12
 RELOAD = "reload"  # worker job: load the engine chosen in Settings
+UNLOAD_CHECK_SECONDS = 30
 
 
 def microphone(refresh: bool = False) -> str:
@@ -121,12 +125,20 @@ class VoiceService:
         self.config = Config.load(self.config_path)
         self.engine = None
         self.engine_error = ""
+        self.unloaded = False  # released after being idle; the next press loads it again
+        self.reload_queued = False
+        self.last_used = time.monotonic()
         self.jobs: queue.Queue = queue.Queue()
         self.results: queue.Queue = queue.Queue()
         self.recorder = recorder or Recorder()
         self.recording = False
+        self.recording_since = 0.0
+        self.press_window = None  # the window that had the focus when right Ctrl went down
         self.press_error = ""  # microphone problem, shown only if the key is really held
         self.hook_suspect = 0  # timer ticks in a row with right Ctrl held but unseen by the hook
+        self.locked = False
+        self.pending_notice = ""  # to show once the session is unlocked
+        self.shown = 0  # counts what the indicator showed; a late hide only hides its own message
         self.mic = microphone()
         self.msg = win.MessageWindow({
             win.PushToTalkHook.PRESS: lambda w, l: self.on_press(),
@@ -134,7 +146,7 @@ class VoiceService:
             win.PushToTalkHook.CANCEL: lambda w, l: self.on_cancel(),
             RESULT: lambda w, l: self.on_result(),
             STATUS: lambda w, l: self.on_status(),
-            HIDE: lambda w, l: self.indicator.hide(),
+            HIDE: lambda w, l: self.hide_if(w),
             win.WM_TIMER: lambda w, l: self.on_timer(w),
             win.WM_POWERBROADCAST: lambda w, l: self.on_power(w),
             win.WM_WTSSESSION_CHANGE: lambda w, l: self.on_session(w),
@@ -151,6 +163,7 @@ class VoiceService:
         self.engine = None  # drop the old model first (GPU memory)
         gc.collect()
         self.engine_error = ""
+        self.unloaded = False
         self.write_status()
         try:
             t0 = time.perf_counter()
@@ -159,12 +172,29 @@ class VoiceService:
         except Exception as e:  # noqa: BLE001
             self.engine_error = str(e)
             log.exception("cannot load the speech engine")
+        self.reload_queued = False
+        self.last_used = time.monotonic()
+        self.write_status()
+
+    def maybe_unload(self) -> None:
+        """Release the model after the idle time chosen in Settings (GPU
+        memory, about 3 GB for Breeze). Off by default: the next press then
+        has to wait for loading again."""
+        minutes = self.config.voice_unload_minutes
+        if (minutes <= 0 or self.engine is None or self.recording or not self.jobs.empty()
+                or time.monotonic() - self.last_used < minutes * 60):
+            return
+        log.info("idle for %d minutes; releasing the speech engine", minutes)
+        self.engine = None
+        gc.collect()
+        self.unloaded = True
         self.write_status()
 
     def write_status(self) -> None:
         """For the settings page: what is loaded, and is there a microphone."""
         e = self.engine
-        state = "ready" if e is not None else "error" if self.engine_error else "loading"
+        state = ("ready" if e is not None else "error" if self.engine_error
+                 else "unloaded" if self.unloaded else "loading")
         data = {"pid": os.getpid(), "state": state, "engine": getattr(e, "name", ""),
                 "device": getattr(e, "device", "cpu") if e is not None else "",
                 "error": self.engine_error, "mic": self.mic}
@@ -178,29 +208,40 @@ class VoiceService:
     def worker(self) -> None:
         self.load_engine()
         while True:
-            audio = self.jobs.get()
-            if audio is None:
-                return
-            if isinstance(audio, str) and audio == RELOAD:
-                self.load_engine()
-                continue
-            if self.engine is None:
-                self.results.put(("error", self.engine_error or "語音模型無法載入"))
-                self.msg.post(RESULT)
-                continue
             try:
-                t0 = time.perf_counter()
-                mine = self._my_words()
-                hot = " ".join(mine) if self.config.voice_hotwords else ""
-                raw = self._transcribe(audio, hot)
-                out = text.clean(raw, traditional=self.config.voice_traditional, known=mine)
-                log.info("recognized %.1fs of audio in %.2fs (%d chars)",
-                         len(audio) / asr.SAMPLE_RATE, time.perf_counter() - t0, len(out))
-                self.results.put(("text", out))
-            except Exception as e:  # noqa: BLE001
-                log.exception("recognition failed")
-                self.results.put(("error", f"辨識失敗：{e}"))
+                job = self.jobs.get(timeout=UNLOAD_CHECK_SECONDS)
+            except queue.Empty:
+                self.maybe_unload()
+                continue
+            if job is None:
+                return
+            if isinstance(job, str):
+                if job == RELOAD:
+                    self.load_engine()
+                continue
+            self.recognize(*job)
+
+    def recognize(self, audio, delivery: str) -> None:
+        if self.engine is None and self.unloaded:
+            self.load_engine()  # released while idle: the press did not get to load it first
+        if self.engine is None:
+            self.results.put(("error", self.engine_error or "語音模型無法載入", delivery))
             self.msg.post(RESULT)
+            return
+        try:
+            t0 = time.perf_counter()
+            mine = self._my_words()
+            hot = " ".join(mine) if self.config.voice_hotwords else ""
+            raw = self._transcribe(audio, hot)
+            out = text.clean(raw, traditional=self.config.voice_traditional, known=mine)
+            log.info("recognized %.1fs of audio in %.2fs (%d chars)",
+                     len(audio) / asr.SAMPLE_RATE, time.perf_counter() - t0, len(out))
+            self.results.put(("text", out, delivery))
+        except Exception as e:  # noqa: BLE001
+            log.exception("recognition failed")
+            self.results.put(("error", f"辨識失敗：{e}", delivery))
+        self.last_used = time.monotonic()
+        self.msg.post(RESULT)
 
     def _transcribe(self, audio, hot: str) -> str:
         """A model on the GPU can fail every call after hibernation or a
@@ -236,6 +277,11 @@ class VoiceService:
         if self.recording:
             return
         self.press_error = ""
+        self.press_window = win.user32.GetForegroundWindow()
+        self.last_used = time.monotonic()
+        if self.engine is None and self.unloaded and not self.reload_queued:
+            self.reload_queued = True
+            self.jobs.put(RELOAD)  # load while the user talks, not after
         win.user32.SetTimer(self.msg.hwnd, TIMER_HELD, int(MIN_SECONDS * 1000), None)
         try:
             self.recorder.start()
@@ -248,6 +294,7 @@ class VoiceService:
             self.press_error = f"無法開啟麥克風：{e}"
             return
         self.recording = True
+        self.recording_since = time.monotonic()
 
     def on_held(self) -> None:
         """MIN_SECONDS after the press: really push-to-talk, not a tap."""
@@ -257,15 +304,29 @@ class VoiceService:
         if self.press_error:
             self.flash(self.press_error, seconds=5)
         elif self.recording:
-            name = self.engine.name if self.engine else "模型載入中"
-            self.indicator.show(f"● 錄音中（{name}）… 放開右 Ctrl 結束")
+            self.on_tick()
+            win.user32.SetTimer(self.msg.hwnd, TIMER_TICK, 1000, None)
+
+    def on_tick(self) -> None:
+        """The label counts the seconds: it is plainly recording, right now."""
+        if not self.recording:
+            win.user32.KillTimer(self.msg.hwnd, TIMER_TICK)
+            return
+        s = int(time.monotonic() - self.recording_since)
+        name = self.engine.name if self.engine else "模型載入中"
+        self.show(f"● 錄音中 {s // 60}:{s % 60:02d}（{name}）… 放開右 Ctrl 結束")
 
     def on_cancel(self) -> None:
         self.cancel_recording()
 
-    def cancel_recording(self, message: str = "") -> None:
-        """Close the microphone and throw the audio away."""
+    def _stop_timers(self) -> None:
         win.user32.KillTimer(self.msg.hwnd, TIMER_HELD)
+        win.user32.KillTimer(self.msg.hwnd, TIMER_TICK)
+
+    def cancel_recording(self, message: str = "") -> None:
+        """Close the microphone and throw the audio away: right Ctrl was
+        part of a shortcut, so nothing was being said to us."""
+        self._stop_timers()
         if self.recording:
             self.recording = False  # first: a failing stop must not leave it "recording"
             try:
@@ -278,7 +339,14 @@ class VoiceService:
             self.indicator.hide()
 
     def on_release(self) -> None:
-        win.user32.KillTimer(self.msg.hwnd, TIMER_HELD)
+        self.finish_recording(TYPE)
+
+    def finish_recording(self, delivery: str) -> None:
+        """Stop and recognize. ``delivery`` says where the text may go:
+        typed at the cursor (a normal release), typed only if the same
+        window still has the focus (a release the hook missed), or put on
+        the clipboard (sleep, lock)."""
+        self._stop_timers()
         if not self.recording:
             return
         self.recording = False
@@ -291,26 +359,54 @@ class VoiceService:
         if audio is None or seconds < MIN_SECONDS:
             self.indicator.hide()
             return
-        audio = audio[: int(MAX_SECONDS * asr.SAMPLE_RATE)]
-        self.indicator.show("… 辨識中")
-        self.jobs.put(audio)
+        self.show("… 辨識中")
+        self.jobs.put((audio, delivery))
 
     def on_result(self) -> None:
-        kind, value = self.results.get()
-        if kind == "text" and value:
+        kind, value, delivery = self.results.get()
+        if kind != "text":
+            self.flash(value)
+            return
+        if not value:
+            self.flash("沒有聽到內容")
+            return
+        if delivery == TYPE or (delivery == SAME_WINDOW and not self.locked
+                                and win.user32.GetForegroundWindow() == self.press_window):
             self.indicator.hide()
             win.type_text(value)
-        elif kind == "text":
-            self.flash("沒有聽到內容")
+            return
+        if win.set_clipboard(self.msg.hwnd, value):
+            self.notice(CLIPBOARD_NOTICE)
+            return
+        # the clipboard stayed busy: typing it beats losing it
+        log.warning("clipboard unavailable; typing the recognized text instead")
+        self.indicator.hide()
+        win.type_text(value)
+
+    def notice(self, message: str) -> None:
+        """Something the user must see, held back while the screen is locked."""
+        if self.locked:
+            self.pending_notice = message
         else:
-            self.flash(value)
+            self.flash(message, seconds=8)
 
     def on_status(self) -> None:
-        self.indicator.show(self.status_text)
+        self.show(self.status_text)
+
+    def show(self, message: str) -> None:
+        self.shown += 1
+        self.indicator.show(message)
+
+    def hide_if(self, shown: int) -> None:
+        """A flash's timer hides only its own message: a later one (錄音中)
+        used to vanish when an earlier flash ran out."""
+        if shown == self.shown:
+            self.indicator.hide()
 
     def flash(self, message: str, seconds: float = 2.5) -> None:
-        self.indicator.show(message)
-        threading.Timer(seconds, lambda: self.msg.post(HIDE)).start()
+        self.show(message)
+        shown = self.shown
+        threading.Timer(seconds, lambda: self.msg.post(HIDE, shown)).start()
 
     def on_timer(self, which: int = TIMER_CONFIG) -> None:
         """Every few seconds: check the push-to-talk state, follow settings
@@ -320,6 +416,9 @@ class VoiceService:
             return
         if which == TIMER_DEVICES:
             self.refresh_devices()
+            return
+        if which == TIMER_TICK:
+            self.on_tick()
             return
         self.check_keys()
         cfg = Config.load(self.config_path)
@@ -342,12 +441,15 @@ class VoiceService:
         audio growing (64 KB a second) until some other key was pressed,
         and a right Ctrl pressed first typed what had been recorded before
         the computer slept. A hook Windows removed made push-to-talk
-        silently dead until the service restarted."""
+        silently dead until the service restarted.
+
+        A missed release still ends in text: what someone said is never
+        thrown away (「使用者最氣的就是我講一天的話，你跟我說沒錄到」)."""
         held = win.key_down(win.VK_RCONTROL)
         since = time.monotonic() - self.hook.last_down
         if self.recording and release_missed(held, since):
-            log.warning("right Ctrl is no longer held but its release was not seen; recording discarded")
-            self.cancel_recording("沒有收到放開右 Ctrl 的訊號，這段錄音沒有送出")
+            log.warning("right Ctrl is no longer held but its release was not seen; recognizing anyway")
+            self.finish_recording(SAME_WINDOW)
             self.hook.reset()
             self.hook.reinstall()
         elif self.hook.down and release_missed(held, since):
@@ -363,9 +465,12 @@ class VoiceService:
 
     # ------------------------------------------------------------ sleep, lock, devices
     def on_power(self, event: int) -> None:
+        """Going to sleep while recording: close the microphone now, and
+        recognize what was said; it goes to the clipboard, since nobody
+        knows where the focus will be after waking."""
         if event == win.PBT_APMSUSPEND:
             log.info("going to sleep")
-            self.cancel_recording()
+            self.finish_recording(CLIPBOARD)
             self.hook.reset()
         elif event in (win.PBT_APMRESUMEAUTOMATIC, win.PBT_APMRESUMESUSPEND):
             log.info("resumed from sleep")
@@ -373,10 +478,15 @@ class VoiceService:
 
     def on_session(self, event: int) -> None:
         if event == win.WTS_SESSION_LOCK:
-            self.cancel_recording()
+            self.locked = True
+            self.finish_recording(CLIPBOARD)
             self.hook.reset()
         elif event == win.WTS_SESSION_UNLOCK:
+            self.locked = False
             self.after_wake()
+            if self.pending_notice:
+                message, self.pending_notice = self.pending_notice, ""
+                self.flash(message, seconds=8)
 
     def after_wake(self) -> None:
         self.hook.reinstall()

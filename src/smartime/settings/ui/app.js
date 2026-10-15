@@ -1220,12 +1220,13 @@
     instBtn.textContent = inst.active ? "安裝中…" : "安裝語音元件";
     document.getElementById("voice-install-log").textContent =
       (inst.log || []).join("\n") + (inst.error ? "\n錯誤：" + inst.error : "");
-    // what the service itself reports (voice-status.json): loading / ready / error, microphone
+    // what the service itself reports (voice-status.json): loading / ready / unloaded / error, microphone
     const st = v.status || {};
     let text = "未開啟", cls = "later";
     if (!config.voice_enabled) { text = v.running ? "關閉中…" : "未開啟"; }
     else if (!v.running) { text = "啟動中…"; cls = "plan"; }
     else if (st.state === "ready") { text = `待命中 · ${st.engine}（${st.device === "cuda" ? "顯示卡" : "CPU"}）`; cls = "done"; }
+    else if (st.state === "unloaded") { text = "待命中 · 模型已釋放，下次說話時載入"; cls = "done"; }
     else if (st.state === "error") { text = "模型載入失敗"; cls = "warn"; }
     else { text = "載入模型中…"; cls = "plan"; }
     const badge = document.getElementById("voice-running");
