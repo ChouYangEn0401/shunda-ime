@@ -21,7 +21,7 @@ from pathlib import Path
 from ..config import Config
 from . import bopomofo
 from .decoder import (
-    CANGJIE_RADICALS, CLAUSE_PUNCT, FULLWIDTH_PUNCT, PLAIN_PUNCT, PUNCT_ALTERNATIVES, PUNCT_VARIANTS,
+    CANGJIE_RADICALS, CLAUSE_PUNCT, FULLWIDTH_PUNCT, PLAIN_PUNCT, PUNCT_ALTERNATIVES, PUNCT_VARIANTS, TOKEN_KINDS,
     Decoder, Decoding, Key, Kind,
     Segment,
 )
@@ -82,8 +82,13 @@ SCHEME_LABEL = {"zhuyin": "注音", "pinyin": "拼音", "cangjie": "倉頡"}
 # first, then what you chose before, then the dictionary, then the other
 # ways to read the keys (user feedback #6-2: "先從自訂群組匹配，然後常用，
 # 最後推薦"). The panel colours each group (smartime.ui.theme).
-GROUP_ORDER = ("我的詞庫", "學過", "詞庫", "英文", "數字", "標點", "其他讀法", "原始按鍵", "略過的鍵",
+GROUP_ORDER = ("重新分組", "我的詞庫", "學過", "詞庫", "英文", "數字", "標點", "其他讀法", "原始按鍵", "略過的鍵",
                "長句", "也許是", "接續", "符號")
+REGROUP_MAX = 3  # 重新分組 candidates offered at most
+# ... and none that reads this much worse (log10) than what is on screen. Measured:
+# the splits people meant were 0.1-3.5 worse (game你, Fable你, 10大, 10大賺), the
+# noise 5.2 and up (半284, Pytho, deadlin果, Phone).
+REGROUP_MARGIN = 5.0
 MAX_COLUMNS = 4  # multi-column candidate window: pages shown side by side
 
 
@@ -121,6 +126,7 @@ class Candidate:
     group: str = ""  # see GROUP_ORDER
     preview: str = ""  # 片語: the whole text, shown under the list before it is typed
     snippet_id: int | None = None
+    joint: int | None = None  # 重新分組: picking it fixes a word boundary at this key
 
 
 @dataclass
@@ -334,6 +340,7 @@ class Session(CorrectionMixin):
         # syllable or word may straddle them (decoder.decode's ``joints``).
         self.joints: list[int] = []
         self._run_end: int | None = None  # end of the keys being typed into the middle right now
+        self.edge: int | None = None  # correction mode: the word boundary Shift+← → is moving
         self.cursor = 0  # position in self.keys
         self.decoding = Decoding((), 0.0)
         self.cand: CandidateList | None = None
@@ -984,6 +991,7 @@ class Session(CorrectionMixin):
         self.pins.clear()
         self.joints.clear()
         self._run_end = None
+        self.edge = None
         self.cursor = 0
         self.decoding = Decoding((), 0.0)
         self.suggestion = None
@@ -997,7 +1005,7 @@ class Session(CorrectionMixin):
 
     def _redecode(self) -> None:
         self.decoding = self.engine.decoder.decode(self.keys, self.pins, allow_english=self.mode is Mode.AUTO,
-                                                   scheme=self.scheme, joints=self.joints)
+                                                   scheme=self.scheme, joints=self.joints, open_at=self._run_end)
         self._snap_cursor()
         self._update_suggestion()
 
@@ -1034,7 +1042,7 @@ class Session(CorrectionMixin):
         return CandidateList(items, self.cfg.candidates_per_page, multi=self.cfg.candidate_multi_column, **kw)
 
     def _open_candidates(self) -> None:
-        items = self._candidate_items() + self._drop_candidates()
+        items = self._regroup_candidates() + self._candidate_items() + self._drop_candidates()
         if items:
             self.cand = self._new_list(items)
             # start on what is on screen now (your own words are listed
@@ -1042,6 +1050,136 @@ class Session(CorrectionMixin):
             # Enter keeps it, ↓ walks to the alternatives
             self.cand.index = self._current_index(items)
             self.cand._keep_visible()
+
+    def _mixed_boundaries(self, seg_idx: int) -> list[tuple[Segment, Segment]]:
+        """The word under the cursor and a neighbour that meet with no space
+        between, one of them English / a number / raw keys and the other
+        not: where the decoder had to guess which side a key belongs to."""
+        segs = [s for s in self.decoding.segments if s.kind is not Kind.DROP]
+        here = self.decoding.segments[seg_idx]
+        if here not in segs:
+            return []
+        i = segs.index(here)
+        out = []
+        for a, b in ((segs[i - 1] if i > 0 else None, here), (here, segs[i + 1] if i + 1 < len(segs) else None)):
+            if a is None or b is None or a.end != b.start or Kind.SPACE in (a.kind, b.kind):
+                continue
+            if (a.kind in TOKEN_KINDS) != (b.kind in TOKEN_KINDS):
+                out.append((a, b))
+        return out
+
+    def _regroup_candidates(self) -> list[Candidate]:
+        """Other places for the boundary where English or a number meets
+        the next character with no space — the one thing the other
+        candidates cannot change: game + ㄋㄧˇ typed gamesu3 read games 以,
+        10 + 大 typed 10284 read the number 10284 (reported:
+        「你反10大賺了啊」「無法切割」). Every split is decoded for real, only
+        the ones that change the text are offered, the likeliest first;
+        picking one fixes the boundary there (a joint)."""
+        t = self._target_unit()
+        if t is None:
+            return []
+        old, base = self.decoding.text, self.decoding.score
+        drops = sum(1 for s in self.decoding.segments if s.kind is Kind.DROP)
+        tokens = {s for pair in self._mixed_boundaries(self.decoding.units()[t][3]) for s in pair
+                  if s.kind in TOKEN_KINDS}
+        # one entry per resulting sentence: splitting Fables after l or
+        # after e can give the same 「Fable你」
+        found: dict[str, tuple[float, str, str, int, Segment]] = {}
+        for tok in sorted(tokens, key=lambda s: s.start):
+            for keep_left in (True, False):  # gamesu3: re-read the end; the other way: the start
+                for p in range(tok.start + 1, tok.end):
+                    trial = self._split_trial(tok, p, keep_left)
+                    if trial is None:
+                        continue
+                    dec, pin = trial
+                    if dec.text == old or dec.score < base - REGROUP_MARGIN:
+                        continue  # nothing changes, or it reads far worse (Pytho, deadlin果)
+                    if sum(1 for s in dec.segments if s.kind is Kind.DROP) > drops:
+                        continue  # a key would vanish (pas｜s)
+                    if dec.text in found and found[dec.text][0] >= dec.score:
+                        continue
+                    label = self._split_label(dec, p, tok.start, tok.end)
+                    if label is not None:
+                        found[dec.text] = (dec.score, *label, p, pin)
+        best = sorted(found.values(), key=lambda v: -v[0])[:REGROUP_MAX]
+        return [Candidate(text, pin, keys, group="重新分組", joint=p) for _, text, keys, p, pin in best]
+
+    def _split_trial(self, tok: Segment, p: int, keep_left: bool) -> tuple[Decoding, Segment] | None:
+        """Decode with the boundary at key ``p`` inside the English word or
+        number ``tok``. Its own side keeps its kind (10 stays the number 10:
+        left alone, ㄅㄢ with the tone left out read 半); the other side is
+        read again from scratch."""
+        a, b = (tok.start, p) if keep_left else (p, tok.end)
+        pin = self._token_pin(tok.kind, a, b)
+        if pin is None:
+            return None
+        pins = [q for q in self.pins if q.end <= a or q.start >= b] + [pin]
+        pins.sort(key=lambda q: q.start)
+        out = self.engine.decoder.decode(self.keys, pins, allow_english=self.mode is Mode.AUTO,
+                                         scheme=self.scheme, joints=[*self.joints, p])
+        return out, pin
+
+    def _token_pin(self, kind: Kind, a: int, b: int) -> Segment | None:
+        """Keys [a, b) kept as one English word / number / raw keys, scored
+        the way the decoder scores one."""
+        text = "".join(k.char for k in self.keys[a:b])
+        dec = self.engine.decoder
+        if kind is Kind.EN:
+            if not any(c.isalpha() for c in text):
+                return None
+            score = dec._en_score(text)
+        elif kind is Kind.NUM:
+            if not text.isdigit():
+                return None
+            score = dec.w.num
+        else:
+            score = dec.w.literal
+        return Segment(a, b, text, kind, score, pinned=True)
+
+    def _split_label(self, dec: Decoding, p: int, region: int, tok_end: int) -> tuple[str, str] | None:
+        """「game｜你」 and its keys 「game｜su3」: what now ends at key ``p``
+        (from ``region``, where the English or number began) and what
+        changed after it — or, when only the part before ``p`` changed, the
+        rest of the word (``tok_end``)."""
+        old, new = self.decoding.text, dec.text
+        units = dec.units()
+        if not any(b == p for _, b, _, _ in units):
+            return None  # p is not a boundary in this reading after all
+        off = sum(1 for _, b, _, _ in units if b <= p)
+        start = sum(1 for _, b, _, _ in units if b <= region)
+        if start >= off:
+            return None
+        key_start = units[start][0]
+        same = 0
+        while same < len(old) and same < len(new) - off and old[-1 - same] == new[-1 - same]:
+            same += 1
+        right = new[off:len(new) - same]
+        if not right:
+            right = "".join(ch for a, _, ch, _ in units if p <= a < tok_end)
+        if not right:
+            return None
+        end_key = units[off + len(right) - 1][1]
+        shown = "".join("␣" if k.char == " " else k.char for k in self.keys[key_start:end_key])
+        cut = p - key_start
+        return f"{new[start:off]}｜{right}", f"{shown[:cut]}｜{shown[cut:]}"
+
+    def _apply_joint(self, p: int, pin: Segment | None = None) -> None:
+        """A 重新分組 candidate was picked: the boundary is at key ``p`` now,
+        and the English word / number on its side (``pin``) stays as it is."""
+        self._checkpoint()
+        self.joints = sorted({*self.joints, p})
+        lo, hi = (min(p, pin.start), max(p, pin.end)) if pin is not None else (p, p)
+        self.pins = [q for q in self.pins if q.end <= lo or q.start >= hi]
+        if pin is not None:
+            self.pins = sorted([*self.pins, pin], key=lambda q: q.start)
+        self.cand = None
+        self.edge = p
+        self._redecode()
+        if self.correcting:
+            self.cursor = p
+            self._snap_to_unit()
+            self._notice = "分好了 · 還要調整：Shift+← → 移動分界"
 
     def _drop_candidates(self) -> list[Candidate]:
         """Keys just typed that the decoder threw away as slips, offered back.
@@ -1316,6 +1454,9 @@ class Session(CorrectionMixin):
         return True
 
     def _choose(self, c: Candidate) -> None:
+        if c.joint is not None:
+            self._apply_joint(c.joint, c.pin)
+            return
         if c.pin is None and not c.symbol and c.suggestion is None:
             return  # a placeholder row (「還沒有片語」)
         if c.symbol and (len(c.symbol) > 1 or c.snippet_id is not None):
@@ -1479,6 +1620,9 @@ class Session(CorrectionMixin):
     def _forget_candidate(self, c: Candidate) -> None:
         user = self.engine.user
         seg = c.pin
+        if c.joint is not None:
+            self._notice = "這是另一種分法，不是學過的詞"
+            return
         if seg is None:
             # Not a decoded word: a symbol, a kaomoji, a snippet, or a 超智慧
             # 推薦 continuation (those carry a Suggestion instead of a pin).

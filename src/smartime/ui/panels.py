@@ -21,9 +21,12 @@ WORD_GAP, CHAR_GAP = 9, 2
 
 LAYER_NAME = {"text": "國字", "zhuyin": "注音", "keys": "按鍵"}
 TYPING_HELP = [("Esc", "修正模式"), ("Ctrl+Z", "復原"), ("↓", "選字")]
-CORRECTING_HELP = [("h l", "移動"), ("j k", "換字"), ("x", "刪"), ("e", "中⇄英"), ("r", "重打"),
-                   ("R", "重新判定"), ("v", "檢視"), ("u", "復原"), ("i/Esc", "打字"), ("Enter", "送出"),
-                   ("DD", "清除")]
+# The most used first: the row wraps to a second line, and what is on the
+# first line is what gets read.
+CORRECTING_HELP = [("h l", "移動"), ("↓", "選字／分組"), ("j k", "換字"), ("r", "重打"), ("x", "刪"),
+                   ("u", "復原"), ("Enter", "送出"), ("e", "中⇄英"), ("Shift+←/→", "分界"), ("R", "重新判定"),
+                   ("v", "檢視"), ("i/Esc", "打字"), ("DD", "清除")]
+CORRECTING_HELP_ROOM = 560  # px at 100 %: the help wraps here instead of widening the panel
 
 
 @dataclass
@@ -170,7 +173,6 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
                     for i in range(1, len(p.columns))]
     help_items = CORRECTING_HELP if correcting else TYPING_HELP
     header_h = 24 * k if correcting else 0
-    footer_h = 20 * k
     notice_h = 19 * k if p.notice else 0
     room = MAX_WIDTH * k - 2 * PAD_X * k - GUTTER * k - 2 * 14 * k
     anchor = p.focus if p.focus is not None else max(0, p.caret - 1)
@@ -178,7 +180,10 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
     cols_w = sum(widths[lo:hi]) + sum(gaps[lo + 1:hi])
     more_left, more_right = lo > 0, hi < len(p.columns)
     body_w = GUTTER * k + (14 * k if more_left else 0) + cols_w + (14 * k if more_right else 0) + (4 * k)
-    width = max(body_w, _help_width(c, s, help_items),
+    help_lines = (_help_lines(c, s, help_items, max(body_w, CORRECTING_HELP_ROOM * k)) if correcting
+                  else [help_items])
+    footer_h = 20 * k * len(help_lines)
+    width = max(body_w, max(_help_width(c, s, line) for line in help_lines),
                 measure_mixed(c, p.notice, s.help, s.symbol),
                 (c.measure("清除整段？", s.title)[0] + 260 * k) if correcting else 0) + 2 * PAD_X * k
     rows_h = (ROW_KEYS + ROW_READING + ROW_TEXT) * k
@@ -296,6 +301,13 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
         if col.memory:  # from my dictionary / learned
             c.fill(cx + cw - 7 * k, y_text + 4 * k, 5 * k, 5 * k, t.memory, radius=2.5 * k)
 
+    # correction mode: the boundary Shift+← → is moving, a bar between two columns
+    if correcting:
+        for i in range(lo, hi):
+            if p.columns[i].edge_after:
+                gx = col_x[i] + widths[i] + (gaps[i + 1] / 2 if i + 1 < len(p.columns) else 3 * k)
+                c.fill(gx - 1.5 * k, top - 2 * k, 3 * k, rows_h + 4 * k, t.fix, radius=1.5 * k)
+
     # typing caret
     if not correcting:
         if p.caret in col_x:
@@ -315,7 +327,9 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
     if p.notice:
         draw_mixed(c, PAD_X * k, fy + 1 * k, p.notice, s.help, s.symbol, t.accent)
         fy += notice_h
-    _paint_help(c, s, t, PAD_X * k, fy + 1 * k, help_items, width - PAD_X * k)
+    for line in help_lines:
+        _paint_help(c, s, t, PAD_X * k, fy + 1 * k, line, width - PAD_X * k)
+        fy += 20 * k
     out.regions = {"columns": col_x, "visible": (lo, hi)}
     return out
 

@@ -255,13 +255,74 @@ def test_a_retyped_character_does_not_join_the_english_word_before_it(session):
     assert v.correcting and v.composition == "回饋Fable你"
 
 
-@pytest.mark.xfail(strict=True, reason="proposal A (2026-10-15): ↓ on the next character offers the key back")
-def test_the_next_character_can_take_back_the_key_the_english_word_swallowed(session):
-    """The same report, fixed where the user looks: ↓ on 以 offers 你,
-    reading ㄋㄧˇ with the s the word took."""
-    run(session, "cjo6djo4Fablesu3{ESC}")
-    _, v = run(session, "{DOWN}")
-    assert "你" in v.candidates
+def test_down_offers_the_split_that_gives_the_swallowed_key_back(session):
+    """The same report, fixed where the user looks: ↓ on 以 lists
+    「Fable｜你」 first (group 重新分組); 1 takes it."""
+    _, v = run(session, "cjo6djo4Fablesu3{ESC}{DOWN}")
+    assert v.candidates[0] == "Fable｜你"
+    _, v = run(session, "1")
+    assert v.correcting and v.composition == "回饋Fable你"
+    _, v = run(session, "u")  # one step back, like any other change
+    assert v.composition == "回饋Fables以"
+
+
+def test_down_splits_a_number_that_swallowed_zhuyin(session):
+    """Reported: 「你反10大賺了啊」 came out 你反102845玩了啊 — the digits 2845
+    are ㄉㄚˋ ㄓ — and 「無法切割」. The number keeps being a number."""
+    _, v = run(session, "su3z03102845j04xk78 {ESC}hh{DOWN}")
+    assert "10｜大賺" in v.candidates[:3]
+    _, v = run(session, str(v.candidates.index("10｜大賺") + 1))
+    assert v.composition == "你反10大賺了啊"
+    out, _ = run(session, "{ENTER}")
+    assert out == "你反10大賺了啊"
+
+
+def test_a_number_at_the_end_splits_too(session):
+    """排行榜前10大: 10 + 大 typed 10284, with nothing after it."""
+    _, v = run(session, "q96vu/61;3fu0610284{ESC}{DOWN}")
+    assert v.candidates[0] == "10｜大"
+    _, v = run(session, "1")
+    assert v.composition == "排行榜前10大"
+
+
+def test_shift_arrows_move_the_boundary_by_hand(session):
+    """The same fix without the list: Shift+← moves the boundary after
+    the number one key at a time, both sides read again at once, the
+    panel draws it, and any other key keeps it."""
+    _, v = run(session, "su3z03102845j04xk78 {ESC}hhh{S-LEFT}")
+    assert v.composition == "你反10284賺了啊" and "10284｜賺" in v.notice
+    assert [c.text for c in v.panel.columns if c.edge_after] == ["10284"]  # the bar after the number
+    _, v = run(session, "{S-LEFT}{S-LEFT}{S-LEFT}")
+    assert v.composition == "你反10大賺了啊" and "10｜大賺" in v.notice
+    _, v = run(session, "{S-RIGHT}")
+    assert v.composition == "你反102阿賺了啊"
+    _, v = run(session, "{S-LEFT}l")
+    assert v.composition == "你反10大賺了啊" and not any(c.edge_after for c in v.panel.columns)
+    out, _ = run(session, "{ENTER}")
+    assert out == "你反10大賺了啊"
+
+
+def test_no_split_is_offered_where_nothing_is_wrong(session):
+    """Ordinary English and numbers next to Chinese get no 重新分組 rows
+    and no tip: Python, pass, 98分 read right as they are."""
+    for keys in ("ji3m/4Pythonvu,3t/6g4{ESC}hhhh{DOWN}", "ji3ul4pass{ESC}{DOWN}", "dl3g4dl3xk798zp {ESC}hh{DOWN}"):
+        session.reset()
+        _, v = run(session, keys)
+        assert not any("｜" in c for c in v.candidates), keys
+
+
+def test_the_tip_says_what_down_will_do(session):
+    _, v = run(session, "5k4ek7gamesu3j06eji4a8 {ESC}hhh")
+    assert "game｜你" in v.notice
+    session.reset()
+    _, v = run(session, "ecj842k7xu.6t/6{ESC}hhh")  # e化 typed: the e was dropped
+    assert "略過了「e」" in v.notice
+
+
+def test_delete_on_a_split_says_what_it_is(session):
+    _, v = run(session, "5k4ek7gamesu3j06eji4a8 {ESC}hhh{DOWN}")
+    _, v = run(session, "{UP}" * v.candidate_index + "{DEL}")  # the window opens on what is there now
+    assert "分法" in v.notice and v.candidates  # nothing forgotten, window still open
 
 
 def test_retyping_with_r_is_done_only_when_the_syllable_is(session):

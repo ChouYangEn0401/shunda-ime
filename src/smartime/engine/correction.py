@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
-from .decoder import Key, Kind, Segment
+from .decoder import TOKEN_KINDS, Key, Kind, Segment
 from .keys import (
     VK_BACK, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE, VK_HOME, VK_LEFT, VK_RETURN, VK_RIGHT, VK_TAB, VK_UP,
     KeyInput,
@@ -34,7 +34,8 @@ from .keys import (
 
 LAYERS = ("text", "zhuyin", "keys")
 LAYER_LABEL = {"text": "國字", "zhuyin": "注音", "keys": "按鍵"}
-HELP = ("h l 移動 · j k 換字 · 聲調鍵 改聲調 · v 檢視 · x 刪 · e 中英 · r 重打 · R 重新判定 · a 加詞 · u 復原 · i／Esc 打字 · D D 清除")
+HELP = ("h l 移動 · ↓ 選字／重新分組 · j k 換字 · 聲調鍵 改聲調 · r 重打 · x 刪 · e 中英 · Shift+←/→ 分界 · "
+        "R 重新判定 · v 檢視 · a 加詞 · u 復原 · i／Esc 打字 · D D 清除")
 
 
 @dataclass
@@ -64,6 +65,7 @@ class CorrectionMixin:
         self._clear_armed = False
         self._retype_at = None
         self._run_end = None
+        self.edge = None
         self._redecide_span = 0
         self.suggestion = None
         # at the end: the last real character (not a trailing space, so
@@ -72,6 +74,7 @@ class CorrectionMixin:
         if t is not None:
             self.cursor = self.decoding.units()[t][0]
         self._snap_to_unit()
+        self._context_tip()
 
     def exit_correction(self) -> None:
         self._finish_cycle()
@@ -126,6 +129,12 @@ class CorrectionMixin:
         armed, self._clear_armed = self._clear_armed, False
         if ch != "R":
             self._redecide_span = 0  # a run of R presses ended
+        moving_edge = key.shift and not key.ctrl and not key.alt and vk in (VK_LEFT, VK_RIGHT)
+        if not moving_edge:
+            self.edge = None  # any other key: the boundary stays where it was put
+        if moving_edge:
+            self._move_edge(-1 if vk == VK_LEFT else +1)
+            return True
         if key.ctrl and not key.alt and vk in (0x59, 0x5A):  # Ctrl+Y / Ctrl+Z
             self._restore(redo=vk == 0x59 or key.shift)
             return True
@@ -218,6 +227,67 @@ class CorrectionMixin:
         else:
             after = [a for a in starts if a > self.cursor]
             self.cursor = after[0] if after else starts[-1]
+        self._context_tip()
+
+    def _context_tip(self) -> None:
+        """What ↓ can do right here, when it is something easy to miss: a
+        skipped key nearby (reported: getting ㄍ back took Esc h h v v Home
+        e e — ↓ did it in one step, but nothing on screen said so), or
+        English / a number stuck to Chinese."""
+        t = self._target()
+        if t is None or self.layer != "text":
+            return
+        dropped = self._drop_candidates()
+        if dropped:
+            self._notice = f"略過了「{dropped[0].text}」· ↓ 可以救回"
+            return
+        # Only when another split reads well, and not where the user already
+        # put the boundary: 98分 is right and must not nag.
+        near = [s for pair in self._mixed_boundaries(t[3]) for s in pair if s.kind in TOKEN_KINDS]
+        if not near or any(s.start <= j <= s.end for s in near for j in self.joints):
+            return
+        regroup = self._regroup_candidates()
+        if regroup:
+            self._notice = f"↓ 可以改成「{regroup[0].text}」· Shift+←/→ 自己移分界"
+
+    def _move_edge(self, delta: int) -> None:
+        """Shift+← / Shift+→: move the boundary after the word under the
+        cursor one key. The same arrows that move the cursor, with Shift:
+        one rule to remember. Both sides are read again at once, and the
+        boundary is drawn in the panel (reported: 102845 could not be cut
+        into 10 and 大賺; game swallowed the s of ㄋㄧˇ)."""
+        self._finish_cycle()
+        t = self._target()
+        if t is None:
+            return
+        seg = self.decoding.segments[t[3]]
+        start, end = (t[0], t[1]) if seg.kind is Kind.ZH else (seg.start, seg.end)
+        old = self.edge if self.edge is not None and self.edge > start else end
+        new = old + delta
+        if not start < new <= len(self.keys):
+            self._notice = "分界已經到頭了"
+            return
+        nxt = next((s for s in self.decoding.segments if s.start <= old < s.end), None)
+        reach = max(new, nxt.end if nxt is not None else old)
+        self._snapshot()
+        joints = set(self.joints)
+        if self.edge is not None:
+            joints.discard(self.edge)
+        self.joints = sorted(joints | {start, new})
+        self.pins = [p for p in self.pins if p.end <= start or p.start >= reach]
+        # an English word / number keeps its kind as it shrinks or grows
+        # (left alone, 10 split off 10284 read ㄅㄢ 半)
+        keep = self._token_pin(seg.kind, start, new) if seg.kind in TOKEN_KINDS else None
+        if keep is not None:
+            self.pins = sorted([*self.pins, keep], key=lambda p: p.start)
+        self.edge = new
+        self._redecode()
+        self.cursor = start
+        self._snap_to_unit()
+        left = "".join(ch for a, _, ch, _ in self.decoding.units() if start <= a < new)
+        after = next((s for s in self.decoding.segments if s.start == new and s.kind is not Kind.DROP), None)
+        right = after.text if after is not None else ""
+        self._notice = f"分界：{left}｜{right} · Shift+←/→ 再移 · 其他鍵確定"
 
     # ------------------------------------------------------------ commands
     def _delete_here(self) -> None:
@@ -323,6 +393,7 @@ class CorrectionMixin:
         self.keys[:] = keys
         self.pins = list(pins)
         self.joints = list(joints)
+        self._run_end = None  # the retyped keys are gone, and where they were typed with them
         self._redecode()
         self.enter_correction()
         self.cursor = a
@@ -348,6 +419,7 @@ class CorrectionMixin:
         seg = next((s for s in self.decoding.segments if s.start <= a < s.end), None)
         if seg is not None and seg.kind is Kind.ZH and self.cursor in seg.bounds and self.cursor > a:
             self._retype_at = None
+            self._run_end = None
             self.correcting = True
             self.layer = "text"
             self._cycle = None

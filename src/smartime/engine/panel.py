@@ -40,6 +40,7 @@ class Column:
     abbreviated: bool = False  # 瘋狂模式: only the start of the syllable was typed
     chosen: bool = False  # picked by the user (candidate window, j/k, Tab)
     memory: str = ""  # from my dictionary: its category, or 學過
+    edge_after: bool = False  # correction mode: the boundary Shift+← → is moving sits right after it
 
 
 @dataclass
@@ -238,6 +239,10 @@ def decode_panel(session) -> DecodePanel:
     cursor = session.cursor
     caret = next((i for i, c in enumerate(columns) if c.start >= cursor and c.role != "drop"), len(columns))
     panel = DecodePanel(columns, caret)
+    if session.correcting and session.edge is not None:
+        before = [c for c in columns if c.end <= session.edge and c.role != "drop"]
+        if before:
+            before[-1].edge_after = True
     if session.correcting:
         panel.mode = "correcting"
         panel.armed = session._clear_armed

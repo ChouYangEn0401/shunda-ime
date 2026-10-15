@@ -38,6 +38,11 @@ class Kind(str, Enum):
     DROP = "drop"  # a stray key (typed by accident) that produces no output
 
 
+# Typed as they are, one display character per key: the kinds whose
+# boundary with Chinese the decoder has to guess (gamesu3, 10284).
+TOKEN_KINDS = (Kind.EN, Kind.NUM, Kind.LITERAL)
+
+
 @dataclass(frozen=True, slots=True)
 class Key:
     char: str
@@ -242,15 +247,17 @@ class Decoder:
 
     # ------------------------------------------------------------------
     def decode(self, keys: Sequence[Key], pins: Sequence[Segment] = (), allow_english: bool = True,
-               scheme: str = "zhuyin", joints: Sequence[int] = ()) -> Decoding:
+               scheme: str = "zhuyin", joints: Sequence[int] = (), open_at: int | None = None) -> Decoding:
         """``allow_english=False`` is a pure Chinese mode: no English tokens.
         ``scheme``: how Chinese is typed (zhuyin, pinyin, cangjie).
 
         ``joints``: positions no syllable or word may straddle — where keys
         typed into the middle of the composition meet the keys that were
-        there. A phrase may still span one at a syllable joint, so 氣 typed
-        after 天 still reads in context as 天氣. An unfinished syllable may
-        stop at one, as it may at the end."""
+        there, or a boundary the user chose. A phrase may still span one at
+        a syllable joint, so 氣 typed after 天 still reads in context as
+        天氣. ``open_at``: where the user is typing in the middle — an
+        unfinished syllable may stop there, as it may at the end (nowhere
+        else: a half syllable left inside the text is never a good read)."""
         n = len(keys)
         if n == 0:
             return Decoding((), 0.0)
@@ -269,6 +276,9 @@ class Decoder:
                 next_start = i
         # cut[i]: how far one syllable or token starting at i may reach
         joint_set = {j for j in joints if 0 < j < n}
+        if open_at is not None and 0 < open_at < n:
+            joint_set.add(open_at)
+        open_set = {open_at} & joint_set
         cut = [n] * (n + 1)
         nxt = n
         for i in range(n, -1, -1):
@@ -291,7 +301,7 @@ class Decoder:
                 edges: list[Segment] = [pin_at[i]]
             else:
                 edges = list(self._edges_from(keys, i, limit[i], syllables, allow_english, scheme,
-                                              cut, joint_set))
+                                              cut, open_set))
             for seg in edges:
                 for state, (score, _, _, _) in best[i].items():
                     lang, prev_kind = state
@@ -627,7 +637,7 @@ class Decoder:
     def _edges_from(
         self, keys: Sequence[Key], i: int, limit: int, syllables: list,
         allow_english: bool = True, scheme: str = "zhuyin",
-        cut: Sequence[int] | None = None, joints: frozenset | set = frozenset(),
+        cut: Sequence[int] | None = None, open_at: frozenset | set = frozenset(),
     ) -> Iterator[Segment]:
         w = self.w
         n = len(keys)
@@ -637,7 +647,7 @@ class Decoder:
         if cut is None:
             cut = [limit] * (n + 1)
         tok = cut[i]  # one token (a word, a number, a code) ends here at the latest
-        open_end = tok == n or tok in joints  # an unfinished syllable may stop here
+        open_end = tok == n or tok in open_at  # an unfinished syllable may stop here
 
         # --- Chinese phrases: chains of syllables (zhuyin, pinyin) or codes
         #     (Cangjie) looked up in the lexicon.
