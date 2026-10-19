@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field, replace
+from functools import partial
 from enum import Enum
 from pathlib import Path
 
@@ -1005,8 +1006,17 @@ class Session(CorrectionMixin):
         self._forget_history()
 
     def _redecode(self) -> None:
-        self.decoding = self.engine.decoder.decode(self.keys, self.pins, allow_english=self.mode is Mode.AUTO,
-                                                   scheme=self.scheme, joints=self.joints, open_at=self._run_end)
+        decode = partial(self.engine.decoder.decode, self.keys, self.pins, allow_english=self.mode is Mode.AUTO,
+                         scheme=self.scheme, joints=self.joints, open_at=self._run_end)
+        self.decoding = decode()
+        if self.correcting and self.decoding.segments and self.decoding.segments[-1].kind is Kind.PENDING:
+            # Typing has stopped, so the last keys are not half a syllable
+            # any more: bye read by + a pending e, two stops for one word.
+            # Read the end as finished — when that changes nothing on screen
+            # (a lone trailing e would be dropped instead).
+            closed = decode(end_open=False)
+            if closed.text == self.decoding.text:
+                self.decoding = closed
         self._snap_cursor()
         self._update_suggestion()
 

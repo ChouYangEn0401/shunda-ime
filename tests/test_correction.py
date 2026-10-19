@@ -27,7 +27,7 @@ def test_d_twice_clears_everything(session):
 
 def test_ctrl_punctuation_does_not_leave_correction_mode(session):
     _, v = run(session, "ji3{ESC}{C-,}")
-    assert v.composition == "我" and v.correcting and "i" in v.notice
+    assert v.composition == "我" and v.correcting and "Esc" in v.notice
 
 
 def test_correction_mode_can_be_turned_off(session):
@@ -170,3 +170,52 @@ def test_cycling_learns_only_the_final_choice(tmp_path):
     assert len(learned) == 1
     user.close()
     lex.close()
+
+
+def test_arrows_step_over_a_whole_english_word(session):
+    """One ← per column: an English word is one stop, as the panel draws it
+    (it was one ← per letter — 明天建bye took three to reach 建)."""
+    _, v = run(session, "ji3hello{ESC}")
+    # the end is finished once typing stops: hello, not hell + a pending o
+    assert v.composition == "我hello" and v.cursor == 1
+    assert [c.text for c in v.panel.columns][v.panel.focus] == "hello"
+    _, v = run(session, "{LEFT}")
+    assert v.cursor == 0
+    _, v = run(session, "{RIGHT}x")  # x takes what is highlighted: the word
+    assert v.composition == "我" and v.correcting
+
+
+def test_single_keys_of_a_word_are_in_the_keys_view(session):
+    _, v = run(session, "ji3hellp{ESC}vv{LEFT}x")
+    assert v.composition == "我help"
+
+
+def test_a_lone_key_at_the_end_stays_on_screen(session):
+    # read as "finished" only when that changes nothing: a lone e would be
+    # dropped as a slip
+    _, v = run(session, "ji3e{ESC}")
+    assert v.composition == "我e"
+
+
+def test_j_swaps_only_the_character_under_the_cursor(session):
+    """j on 代 in 記得代雨傘 went to 代與 first (words starting here are
+    listed first) and changed 雨 too. Words stay in the ↓ list."""
+    from smartime.devtools.keyscript import script_for
+
+    keys = script_for("記得帶雨傘", session.engine.lexicon, session.engine.layout)
+    # where decoding again used to re-read a neighbour: 得 -> 德 made 記 計,
+    # 傘 -> 散 made 雨 與
+    for pos in (1, 2, 4):
+        session._reset_buffer()
+        _, v = run(session, keys + "{ESC}{HOME}" + "{RIGHT}" * pos)
+        assert v.composition == "記得代雨傘" and v.cursor == pos
+        for _ in range(6):
+            _, v = run(session, "j")
+            assert v.composition[:pos] + v.composition[pos + 1:] == "記得代雨傘"[:pos] + "記得代雨傘"[pos + 1:]
+
+
+def test_j_says_so_when_there_is_nothing_else(session):
+    _, v = run(session, "ji3,{ESC}")
+    if "沒有別的寫法" not in v.notice:
+        _, v = run(session, "j")
+    assert v.correcting

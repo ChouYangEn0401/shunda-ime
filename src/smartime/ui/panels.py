@@ -21,11 +21,13 @@ WORD_GAP, CHAR_GAP = 9, 2
 
 LAYER_NAME = {"text": "國字", "zhuyin": "注音", "keys": "按鍵"}
 TYPING_HELP = [("Esc", "修正模式"), ("Ctrl+Z", "復原"), ("↓", "選字")]
-# The most used first: the row wraps to a second line, and what is on the
-# first line is what gets read.
-CORRECTING_HELP = [("h l", "移動"), ("↓", "選字／分組"), ("j k", "換字"), ("r", "重打"), ("x", "刪"),
-                   ("u", "復原"), ("Enter", "送出"), ("e", "中⇄英"), ("Shift+←/→", "分界"), ("R", "重新判定"),
-                   ("v", "檢視"), ("i/Esc", "打字"), ("DD", "清除")]
+# First line: what most fixes need, and the way out (Esc). Second line: the
+# rest. None breaks the line. Arrows and Esc rather than h l / i: they work
+# too, but everybody already knows these.
+CORRECTING_HELP = [("← →", "移動"), ("↓", "選字／分組"), ("j k", "換這個字"), ("r", "重打"), ("x", "刪"),
+                   ("u", "復原"), ("Enter", "送出"), ("Esc", "打字"), None,
+                   ("聲調鍵", "改聲調"), ("e", "中⇄英"), ("Shift+←/→", "分界"), ("R", "重新判定"),
+                   ("v", "檢視"), ("a", "加詞"), ("DD", "清除")]
 CORRECTING_HELP_ROOM = 560  # px at 100 %: the help wraps here instead of widening the panel
 
 
@@ -147,6 +149,9 @@ def _help_lines(c: Canvas, s: Styles, items, room: float) -> list[list]:
     common window, which is why Delete went unnoticed for 開新."""
     lines: list[list] = [[]]
     for item in items:
+        if item is None:  # a forced break
+            lines.append([])
+            continue
         if lines[-1] and _help_width(c, s, lines[-1] + [item]) > room:
             lines.append([])
         lines[-1].append(item)
@@ -207,7 +212,7 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
         c.fill(PAD_X * k, y, cw, 19 * k, bg, radius=4 * k)
         c.text(PAD_X * k + 7 * k, y + 2 * k, chip, s.title, fg)
         view = ("再按一次 D 清除（不會送出）· 其他任何鍵取消" if p.armed else
-                f"{LAYER_NAME.get(p.layer, '')}檢視 · 字不會送出，i 或 Esc 回到打字")
+                f"{LAYER_NAME.get(p.layer, '')}檢視 · 字不會送出，Esc 回到打字")
         c.text(PAD_X * k + cw + 8 * k, y + 3 * k, view, s.help, t.drop if p.armed else t.muted)
         y += header_h
 

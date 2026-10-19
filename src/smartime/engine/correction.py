@@ -8,7 +8,9 @@ it). Three views of the same buffer:
     注音  ㄨㄛˇ ㄍㄥˋ ㄎㄨㄞˋ ㄉㄜ˙ ㄉㄚˇ ㄗˋ
     按鍵  ji3ee/4dj94k27283y4      <- stray keys are visible here
 
-Commands: h/l move · j/k swap in the next/previous candidate in place ·
+Commands: ←/→ (h/l) move — one Chinese character, or a whole English word or
+number, per press · j/k swap the thing under the cursor for its next/previous
+candidate in place (never a longer word: that is ↓) ·
 v next view · x delete (one key in the 按鍵 view) · e Chinese <-> English/raw
 · r retype one character (back here by itself when it is done) · a add the
 word to my dictionary · u undo · i or Esc back to typing · Enter commit ·
@@ -34,8 +36,11 @@ from .keys import (
 
 LAYERS = ("text", "zhuyin", "keys")
 LAYER_LABEL = {"text": "國字", "zhuyin": "注音", "keys": "按鍵"}
-HELP = ("h l 移動 · ↓ 選字／重新分組 · j k 換字 · 聲調鍵 改聲調 · r 重打 · x 刪 · e 中英 · Shift+←/→ 分界 · "
-        "R 重新判定 · v 檢視 · a 加詞 · u 復原 · i／Esc 打字 · D D 清除")
+# What most fixes need first (the panel draws the same split as two lines);
+# h l and i still work for Vim hands, but the arrows and Esc are what
+# everybody already knows.
+HELP = ("← → 移動 · ↓ 選字／分組 · j k 換這個字 · r 重打 · x 刪 · u 復原 · Enter 送出 · Esc 打字 · "
+        "聲調鍵 改聲調 · e 中英 · Shift+←/→ 分界 · R 重新判定 · v 檢視 · a 加詞 · D D 清除")
 
 
 @dataclass
@@ -65,6 +70,8 @@ class CorrectionMixin:
         self._clear_armed = False
         self._retype_at = None
         self._run_end = None
+        if self.keys:
+            self._redecode()  # the end is finished now (bye, not by + e); same text
         self.edge = None
         self._redecide_span = 0
         self.suggestion = None
@@ -82,8 +89,23 @@ class CorrectionMixin:
         self.layer = "text"
 
     # ------------------------------------------------------------ cursor
+    def _stops(self) -> list[tuple[int, int]]:
+        """Key spans the cursor stops on: every Chinese character, and every
+        other token (an English word, a number, raw keys) as a whole — the
+        columns the panel draws. Walking an English word letter by letter
+        took one ← per letter to get past it (明天建bye: three to reach 建);
+        single keys are what the 按鍵 view is for."""
+        stops: list[tuple[int, int]] = []
+        for a, b, _, idx in self.decoding.units():
+            seg = self.decoding.segments[idx]
+            if seg.kind is Kind.ZH:
+                stops.append((a, b))
+            elif not stops or stops[-1] != (seg.start, seg.end):
+                stops.append((seg.start, seg.end))
+        return stops
+
     def _unit_starts(self) -> list[int]:
-        return [a for a, _, _, _ in self.decoding.units()]
+        return [a for a, _ in self._stops()]
 
     def _snap_to_unit(self) -> None:
         """Put the cursor on a unit (or on a key in the 按鍵 view)."""
@@ -92,24 +114,34 @@ class CorrectionMixin:
         if self.layer == "keys":
             self.cursor = max(0, min(self.cursor, len(self.keys) - 1))
             return
-        starts = self._unit_starts()
-        if not starts:
+        stops = self._stops()
+        if not stops:
             self.cursor = 0
             return
-        # the unit that contains the cursor, else the next one, else the last
-        for a, b, _, _ in self.decoding.units():
+        # the stop that contains the cursor, else the next one, else the last
+        for a, b in stops:
             if a <= self.cursor < b:
                 self.cursor = a
                 return
-        after = [a for a in starts if a >= self.cursor]
-        self.cursor = after[0] if after else starts[-1]
+        after = [a for a, _ in stops if a >= self.cursor]
+        self.cursor = after[0] if after else stops[-1][0]
 
     def _target(self) -> tuple[int, int, str, int] | None:
+        """(start, end, text, segment index) of what the cursor is on: one
+        Chinese character, or a whole English word / number / raw run (in
+        the 按鍵 view: the character at the key)."""
         units = self.decoding.units()
-        for u in units:
-            if u[0] >= self.cursor:
-                return u
-        return units[-1] if units else None
+        t = next((u for u in units if u[0] >= self.cursor), units[-1] if units else None)
+        if t is None or self.layer == "keys":
+            return t
+        seg = self.decoding.segments[t[3]]
+        if seg.kind is Kind.ZH:
+            return t
+        return seg.start, seg.end, seg.text, t[3]
+
+    def _unit_index(self, start: int) -> int:
+        """Index in decoding.units() of the unit starting at ``start``."""
+        return next(i for i, u in enumerate(self.decoding.units()) if u[0] >= start)
 
     # ------------------------------------------------------------ undo
     # One history for the whole composition (Session._checkpoint): u in
@@ -140,7 +172,7 @@ class CorrectionMixin:
             return True
         if self._ctrl_punct(key) is not None:
             # no typing in correction mode (the frame says so); stay here
-            self._notice = "修正模式中不打字：按 i 或 Esc 回到打字"
+            self._notice = "修正模式中不打字：按 Esc 回到打字"
             return True
         if key.ctrl or key.alt:
             return False
@@ -478,17 +510,17 @@ class CorrectionMixin:
         grown until the decoder sees enough context.
         """
         self._finish_cycle()
-        units = self.decoding.units()
+        stops = self._stops()
         t = self._target()
-        if t is None or not units:
+        if t is None or not stops:
             self._notice = "沒有東西可以重新判定"
             return
-        here = units.index(t)
+        here = next((i for i, (a, _) in enumerate(stops) if a >= t[0]), len(stops) - 1)
         self._redecide_span += 1
-        last = min(len(units) - 1, here + self._redecide_span)
-        a, b = units[here][0], units[last][1]
+        last = min(len(stops) - 1, here + self._redecide_span)
+        a, b = stops[here][0], stops[last][1]
         if not any(p.start < b and p.end > a for p in self.pins):
-            if last == len(units) - 1 and here == 0:
+            if last == len(stops) - 1 and here == 0:
                 self._notice = "這一段沒有選過的字，解碼器本來就是這樣讀的"
                 return
         self._snapshot()
@@ -507,7 +539,7 @@ class CorrectionMixin:
         if t is None:
             return
         segs = self.decoding.segments
-        idx = units.index(t)
+        idx = self._unit_index(t[0])
         if segs[t[3]].kind is not Kind.ZH:
             self._notice = "游標上不是中文"
             return
@@ -537,8 +569,14 @@ class CorrectionMixin:
             return
         if self._cycle is None or self._cycle.start != t[0]:
             self._finish_cycle()
-            items = self._candidate_items()
-            if not items:
+            # Only what is under the cursor: j on 代 in 記得代雨傘 went to
+            # 代與 first (the words starting here are listed first) and
+            # turned 雨 into 與. Words and other splits stay in the ↓ list.
+            lo = self._dropped_before(t[0])
+            items = [c for c in self._candidate_items()
+                     if c.pin is not None and c.pin.end == t[1] and lo <= c.pin.start <= t[0]]
+            if len(items) < 2:
+                self._notice = f"「{t[2]}」沒有別的寫法 · ↓ 看詞和其他分法"
                 return
             current = self.decoding.segments[t[3]]
             self._snapshot()
@@ -552,17 +590,42 @@ class CorrectionMixin:
             items = [items[start]] + items[:start] + items[start + 1:]
             self._cycle = _Cycle(t[0], items, 0, current, t[2])
         c = self._cycle
-        # Step past candidates that would leave the screen looking the same.
-        # The list holds both the word and its first character (今天 and 今),
-        # so a plain +1 could pin a different span and change nothing visible
-        # — which read as "the shortcut does not work".
+        # Step past candidates that would leave the screen looking the same
+        # (a no-op read as "the shortcut does not work"); with only this
+        # span's candidates left that is rare, but it costs nothing.
         for _ in range(len(c.items)):
             c.index = (c.index + step) % len(c.items)
             cand = c.items[c.index]
             if cand.pin is not None and cand.text != self._text_over(cand.pin.start, cand.pin.end):
                 break
-        self._apply_pin(c.items[c.index].pin)
+        pin, old = c.items[c.index].pin, self.decoding
+        self._apply_pin(pin)
+        self._hold_outside(pin.start, pin.end, old)
         self._cycle.start = self.cursor
+
+    def _hold_outside(self, a: int, b: int, old) -> None:
+        """j/k change what is under the cursor and nothing else. Decoding
+        again with the new character can re-read a neighbour (cycling 打 →
+        大 → 達 flipped 記 and 計 next to it); put what changed back as it
+        was. Held in place, not marked as chosen (pinned=False: the decoder
+        keeps every pin, the flag is only the panel's underline)."""
+        def outside(dec):
+            return [(s, e, ch) for s, e, ch, _ in dec.units() if e <= a or s >= b]
+
+        want = outside(old)
+        if outside(self.decoding) == want:
+            return
+        parts = [p for seg in old.segments if seg.kind not in (Kind.DROP, Kind.PENDING)
+                 for p in _outside(seg, a, b)]
+        for only_changed in (True, False):
+            now = {(s.start, s.end, s.text, s.kind) for s in self.decoding.segments}
+            held = [p for p in parts
+                    if not (only_changed and (p.start, p.end, p.text, p.kind) in now)
+                    and all(q.end <= p.start or q.start >= p.end for q in self.pins)]
+            self.pins = sorted(self.pins + held, key=lambda p: p.start)
+            self._redecode()
+            if outside(self.decoding) == want:
+                return
 
     def _finish_cycle(self) -> None:
         """The cursor leaves a cycled character: learn the final choice."""
@@ -613,7 +676,29 @@ class CorrectionMixin:
             info = f"⌨ {'␣' if k == ' ' else k}" + (f"（{sym or '一聲'}）" if sym is not None else "")
             if dropped:
                 info += " 被略過的鍵"
-            return f"{label}{self._layer_text()}　{info} · x 刪這個鍵 · v 換檢視 · i 打字"
+            return f"{label}{self._layer_text()}　{info} · x 刪這個鍵 · v 換檢視 · Esc 打字"
         if self.layer == "zhuyin":
             return f"{label}{self._layer_text()} · {HELP}"
         return f"{label}{self._unit_info()} · {HELP}"
+
+
+def _outside(seg: Segment, a: int, b: int) -> list[Segment]:
+    """The pieces of ``seg`` outside keys [a, b), where they are. A Chinese
+    phrase splits only at syllable edges; other kinds have a character per
+    key. Keeps ``pinned`` (whether the user chose it)."""
+    if seg.end <= a or seg.start >= b:
+        return [seg]
+    out = []
+    if seg.kind is Kind.ZH:
+        if seg.start < a and a in seg.bounds:
+            k = seg.bounds.index(a)
+            out.append(replace(seg, end=a, text=seg.text[:k], readings=seg.readings[:k], bounds=seg.bounds[:k + 1]))
+        if seg.end > b and b in seg.bounds:
+            k = seg.bounds.index(b)
+            out.append(replace(seg, start=b, text=seg.text[k:], readings=seg.readings[k:], bounds=seg.bounds[k:]))
+    else:
+        if seg.start < a:
+            out.append(replace(seg, end=a, text=seg.text[:a - seg.start]))
+        if seg.end > b:
+            out.append(replace(seg, start=b, text=seg.text[b - seg.start:]))
+    return out

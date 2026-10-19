@@ -253,7 +253,7 @@ def test_a_retyped_character_does_not_join_the_english_word_before_it(session):
     retyping 以 as su3 with r glued the s to Fable again."""
     _, v = run(session, "cjo6djo4Fablesu3")
     assert v.composition == "回饋Fables以"
-    _, v = run(session, "{ESC}vhxvrsu3")
+    _, v = run(session, "{ESC}vvhxvrsu3")
     assert v.correcting and v.composition == "回饋Fable你"
 
 

@@ -186,3 +186,21 @@ def measure_candidates(panel):
     finally:
         surf.close()
         fonts.close()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="GDI rendering")
+def test_correction_help_puts_the_everyday_keys_and_the_way_out_first():
+    from smartime.ui.canvas import Canvas, Fonts, Surface
+    from smartime.ui.panels import CORRECTING_HELP, CORRECTING_HELP_ROOM, Styles, _help_lines
+    from smartime.ui.theme import LIGHT
+
+    fonts = Fonts(1.0)
+    surf = Surface(4, 4)
+    c = Canvas(surf.hdc, 1.0, fonts)
+    lines = _help_lines(c, Styles(c, LIGHT, 1.0), CORRECTING_HELP, CORRECTING_HELP_ROOM)
+    first = [k for k, _ in lines[0]]
+    assert first[0] == "← →" and "Esc" in first and "↓" in first  # arrows, not h l
+    assert len(lines) == 2  # fits in two lines at the usual width
+    c.close()
+    surf.close()
+    fonts.close()

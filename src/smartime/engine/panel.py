@@ -253,8 +253,8 @@ def decode_panel(session) -> DecodePanel:
         panel.focus = inside[0] if inside else after[0] if after else (visible[-1] if visible else None)
         if panel.focus is not None:
             col = columns[panel.focus]
-            # the key under the cursor: in the 按鍵 view, and inside an
-            # English word (one column, but h/l walk it letter by letter)
-            if session.layer == "keys" or (col.role in ("en", "num", "literal") and col.end - col.start > 1):
+            # the key under the cursor, in the 按鍵 view (elsewhere the
+            # cursor stops on whole columns, English words included)
+            if session.layer == "keys":
                 panel.focus_key = max(0, min(cursor, col.end - 1) - col.start)
     return panel

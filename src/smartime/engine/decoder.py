@@ -247,7 +247,8 @@ class Decoder:
 
     # ------------------------------------------------------------------
     def decode(self, keys: Sequence[Key], pins: Sequence[Segment] = (), allow_english: bool = True,
-               scheme: str = "zhuyin", joints: Sequence[int] = (), open_at: int | None = None) -> Decoding:
+               scheme: str = "zhuyin", joints: Sequence[int] = (), open_at: int | None = None,
+               end_open: bool = True) -> Decoding:
         """``allow_english=False`` is a pure Chinese mode: no English tokens.
         ``scheme``: how Chinese is typed (zhuyin, pinyin, cangjie).
 
@@ -257,7 +258,9 @@ class Decoder:
         a syllable joint, so 氣 typed after 天 still reads in context as
         天氣. ``open_at``: where the user is typing in the middle — an
         unfinished syllable may stop there, as it may at the end (nowhere
-        else: a half syllable left inside the text is never a good read)."""
+        else: a half syllable left inside the text is never a good read).
+        ``end_open=False``: typing has stopped (correction mode), so the end
+        is no place for half a syllable either."""
         n = len(keys)
         if n == 0:
             return Decoding((), 0.0)
@@ -279,6 +282,8 @@ class Decoder:
         if open_at is not None and 0 < open_at < n:
             joint_set.add(open_at)
         open_set = {open_at} & joint_set
+        if end_open:
+            open_set.add(n)
         cut = [n] * (n + 1)
         nxt = n
         for i in range(n, -1, -1):
@@ -647,7 +652,7 @@ class Decoder:
         if cut is None:
             cut = [limit] * (n + 1)
         tok = cut[i]  # one token (a word, a number, a code) ends here at the latest
-        open_end = tok == n or tok in open_at  # an unfinished syllable may stop here
+        open_end = tok in open_at  # an unfinished syllable may stop here (the end, while typing)
 
         # --- Chinese phrases: chains of syllables (zhuyin, pinyin) or codes
         #     (Cangjie) looked up in the lexicon.
