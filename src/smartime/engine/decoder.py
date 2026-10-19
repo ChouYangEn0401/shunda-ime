@@ -175,6 +175,27 @@ _CJ_TOP = 4  # characters per code tried when looking for multi-character words
 _EN_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 _LETTERS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 _DIGITS = frozenset("0123456789")
+
+
+def _in_triple(keys: Sequence[Key], i: int) -> bool:
+    """Key ``i`` is part of a run of three or more of the same letter.
+
+    One repeated letter is a double press (gjpp4); three or more is on
+    purpose — wwwwww, zzz, xddd, 嗚嗚嗚 as www. Treating them as slips
+    turned six w's into three with 「略過 www」 (reported: 「打 WWW 的小寫就會
+    直接被略過……大家不能打習慣的 lmao 之類」), so none of those keys is ever
+    a drop or an absorbed double."""
+    ch = keys[i].char
+    if ch not in _LOWER:
+        return False
+    n = len(keys)
+    a = i
+    while a > 0 and keys[a - 1].char == ch and not keys[a - 1].numpad:
+        a -= 1
+    b = i
+    while b + 1 < n and keys[b + 1].char == ch and not keys[b + 1].numpad:
+        b += 1
+    return b - a >= 2
 MAX_EN_LEN = 40
 MAX_ABBR_KEYS = 8  # 瘋狂模式: keys looked at from one position
 MAX_ABBR_SYLLABLES = 6
@@ -590,7 +611,8 @@ class Decoder:
                 sym = layout.symbol(k.char)
                 if sym is None:
                     break
-                if j > i + 1 and keys[j - 1].char == k.char and k.char in _LOWER and doubles and not extra:
+                if (j > i + 1 and keys[j - 1].char == k.char and k.char in _LOWER and doubles and not extra
+                        and not _in_triple(keys, j)):
                     # the same key twice inside a syllable (gjpp4 順): a DROP
                     # segment cannot sit inside a syllable, so absorb it here.
                     # Not at the syllable's first key: there (ee/4) an ordinary
@@ -732,7 +754,7 @@ class Decoder:
             yield Segment(i, i + 1, ch, Kind.PUNCT, w.punct_other)
 
         # --- A stray key typed by accident produces nothing.
-        if zhuyin and self.drop_enabled and ch in self.droppable and not k.numpad:
+        if zhuyin and self.drop_enabled and ch in self.droppable and not k.numpad and not _in_triple(keys, i):
             # letters only: ;; :: .. -- typed twice mean something (片語, 符號)
             double = ch in _LOWER and i + 1 < n and keys[i + 1].char == ch and not keys[i + 1].numpad
             yield Segment(i, i + 1, "", Kind.DROP, w.drop_double if double else w.drop)

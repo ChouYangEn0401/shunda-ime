@@ -124,3 +124,15 @@ def test_decode_is_fast(decoder):
     t = time.perf_counter()
     decode(decoder, keys)
     assert (time.perf_counter() - t) < 0.05
+
+
+@pytest.mark.parametrize("keys,text", [
+    ("wwwwww ", "wwwwww "),  # reported: 打 WWW 的小寫就會直接被略過 — six w's became www
+    ("xddd ", "xddd "),
+    ("zzz ", "zzz "),
+    ("ji3wwwww ", "我wwwww "),
+    ("gjpp4", "順"),  # one double press inside a syllable is still absorbed
+    ("1jj6", "不"),
+])
+def test_three_or_more_of_the_same_letter_are_never_a_slip(decoder, keys, text):
+    assert decode(decoder, keys).text == text
