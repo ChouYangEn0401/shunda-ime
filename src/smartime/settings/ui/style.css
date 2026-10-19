@@ -302,6 +302,10 @@ tr.blocked td { color: var(--muted); }
 
 /* 修字練習 */
 #view-practice .callout { margin: 0 0 18px; }
+#getting-started { margin-bottom: 18px; }
+.start-steps { margin: 0; padding: 4px 18px 6px 2.1em; max-width: 75ch; line-height: 1.7; font-size: 14px; }
+.start-steps li { margin: 6px 0; }
+.start-steps li::marker { color: var(--accent); font-weight: 700; font-family: var(--font-key); }
 .row.practice { grid-template-columns: minmax(0, 1fr); }
 .row.practice.passed { background: color-mix(in srgb, var(--ok-soft) 45%, transparent); }
 .practice .label { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

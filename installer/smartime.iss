@@ -61,6 +61,8 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 [CustomMessages]
 cht.OpenSettings=開啟「{#AppName} 設定」
 en.OpenSettings=Open {#AppName} settings
+cht.OpenPractice=開啟設定頁的「修字練習」，先練一練（三步開始使用，再玩幾關）
+en.OpenPractice=Open the settings page on 修字練習: three steps to get started, then practice fixing a sentence
 cht.TaskGroup=這台電腦已經裝了 PIME 官方版（含新酷音等輸入法）。順打輸入法會和它共用 PIME。
 cht.TaskTakeover=移除 PIME 官方版附帶的其他輸入法（新酷音等），只保留順打輸入法
 cht.StepPrepare=正在停止輸入法背景程式…
@@ -70,7 +72,7 @@ cht.StepUser=正在加入鍵盤清單並啟動輸入法…
 cht.StepVerify=正在確認輸入法可以打字…
 cht.ErrRegister=註冊輸入法失敗（%1）。安裝紀錄：%2
 cht.ErrVerify=檔案已安裝，但自動測試沒有通過：輸入法可能還沒準備好。請登出再登入後試用；如果仍然不行，請把安裝紀錄 %1 提供給開發者。
-cht.Done=安裝完成，並已自動測試可以打字。%n%n按 Win + 空白鍵 切換到「{#AppName}」。系統匣圖示：自＝中英自動、中＝純中文、英＝純英文。%n%n你的設定與學到的詞存在 %%APPDATA%%\SmartIME，移除輸入法時不會刪除。
+cht.Done=安裝完成，並已自動測試可以打字。%n%n按 Win + 空白鍵 切換到「{#AppName}」。系統匣圖示：自＝中英自動、中＝純中文、英＝純英文。%n%n第一次用，建議先到設定頁的「修字練習」玩幾關：怎麼切過來、怎麼混打、打錯了怎麼修，三分鐘就有感覺（系統匣圖示按右鍵也有這一項）。%n%n你的設定與學到的詞存在 %%APPDATA%%\SmartIME，移除輸入法時不會刪除。
 en.TaskGroup=The official PIME (with Chewing and other input methods) is installed. Shunda IME shares PIME with it.
 en.TaskTakeover=Remove the other input methods that came with the official PIME (Chewing etc.) and keep only Shunda IME
 en.StepPrepare=Stopping the input method background programs...
@@ -80,7 +82,7 @@ en.StepUser=Adding it to your keyboard list and starting it...
 en.StepVerify=Checking that typing works...
 en.ErrRegister=Registering the input method failed (%1). Setup log: %2
 en.ErrVerify=Files are installed but the automatic typing test did not pass. Sign out and in again, then try; if it still fails, send the setup log %1 to the developer.
-en.Done=Installed, and a typing test passed.%n%nPress Win + Space and choose "{#AppName}". Tray icon: 自 = auto, 中 = Chinese, 英 = English.%n%nYour settings and learned words live in %%APPDATA%%\SmartIME and are kept when the input method is removed.
+en.Done=Installed, and a typing test passed.%n%nPress Win + Space and choose "{#AppName}". Tray icon: 自 = auto, 中 = Chinese, 英 = English.%n%nNew here? The settings page's 修字練習 walks you through switching over, mixed typing and fixing a mistake in a few short levels (also in the tray icon's right-click menu).%n%nYour settings and learned words live in %%APPDATA%%\SmartIME and are kept when the input method is removed.
 
 [Tasks]
 Name: "takeover"; Description: "{cm:TaskTakeover}"; GroupDescription: "{cm:TaskGroup}"; Check: OfficialPimeInstalled; Flags: unchecked
@@ -99,7 +101,11 @@ Source: "{#StageDir}\smartime\installer\pending-deletes.ps1"; Flags: dontcopy
 Name: "{autoprograms}\{#AppName} 設定"; Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\settings.py"""; WorkingDir: "{app}"; IconFilename: "{app}\input_methods\smartime\icons\ime.ico"
 
 [Run]
-Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\settings.py"""; WorkingDir: "{app}"; Description: "{cm:OpenSettings}"; Flags: postinstall nowait skipifsilent runasoriginaluser unchecked
+; First install: the finish page offers the settings page open on 修字練習
+; (ticked) — 開始使用 in three steps, then the practice levels. An upgrade
+; makes the same offer, not ticked: people upgrading know the IME already.
+Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\settings.py"" --section=practice"; WorkingDir: "{app}"; Description: "{cm:OpenPractice}"; Flags: postinstall nowait skipifsilent runasoriginaluser; Check: IsFreshInstall
+Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\settings.py"""; WorkingDir: "{app}"; Description: "{cm:OpenSettings}"; Flags: postinstall nowait skipifsilent runasoriginaluser unchecked; Check: IsUpgrade
 
 [UninstallDelete]
 ; Python creates __pycache__ folders at run time; remove the whole folder.
@@ -117,6 +123,7 @@ var
   InstallError: String;
   CoreMode: Boolean;   { we provide the PIME core (see the top of this file) }
   Takeover: Boolean;   { official PIME present and the user chose to keep only us }
+  FreshInstall: Boolean;  { no earlier version in {app} when Setup started }
 
 function GetFileAttributes(lpFileName: String): Cardinal;
   external 'GetFileAttributesW@kernel32.dll stdcall';
@@ -300,7 +307,8 @@ begin
   Pime := PimeDir();
   Takeover := OfficialPimeInstalled() and WizardIsTaskSelected('takeover');
   CoreMode := Takeover or not OfficialPimeInstalled();
-  Log('[smartime] mode: ' + Format('core=%d takeover=%d', [Ord(CoreMode), Ord(Takeover)]));
+  FreshInstall := not FileExists(App + '\VERSION.txt');
+  Log('[smartime] mode: ' + Format('core=%d takeover=%d fresh=%d', [Ord(CoreMode), Ord(Takeover), Ord(FreshInstall)]));
 
   WizardForm.PreparingLabel.Caption := CustomMessage('StepPrepare');
   ExtractTemporaryFile('stop-backend.ps1');
@@ -407,6 +415,17 @@ begin
     SuppressibleMsgBox(InstallError, mbError, MB_OK, IDOK)
   else
     Log('[smartime] install verified');
+end;
+
+{ [Run] Check functions: which "open the settings page" offer the finish page makes. }
+function IsFreshInstall(): Boolean;
+begin
+  Result := FreshInstall;
+end;
+
+function IsUpgrade(): Boolean;
+begin
+  Result := not FreshInstall;
 end;
 
 procedure CurPageChanged(CurPageID: Integer);

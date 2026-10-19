@@ -39,7 +39,7 @@ PANELS = [
     ("palette", "ji3::{TAB}{TAB}", "candidates"),            # symbol grid
     ("snippets", "ji3;;", "candidates"),
 ]
-SETTINGS_VIEWS = ["general", "dict", "punct", "about"]
+SETTINGS_VIEWS = ["general", "dict", "punct", "practice", "about"]
 
 
 def render_panels(out: Path, scale: float, themes) -> list[Path]:

@@ -59,6 +59,21 @@ def test_iss_gets_every_define_it_uses():
     assert used <= defined, f"not defined by build_installer.py: {used - defined}"
 
 
+def test_first_install_offers_the_practice_page_and_an_upgrade_does_not_insist():
+    """The finish page: a fresh install opens the settings page on 修字練習
+    (ticked); an upgrade offers the settings page, not ticked."""
+    iss = ISS.read_text(encoding="utf-8")
+    run = iss[iss.index("[Run]"):iss.index("[UninstallDelete]")].splitlines()
+    fresh = [l for l in run if "Check: IsFreshInstall" in l]
+    upgrade = [l for l in run if "Check: IsUpgrade" in l]
+    assert len(fresh) == 1 and "--section=practice" in fresh[0] and "unchecked" not in fresh[0]
+    assert len(upgrade) == 1 and "unchecked" in upgrade[0]
+    assert "function IsFreshInstall" in iss and "function IsUpgrade" in iss
+    assert "FreshInstall := not FileExists(App + '\\VERSION.txt')" in iss
+    for lang in ("cht", "en"):
+        assert f"{lang}.OpenPractice=" in iss
+
+
 def test_pime_core_is_in_the_official_setup():
     bi = load_build_installer()
     setup = bi.CACHE / "PIME-1.3.0-stable-setup.exe"
