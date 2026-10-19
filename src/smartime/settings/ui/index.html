@@ -24,13 +24,13 @@
   <div class="window">
     <nav class="rail" aria-label="設定分類">
       <button data-view="general" aria-current="page"><span class="glyph">自</span>一般</button>
+      <button data-view="practice" id="rail-practice"><span class="glyph">練</span>練習場<span class="rail-badge" id="rail-practice-badge" hidden></span></button>
       <button data-view="typing"><span class="glyph">ㄅ</span>打字與選字</button>
       <button data-view="fix"><span class="glyph">✎</span>智慧修正</button>
       <button data-view="punct"><span class="glyph">，</span>標點與符號</button>
       <button data-view="dict"><span class="glyph">詞</span>我的詞庫</button>
       <button data-view="snippets"><span class="glyph">❞</span>片語與顏文字</button>
       <button data-view="keys"><span class="glyph">⌨</span>快捷鍵</button>
-      <button data-view="practice"><span class="glyph">練</span>練習場</button>
       <button data-view="voice"><span class="glyph">◉</span>語音輸入</button>
       <button data-view="data"><span class="glyph">⇅</span>資料與隱私</button>
       <button data-view="about"><span class="glyph">i</span>關於</button>
@@ -98,7 +98,7 @@
                 <label class="switch"><input type="checkbox" data-cfg="reorder_tolerance" aria-label="注音打錯容錯"><span></span></label>
               </div>
               <div class="row">
-                <div><div class="label">略過多按的雜鍵</div><div class="desc"><code>我e更快</code>→我更快。被略過的鍵會在提示列以紅色標出，按 <kbd>↓</kbd> 在候選窗紅色的「略過的鍵」選回來（修正模式裡游標走到它旁邊也一樣）。保守：只略過很明顯多按的鍵。</div></div>
+                <div><div class="label">略過多按的雜鍵</div><div class="desc"><code>我e更快</code>→我更快。連打三個以上同一個字母（wwwwww、zzz）一律照打，不會被當成手滑。被略過的鍵會在提示列以紅色標出，按 <kbd>↓</kbd> 在候選窗紅色的「略過的鍵」選回來（修正模式裡游標走到它旁邊也一樣）。保守：只略過很明顯多按的鍵。</div></div>
                 <div class="seg" role="group" aria-label="略過雜鍵的程度" data-cfg="drop_stray_keys">
                   <button data-value="off">關閉</button><button data-value="conservative">保守</button><button data-value="standard">標準</button>
                 </div>

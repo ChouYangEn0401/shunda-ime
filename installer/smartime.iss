@@ -104,8 +104,10 @@ Name: "{autoprograms}\{#AppName} 設定"; Filename: "{app}\runtime\pythonw.exe";
 ; First install: the finish page offers the settings page open on 練習場
 ; (ticked) — the guided tour, one step per feature. An upgrade
 ; makes the same offer, not ticked: people upgrading know the IME already.
-Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\settings.py"" --section=practice"; WorkingDir: "{app}"; Description: "{cm:OpenPractice}"; Flags: postinstall nowait skipifsilent runasoriginaluser; Check: IsFreshInstall
-Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\settings.py"""; WorkingDir: "{app}"; Description: "{cm:OpenSettings}"; Flags: postinstall nowait skipifsilent runasoriginaluser unchecked; Check: IsUpgrade
+; "Fresh" here means the tour has not been started: a first install, or an
+; upgrade on a machine where practice.json does not exist yet.
+Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\settings.py"" --section=practice"; WorkingDir: "{app}"; Description: "{cm:OpenPractice}"; Flags: postinstall nowait skipifsilent runasoriginaluser; Check: OfferTour
+Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\settings.py"""; WorkingDir: "{app}"; Description: "{cm:OpenSettings}"; Flags: postinstall nowait skipifsilent runasoriginaluser unchecked; Check: not OfferTour
 
 [UninstallDelete]
 ; Python creates __pycache__ folders at run time; remove the whole folder.
@@ -417,15 +419,11 @@ begin
     Log('[smartime] install verified');
 end;
 
-{ [Run] Check functions: which "open the settings page" offer the finish page makes. }
-function IsFreshInstall(): Boolean;
+{ [Run] Check: which "open the settings page" offer the finish page makes.
+  The tour is offered (ticked) until it has been started on this machine. }
+function OfferTour(): Boolean;
 begin
-  Result := FreshInstall;
-end;
-
-function IsUpgrade(): Boolean;
-begin
-  Result := not FreshInstall;
+  Result := FreshInstall or not FileExists(ExpandConstant('{userappdata}\SmartIME\practice.json'));
 end;
 
 procedure CurPageChanged(CurPageID: Integer);

@@ -59,6 +59,10 @@ nav.rail button { all: unset; cursor: pointer; display: flex; align-items: cente
 nav.rail button .glyph { width: 22px; text-align: center; font-family: var(--font-key); color: var(--muted); font-size: 13px; }
 nav.rail button:hover { background: color-mix(in srgb, var(--accent-soft) 60%, transparent); }
 nav.rail button[aria-current="page"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+/* 練習場 not finished yet: the entry is coloured until every step is passed, then it looks like the others */
+nav.rail button.pending { color: var(--accent); }
+nav.rail .rail-badge { margin-left: auto; font-family: var(--font-key); font-size: 11px; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 7px; }
+nav.rail button[aria-current="page"] .rail-badge { background: var(--panel); }
 nav.rail button[aria-current="page"] .glyph { color: var(--accent); }
 nav.rail button:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, .mode-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 

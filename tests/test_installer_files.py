@@ -64,12 +64,14 @@ def test_first_install_offers_the_practice_page_and_an_upgrade_does_not_insist()
     (ticked); an upgrade offers the settings page, not ticked."""
     iss = ISS.read_text(encoding="utf-8")
     run = iss[iss.index("[Run]"):iss.index("[UninstallDelete]")].splitlines()
-    fresh = [l for l in run if "Check: IsFreshInstall" in l]
-    upgrade = [l for l in run if "Check: IsUpgrade" in l]
+    fresh = [l for l in run if "Check: OfferTour" in l]
+    upgrade = [l for l in run if "Check: not OfferTour" in l]
     assert len(fresh) == 1 and "--section=practice" in fresh[0] and "unchecked" not in fresh[0]
     assert len(upgrade) == 1 and "unchecked" in upgrade[0]
-    assert "function IsFreshInstall" in iss and "function IsUpgrade" in iss
+    assert "function OfferTour" in iss
     assert "FreshInstall := not FileExists(App + '\\VERSION.txt')" in iss
+    # an upgrade still offers the tour while it has never been started here
+    assert "FreshInstall or not FileExists(ExpandConstant('{userappdata}\\SmartIME\\practice.json'))" in iss
     for lang in ("cht", "en"):
         assert f"{lang}.OpenPractice=" in iss
 

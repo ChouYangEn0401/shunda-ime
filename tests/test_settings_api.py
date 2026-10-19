@@ -357,3 +357,20 @@ def test_symbols_extra_download_rejects_a_second_concurrent_request(server, monk
     status, body = call(server, "POST", "/api/symbols-extra/download")
     assert status == 400 and "下載" in body["error"]
     release.set()
+
+
+def test_practice_progress_is_in_the_export_and_merges_on_import(server):
+    """「我如果練習完成的話，我把資料匯出的時候，我就會希望這個進度也要記得。」"""
+    import io
+    import zipfile
+
+    from smartime import practice
+
+    call(server, "POST", "/api/practice/done", {"id": "hello"})
+    blob = call(server, "GET", "/api/export")[1]
+    with zipfile.ZipFile(io.BytesIO(blob)) as z:
+        assert json.loads(z.read("practice.json").decode("utf-8")) == {"done": ["hello"]}
+    call(server, "POST", "/api/practice/reset", {})
+    call(server, "POST", "/api/practice/done", {"id": "swap"})
+    r = call(server, "POST", "/api/import?settings=0", raw=blob)[1]
+    assert r["practice"] == 1 and practice.done() == ["swap", "hello"]

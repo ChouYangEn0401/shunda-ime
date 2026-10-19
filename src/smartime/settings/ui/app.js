@@ -1300,7 +1300,7 @@
           card.classList.add("passed");
           pro.hidden = !st.pro;
           progress();
-          api("POST", "/api/practice/done", { id: st.id }).catch(() => {});
+          api("POST", "/api/practice/done", { id: st.id }).then(practiceBadge).catch(() => {});
           return true;
         };
         if (st.kind === "tip") {
@@ -1364,6 +1364,7 @@
     document.getElementById("practice-start").onclick = () => focusNext(-1);
     document.getElementById("practice-reset").onclick = async () => {
       try { await api("POST", "/api/practice/reset", {}); } catch (e) { toast(e.message, true); return; }
+      practiceBadge();
       loadPractice();
     };
   }
@@ -1558,8 +1559,26 @@
 
   // ------------------------------------------------------------ start
   setInterval(() => { api("GET", "/api/ping").catch(() => {}); }, 15000);
-  loadState().then(() => {
+  // The 練習場 entry stays coloured, with how far you are, until every step
+  // is passed; and until the first step is passed the page opens on it, so a
+  // newcomer lands in the tour instead of a settings list.
+  async function practiceBadge() {
+    let pr;
+    try { pr = await api("GET", "/api/practice"); } catch (e) { return false; }
+    const total = pr.chapters.reduce((n, c) => n + c.steps.length, 0);
+    const done = pr.done.filter(id => pr.chapters.some(c => c.steps.some(s => s.id === id))).length;
+    const btn = document.getElementById("rail-practice");
+    const badge = document.getElementById("rail-practice-badge");
+    const pending = done < total;
+    btn.classList.toggle("pending", pending);
+    badge.hidden = !pending;
+    badge.textContent = done ? `${done}/${total}` : "新";
+    return done === 0;
+  }
+  loadState().then(async () => {
+    const fresh = await practiceBadge();
     let start = location.hash.replace("#", "");
+    if (!start && fresh) start = "practice";
     if (!start) { try { start = localStorage.getItem("smartime-view") || "general"; } catch (e) { start = "general"; } }
     show(start);
   }).catch(e => toast(e.message, true));

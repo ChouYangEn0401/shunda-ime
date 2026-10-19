@@ -141,3 +141,11 @@ def test_settings_api_gives_the_tour_with_keys_for_the_users_layout(tmp_path):
         assert not practice.active()
     finally:
         app.close()
+
+
+def test_progress_travels_with_the_export_file(tmp_path):
+    practice.mark_done("hello")
+    assert practice.export_data() == {"done": ["hello"]}
+    # another machine's file: a union, unknown ids ignored, nothing taken away
+    assert practice.merge_done(["swap", "hello", "no-such-step", 7]) == ["hello", "swap"]
+    assert practice.merge_done("junk") == ["hello", "swap"]

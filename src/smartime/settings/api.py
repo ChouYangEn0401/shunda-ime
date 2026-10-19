@@ -437,6 +437,7 @@ class SettingsApp:
                 z.write(db, "user.db")
                 if self.config_path.exists():
                     z.write(self.config_path, "config.json")
+                z.writestr("practice.json", json.dumps(practice.export_data(), ensure_ascii=False))  # 練習場 progress
                 z.writestr("README.txt", f"{PRODUCT_NAME} {__version__} 的「我的記憶」匯出檔。"
                                          "在另一台電腦的設定頁 > 資料與隱私 > 匯入。\n")
         return buf.getvalue()
@@ -447,6 +448,7 @@ class SettingsApp:
         with tempfile.TemporaryDirectory() as tmp:
             db = Path(tmp) / "user.db"
             config_data = None
+            practice_done: list = []
             if data[:2] == b"PK":
                 try:
                     with zipfile.ZipFile(io.BytesIO(data)) as z:
@@ -456,6 +458,11 @@ class SettingsApp:
                         db.write_bytes(z.read("user.db"))
                         if "config.json" in names:
                             config_data = z.read("config.json")
+                        if "practice.json" in names:
+                            try:
+                                practice_done = json.loads(z.read("practice.json").decode("utf-8")).get("done", [])
+                            except (ValueError, UnicodeDecodeError, AttributeError):
+                                practice_done = []
                 except zipfile.BadZipFile as e:
                     raise ApiError(400, "檔案損壞，無法讀取") from e
             elif data[:16] == b"SQLite format 3\x00":
@@ -477,8 +484,10 @@ class SettingsApp:
                 raise ApiError(400, "設定檔格式不正確") from e
             cfg.save(self.config_path)
             applied = True
+        before = len(practice.done())
+        practice_total = len(practice.merge_done(practice_done))  # 練習場 progress merges too (a union)
         return {"merged": report["words"] + report["updated"] + report["snippets"] + report["symbols"],
-                **report, "settingsApplied": applied}
+                **report, "settingsApplied": applied, "practice": practice_total - before}
 
     # ---------------------------------------------------------- updates
     def update_state(self, force: bool = False) -> dict:

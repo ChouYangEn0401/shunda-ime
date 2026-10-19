@@ -194,7 +194,8 @@ STEPS: tuple[Step, ...] = (
          pro="star、heart、星座、動物……中英文關鍵字都行。"),
     Step("snippets", "more", "片語",
          "常打的整段話存成片語，<kbd>;;</kbd> 叫出來。",
-         "到「片語與顏文字」存一則（例如 addr＝你的地址），之後打 <kbd>;;addr</kbd>，先預覽再 <kbd>Enter</kbd>。顏文字也在那一頁。",
+         "到「片語與顏文字」存一則，關鍵字用英文字母（例如 addr＝你的地址；<kbd>;;</kbd> 後面打的字母不會變成注音，所以關鍵字只能是英文）。"
+         "之後打 <kbd>;;addr</kbd>，先預覽再 <kbd>Enter</kbd>。顏文字也在那一頁。",
          kind="tip"),
     Step("voice", "more", "用說的",
          "按住右 <kbd>Ctrl</kbd> 說話，放開就打在游標位置。",
@@ -266,6 +267,26 @@ def reset() -> list[str]:
     data["done"] = []
     _save(data)
     return []
+
+
+def export_data() -> dict:
+    """What goes into 我的記憶 (the export file): the steps passed."""
+    return {"done": done()}
+
+
+def merge_done(ids) -> list[str]:
+    """Import: steps passed on another machine count here too (a union —
+    nothing already passed is taken away). Unknown ids are ignored."""
+    if not isinstance(ids, list):
+        return done()
+    data = _load()
+    have = done()
+    for i in ids:
+        if isinstance(i, str) and i in STEP_IDS and i not in have:
+            have.append(i)
+    data["done"] = have
+    _save(data)
+    return have
 
 
 def step_keys(step: Step, lexicon, layout) -> str:
