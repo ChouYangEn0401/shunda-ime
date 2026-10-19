@@ -66,6 +66,7 @@ class Lexicon:
         self._pinyin: PinyinTable | None = None
         self._abbr: dict[str, list[tuple[str, str]]] | None = None  # 瘋狂模式, built on first use
         self._abbr_lock = threading.Lock()
+        self._en_curated: frozenset[str] | None = None
         self._make_caches()
 
     def _make_caches(self) -> None:
@@ -319,6 +320,19 @@ class Lexicon:
         )]
 
     # -- English ---------------------------------------------------------
+    def user_en(self, word: str) -> bool:
+        """An English word in my dictionary (added, or kept as typed)."""
+        return self.user is not None and word in self.user.en
+
+    def en_curated(self, word: str) -> bool:
+        """One of data/lexicon/en_terms.txt (mvp, kpi, deadline…)."""
+        if self._en_curated is None:
+            try:
+                self._en_curated = frozenset(w for (w,) in self._con.execute("SELECT word FROM en WHERE curated"))
+            except sqlite3.OperationalError:
+                self._en_curated = frozenset()
+        return word in self._en_curated
+
     def _en_score(self, word: str) -> float | None:
         row = self._con.execute("SELECT score FROM en WHERE word = ?", (word,)).fetchone()
         system = None if row is None else row[0]

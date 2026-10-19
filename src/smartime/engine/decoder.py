@@ -21,7 +21,7 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from itertools import product
 
-from . import bopomofo
+from . import bopomofo, en_fix
 from .layouts import Layout
 from .lexicon import Lexicon
 from .pinyin import TONE_DIGITS, to_pinyin
@@ -89,6 +89,10 @@ class Weights:
     # number 283. Numbers must not be cheaper than real Chinese syllables.
     num: float = -5.5
     reorder: float = -1.0  # syllable keys typed out of canonical order
+    # An unknown English word read as the common word one slip away (en_fix):
+    # added to that word's score. A known misspelling (teh) is not scored
+    # this way; it simply reads as the word meant.
+    en_typo: float = -2.0
     # The tone key typed one symbol too early: 2 4 8 (ㄉˋㄚ) for 2 8 4 大.
     tone_early: float = -1.5
     # ... when what was typed up to the tone is a syllable already (dj4 酷,
@@ -215,6 +219,7 @@ class Decoder:
         self.halfwidth_symbols = frozenset(halfwidth_symbols)
         self.reorder_tolerance = True
         self.drop_enabled = True
+        self.en_fix = True  # 英文打錯自動更正
         self.crazy = False  # 瘋狂模式
         self._set_layout(layout)
 
@@ -234,6 +239,7 @@ class Decoder:
             self._set_layout(get_layout(cfg.layout))
         self.reorder_tolerance = cfg.reorder_tolerance
         self.drop_enabled = cfg.drop_stray_keys != "off"
+        self.en_fix = cfg.en_autocorrect
         self.crazy = bool(getattr(cfg, "crazy_mode", False))
         if self.crazy:
             self.lex.warm_abbreviations()
@@ -685,7 +691,16 @@ class Decoder:
                     # Only a real space counts — at the start of the buffer
                     # there is no separator, so "o␣" is still ㄟ.
                     delimited = i > 0 and keys[i - 1].char == " " and (j >= n or keys[j].char == " ")
-                    yield Segment(i, j, word, Kind.EN, self._en_score(word, delimited))
+                    score = self._en_score(word, delimited)
+                    fix = en_fix.correction(self.lex, word) if self.en_fix and self._whole_word(
+                        keys, i, j) else None
+                    if fix is None:
+                        yield Segment(i, j, word, Kind.EN, score)
+                    elif fix[1]:  # a known misspelling: read as the word meant
+                        yield Segment(i, j, fix[0], Kind.EN, score)
+                    else:  # an unknown word: one more reading, the common word one slip away
+                        yield Segment(i, j, word, Kind.EN, score)
+                        yield Segment(i, j, fix[0], Kind.EN, self._en_score(fix[0], delimited) + w.en_typo)
 
         # --- Numbers (純注音: numeric keypad only; top-row digits are zhuyin).
         numbers_ok = allow_english or not zhuyin
@@ -745,6 +760,19 @@ class Decoder:
 
         # --- Fallback so that every position stays reachable.
         yield Segment(i, i + 1, ch, Kind.LITERAL, w.literal)
+
+    @staticmethod
+    def _whole_word(keys: Sequence[Key], i: int, j: int) -> bool:
+        """Keys [i, j) are a finished word: no letter right before, and a
+        space or punctuation right after. Never the word at the end: half a
+        word is not corrected while typing (gaug is gauge in a moment), and
+        Enter sends exactly what is on screen."""
+        if i > 0 and keys[i - 1].char in _LETTERS:
+            return False
+        if j == len(keys):
+            return False
+        c = keys[j].char
+        return c not in _EN_CHARS and c != "'"
 
     def _abbr_edges(self, keys: Sequence[Key], i: int, limit: int) -> Iterator[Segment]:
         """瘋狂模式: the zhuyin symbol keys from ``i`` (no tone keys) split into

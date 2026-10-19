@@ -31,6 +31,7 @@ PANELS = [
     ("typing-suggestion", "ji3rup wu0 ", "hint"),            # what Tab would take
     ("typing-reading", "ji3rup wu0 wu0", "hint"),            # the half-typed syllable
     ("typing-dropped", "ji3ee/", "hint"),                    # a key skipped as a slip
+    ("typing-fixed", "ji3 wrold ", "hint"),                  # an English word corrected
     ("candidates", "ji35p {DOWN}", "candidates"),            # grouped, coloured
     ("candidates-english", "mvp {DOWN}", "candidates"),      # English <-> Chinese
     ("correction", "ji3ee/4dj94k27{ESC}h", "decode"),        # 按鍵 / 注音 / 國字

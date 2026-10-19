@@ -98,6 +98,7 @@ class Config:
     reorder_tolerance: bool = True  # 注音打錯容錯: order (ㄛㄨˇ 我), early tone (248 大), missing tone (clm/4 好用)
     drop_stray_keys: str = "standard"  # "off" | "conservative" | "standard"
     single_letter_context: bool = True  # lone i / o are zhuyin unless English context
+    en_autocorrect: bool = True  # 英文打錯自動更正: teh -> the, wrold -> world (engine/en_fix.py)
 
     # Chromium-based apps (Edge, Chrome, VS Code, Teams, ...) sometimes end the
     # composition by themselves while still showing it; keep the text so the

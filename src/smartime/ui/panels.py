@@ -291,6 +291,9 @@ def paint_decode(c: Canvas, t: Theme, p: DecodePanel, size: float = 1.0, draw: b
             font = s.reading_bold if focused and p.layer == "zhuyin" else s.reading
             center_mixed(c, cx, y_read + 2 * k, cw, label, font, s.symbol,
                          t.fix if (col.reordered or col.abbreviated) else t.muted)
+        elif col.reordered:
+            # an English word read as the one meant (wrold → world): 英文↺
+            center_mixed(c, cx, y_read + 3 * k, cw, col.reading + "↺", s.small, s.symbol, t.fix)
         else:
             c.text_center(cx, y_read + 3 * k, cw, col.reading, s.small, t.faint)
         # --- text row
@@ -760,12 +763,14 @@ def paint_hint(c: Canvas, t: Theme, p: HintPanel, size: float = 1.0, draw: bool 
     becomes_w = measure_mixed(c, becomes, s.small, s.symbol) + 8 * k if becomes else 0.0
     dropped = f"略過 {p.dropped}  ↓" if p.dropped else ""
     drop_w = measure_mixed(c, dropped, s.small, s.symbol) + 10 * k if dropped else 0.0
+    fixed = f"更正 {p.fixed}  ↓" if p.fixed else ""
+    fix_w = measure_mixed(c, fixed, s.small, s.symbol) + 10 * k if fixed else 0.0
     suggest_w = _hint_suggest_width(c, s, p, k)
 
     # Nothing to say but text is still being composed: a dot, so the state
     # is visible in editors that do not underline the composition.
-    dot = not (left or dropped or p.suggestion or p.notice) and p.composing
-    parts = [w for w in (drop_w, left_w + becomes_w, suggest_w) if w]
+    dot = not (left or dropped or fixed or p.suggestion or p.notice) and p.composing
+    parts = [w for w in (drop_w, fix_w, left_w + becomes_w, suggest_w) if w]
     body_w = sum(parts) + GAP_HINT * k * max(0, len(parts) - 1)
     notice_w = measure_mixed(c, p.notice, s.small, s.symbol) if p.notice else 0.0
     if dot:
@@ -792,6 +797,11 @@ def paint_hint(c: Canvas, t: Theme, p: HintPanel, size: float = 1.0, draw: bool 
             c.fill(x, y + 2 * k, drop_w - 2 * k, 18 * k, t.drop_soft, radius=4 * k)
             draw_mixed(c, x + 5 * k, y + 4 * k, dropped, s.small, s.symbol, t.drop)
             x += drop_w + GAP_HINT * k
+        if fixed:
+            # amber, like the ↺ of a syllable the IME read for you
+            c.fill(x, y + 2 * k, fix_w - 2 * k, 18 * k, t.fix_soft, radius=4 * k)
+            draw_mixed(c, x + 5 * k, y + 4 * k, fixed, s.small, s.symbol, t.fix)
+            x += fix_w + GAP_HINT * k
         if left:
             draw_mixed(c, x, y + (3 if p.info else 1) * k, left, left_font, s.symbol,
                        t.muted if p.info else t.fg)

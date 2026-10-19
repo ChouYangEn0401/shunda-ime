@@ -64,6 +64,10 @@
                 <div><div class="label">單一字母依前後文判斷</div><div class="desc"><code>i am a good guy</code> 維持英文；<code>你想我i␣</code> 變成「你想我喔」。關閉後單一字母一律當英文。</div></div>
                 <label class="switch"><input type="checkbox" data-cfg="single_letter_context" aria-label="單一字母判斷"><span></span></label>
               </div>
+              <div class="row">
+                <div><div class="label">英文打錯自動更正</div><div class="desc">英文字打完（接空白或標點）時，打快了的一個小錯自動改好：<code>teh</code>→the、<code>wrold</code>→world。只改詞庫裡沒有的字和常見拼錯，真的字、專有名詞、你自己的詞都不動。琥珀色 ↺ 標出改過的字，按 <kbd>↓</kbd> 選「原樣」就改回來，之後也不再改它。</div></div>
+                <label class="switch"><input type="checkbox" data-cfg="en_autocorrect" aria-label="英文打錯自動更正"><span></span></label>
+              </div>
               <div class="row"><div class="full"><p class="note" style="margin:0">中文後面先打空白再打字母，會當成英文（<code>第 i 項</code>）：空白就是你的分隔記號。注音的鍵盤、容錯設定在下面「注音」卡片，混用注音時一樣適用。</p></div></div>
             </div>
           </div>

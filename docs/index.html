@@ -373,7 +373,7 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
   </div>
   <p class="thesis"><em>打錯了，它自己會對。</em></p>
   <p class="lede" style="margin-top:18px">
-    中英順著打，不用切換。注音打反、手滑多按一鍵、中英誤判——每按一鍵，整句話重新
+    中英順著打，不用切換。注音打反、英文打錯一鍵、手滑多按一鍵、中英誤判——每按一鍵，整句話重新
     解碼一次，這些是在同一個判斷裡一起處理掉的，不是等你回頭刪掉重打。
   </p>
 
@@ -473,11 +473,14 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
         <p>還沒成字的注音在左邊，右邊靠齊的是按 <kbd>Tab</kbd> 會接上的詞。
           右邊那一區位置固定，打字快的人可以整區無視它。沒話說的時候它縮成一個藍點，
           提醒你這段字還沒送出去。</p>
+        <p>輸入法替你做了決定時也在這裡說一聲：紅色是略過了一個鍵，琥珀色是把打錯一鍵的英文字改好了
+          （<code>wrold</code> → world），按 <kbd>↓</kbd> 都能改回原樣。</p>
       </div>
       <figure>
         <img src="images/typing-suggestion.png" alt="提示列：淡藍小籤「的 Tab」，後面接「在 · 是」">
         <img src="images/typing-dropped.png" alt="提示列：紅色小籤「略過 e ↓」，右邊是注音 ㄍㄥ" style="margin-top:10px">
-        <figcaption>上：接續建議。下：有一個鍵被當成雜鍵略過了。</figcaption>
+        <img src="images/typing-fixed.png" alt="提示列：琥珀色小籤「更正 wrold → world ↓」" style="margin-top:10px">
+        <figcaption>上：接續建議。中：有一個鍵被當成雜鍵略過了。下：英文打錯一鍵，自動改好了。</figcaption>
       </figure>
     </div>
 

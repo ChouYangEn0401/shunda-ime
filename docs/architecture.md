@@ -36,6 +36,7 @@
 | `lexicon.py` | 系統詞庫（唯讀 SQLite）＋ 使用者詞庫疊加：讀音→詞、讀音前綴、英文詞頻、詞語補全 |
 | `userdict.py` | 我的詞庫與學習記憶（`user.db`）：新增、學習、刪除、封鎖、分類、備份與合併 |
 | `decoder.py` | **核心**：把原始按鍵緩衝區解成中英混合的最佳分段（lattice + Viterbi） |
+| `en_fix.py` | 英文打錯自動更正：一個英文字差一鍵的讀法、常見拼錯表 |
 | `session.py` | 每個輸入情境的狀態機：插入/刪除/游標/候選/Tab/送出/中英模式/符號面板/學習時機 |
 | `correction.py` | Vim 式修正模式（`CorrectionMixin`，混入 Session） |
 | `panel.py` | 面板的資料模型（平台無關）：解碼面板 `DecodePanel`（每字一欄：按鍵／注音／國字）、候選面板 `CandidatePanel` |
@@ -76,6 +77,15 @@
   - **同一字母鍵按兩下**（`cc96`、`gjpp4`）：`Weights.drop_double`，遠比一般雜鍵便宜——注音裡同一個鍵不會連續出現。
     在音節開頭用看得到的 `DROP`，在音節中間由音節吸收（`DROP` 邊放不進音節裡）
   - 成效用 `python -m smartime.devtools.typo_eval` 量：600 句文件各做一種打錯，與正確打法的結果比
+- **英文打錯**（`en_fix.py`，設定 `en_autocorrect`）：完整的英文字（前面不是字母、後面接空白或標點；
+  緩衝區最後一個字不算，Enter 送出的就是畫面上的字）多一條 `EN` 邊，文字是差一鍵的常見字
+  （`EN_COMMON` 以上、我的詞庫、`en_terms.txt`），分數是那個字的分數加 `Weights.en_typo`。只對**詞庫裡沒有的字**：
+  wordfreq 裡 wand／and、newt／new、tome／time 這種真字與常見字只差一鍵，照頻率改會改掉上千個真字。
+  一鍵的種類：兩鍵打反（優先，thye 是 they 不是 the）、少一鍵、按到旁邊的鍵、多一鍵（只限和前後鍵相鄰或重複，
+  否則 scss、jsonl 會變成 css、json）。詞庫裡本來就有的常見拼錯（teh、recieve）查 `KNOWN_TYPOS`，
+  直接把那條邊的文字換成正確的字、分數不變，分段因此完全不受影響。大寫縮寫、camelCase、我的詞庫、
+  `en_terms.txt` 的字一律不改。顯示：`EN` 的文字和按鍵不同就是改過的，面板琥珀色 ↺、提示列「更正 teh → the」；
+  候選窗第二個是原樣，選了會學進我的詞庫，之後不再改。沒有自動改的字（在最後、黏著注音），↓ 也列出更正
 - `decode(allow_english=False)` = 純中文模式：不產生 `EN` 邊，上排數字鍵只當注音（數字只來自數字鍵盤）。
 - `zh_alternatives()` 列出某位置起的所有中文讀法，供候選窗做「英文 → 中文」的跨類別換字。
 - 標點：`config.halfwidth_symbols` 中的符號鍵以半形為首選，其餘全形；`PUNCT_VARIANTS` 是候選窗的相關符號。

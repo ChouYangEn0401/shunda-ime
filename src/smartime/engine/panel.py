@@ -98,6 +98,7 @@ class HintPanel:
     reading: str = ""  # the unfinished syllable: ㄊㄧㄢ, or 倉頡 radicals 竹手戈
     becomes: str = ""  # 倉頡: the character that code would give
     dropped: str = ""  # keys just typed that were skipped as strays
+    fixed: str = ""  # an English word just corrected: teh → the
     info: str = ""  # cursor moved back: 今天［針］對　ㄓㄣ ⌨ 5p
     suggestion: str = ""  # what Tab takes
     others: list[str] = field(default_factory=list)  # further continuations
@@ -106,7 +107,7 @@ class HintPanel:
     composing: bool = False  # text is still in the composition (not committed yet)
 
     def __bool__(self) -> bool:
-        return bool(self.reading or self.dropped or self.info or self.suggestion or self.notice
+        return bool(self.reading or self.dropped or self.fixed or self.info or self.suggestion or self.notice
                     or self.composing)
 
 
@@ -234,8 +235,11 @@ def decode_panel(session) -> DecodePanel:
         else:
             text = "␣" if seg.kind is Kind.SPACE else seg.text
             memory = session._note(seg.text.lower(), "") if seg.kind is Kind.EN else ""
+            # an English word read as the one meant (teh → the): amber ↺, like
+            # a syllable typed out of order
+            fixed = seg.kind is Kind.EN and raw.lower() != seg.text.lower()
             columns.append(Column(raw, KIND_LABEL.get(seg.kind, ""), text, seg.kind.value, w, seg.start, seg.end,
-                                  chosen=seg.pinned and seg.kind is not Kind.PUNCT, memory=memory))
+                                  reordered=fixed, chosen=seg.pinned and seg.kind is not Kind.PUNCT, memory=memory))
     cursor = session.cursor
     caret = next((i for i, c in enumerate(columns) if c.start >= cursor and c.role != "drop"), len(columns))
     panel = DecodePanel(columns, caret)

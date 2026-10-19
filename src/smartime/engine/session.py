@@ -21,7 +21,7 @@ from pathlib import Path
 
 from .. import practice
 from ..config import Config
-from . import bopomofo
+from . import bopomofo, en_fix
 from .decoder import (
     CANGJIE_RADICALS, CLAUSE_PUNCT, FULLWIDTH_PUNCT, PLAIN_PUNCT, PUNCT_ALTERNATIVES, PUNCT_VARIANTS, TOKEN_KINDS,
     Decoder, Decoding, Key, Kind,
@@ -431,6 +431,7 @@ class Session(CorrectionMixin):
             return None  # those panels say everything already
         reading, becomes, dropped, info = self._hint_parts()
         panel = HintPanel(reading=reading, becomes=becomes, dropped=dropped, info=info,
+                          fixed=self._recent_fix() if not info else "",
                           suggestion=v.suggestion, others=list(v.suggestions[1:]),
                           more=len(self.suggestions) > len(v.suggestions), notice=v.notice,
                           composing=bool(self.keys) and self.cfg.composing_indicator)
@@ -1280,7 +1281,14 @@ class Session(CorrectionMixin):
             items = self._zh_candidates(units, t, at_end=self.cursor >= len(self.keys))
             items += self._raw_candidates(a, b)
         elif seg.kind is Kind.EN:
-            items = _en_candidates(seg) + self._zh_alternatives(seg.start)
+            typed = "".join(k.char for k in self.keys[seg.start:seg.end])
+            items = _en_candidates(seg, typed) + self._zh_alternatives(seg.start)
+            if self.cfg.en_autocorrect and typed.lower() == seg.text.lower():
+                # not corrected (still being typed, or glued to other keys):
+                # the fix is still one pick away
+                fix = en_fix.correction(self.engine.lexicon, typed)
+                if fix is not None:
+                    items.insert(1, Candidate(fix[0], replace(seg, text=fix[0], pinned=True), "更正", group="英文"))
         elif seg.kind is Kind.PUNCT:
             items = self._punct_candidates(seg)
         elif seg.kind in (Kind.NUM, Kind.LITERAL):
@@ -1779,7 +1787,24 @@ class Session(CorrectionMixin):
             return reading + f" → {becomes}（空白鍵）"
         if dropped:
             return f"（略過 {dropped}，↓ 可還原）" + reading
+        fixed = self._recent_fix()
+        if fixed:
+            return f"（更正 {fixed}，↓ 可還原）" + reading
         return reading
+
+    def _recent_fix(self) -> str:
+        """「teh → the」when the word just finished was corrected (en_fix):
+        said once, right after the space, so a wrong fix is not silent."""
+        n = len(self.keys)
+        if self.cursor != n:
+            return ""
+        for s in reversed(self.decoding.segments):
+            if s.kind is Kind.EN and s.end >= n - 1:
+                typed = "".join(k.char for k in self.keys[s.start:s.end])
+                return f"{typed} → {s.text}" if typed.lower() != s.text.lower() else ""
+            if s.end < n - 1:
+                break
+        return ""
 
     def _recent_drops(self, window: int = 4) -> str:
         """Keys among the last ``window`` typed that the decoder dropped."""
@@ -2323,7 +2348,12 @@ def _parts_outside(seg: Segment, a: int, b: int) -> list[Segment]:
     return out
 
 
-def _en_candidates(seg: Segment) -> list[Candidate]:
+def _en_candidates(seg: Segment, typed: str) -> list[Candidate]:
     word = seg.text
     variants = dict.fromkeys([word, word.lower(), word.upper(), word[:1].upper() + word[1:].lower()])
-    return [Candidate(v, replace(seg, text=v, pinned=True), group="英文") for v in variants]
+    out = [Candidate(v, replace(seg, text=v, pinned=True), group="英文") for v in variants]
+    if typed.lower() != word.lower():
+        # corrected (en_fix): the word as typed comes right after, so one j
+        # or the second row of ↓ takes it back (and keeps it from now on)
+        out.insert(1, Candidate(typed, replace(seg, text=typed, pinned=True), "原樣（不更正）", group="英文"))
+    return out
