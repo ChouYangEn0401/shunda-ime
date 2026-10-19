@@ -288,7 +288,7 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
   <!-- Version list: written by hand, updated with every version (CLAUDE.md §3).
        It ships with the page so the local copy opens offline. -->
   <details class="ver" id="ver">
-    <summary aria-label="版本：目前開發中 0.9.0-alpha.4，點開看所有版本"><i class="dot"></i><b>v0.9.0-alpha.4</b>開發中<span class="chev" aria-hidden="true">▼</span></summary>
+    <summary aria-label="版本：目前開發中 0.9.0-alpha.5，點開看所有版本"><i class="dot"></i><b>v0.9.0-alpha.5</b>開發中<span class="chev" aria-hidden="true">▼</span></summary>
     <div class="ver-pop">
       <h3>版本</h3>
       <p class="intro">「下載安裝檔」拿到的是最新的正式版。測試版、候選版只在開發者的電腦上建置、試用，沒有公開下載——除非下面標成「正式版」並附了下載連結。</p>
@@ -296,8 +296,10 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
       <div class="ver-group">
         <p class="eyebrow">開發中 · 0.9.0</p>
         <ul class="ver-list">
+          <li><span class="v-name">alpha.5<span class="v-date">2026-10-19</span></span>
+            <span class="v-body"><span class="st st-current">測試版・目前</span><span class="v-note">練習場：五章 26 步把每個功能親手玩一遍，第一次安裝完自動打開、章節可單獨複習；略過的鍵不管在字的哪裡都提示、↓ 整個字照打的救回</span></span></li>
           <li><span class="v-name">alpha.4<span class="v-date">2026-10-19</span></span>
-            <span class="v-body"><span class="st st-current">測試版・目前</span><span class="v-note">Ctrl+D 也能加英文字（照你打的：venv 不再變 ven）；第一次安裝完直接帶去「修字練習」，頁首加「開始使用」三步，系統匣多「修字練習…」</span></span></li>
+            <span class="v-body"><span class="st st-alpha">測試版</span><span class="v-note">Ctrl+D 也能加英文字（照你打的：venv 不再變 ven）；第一次安裝完直接帶去練習，系統匣多一項</span></span></li>
           <li><span class="v-name">alpha.3<span class="v-date">2026-10-19</span></span>
             <span class="v-body"><span class="st st-alpha">測試版</span><span class="v-note">英文打錯一鍵自己更正（teh → the、wrold → world）；修正模式方向鍵優先、英文整個字一格、j 只換這個字；終端機跳出來不再卡住，卡住時可以「重新啟動輸入法」</span></span></li>
           <li><span class="v-name">alpha.2<span class="v-date">2026-10-15</span></span>
@@ -521,7 +523,7 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
           面板下方第一行就是這些。只有明確的指令會離開，其他鍵都不會不小心打出字。</p>
         <p>英文或數字跟中文黏在一起（<code>games以</code>、<code>10284</code>）時，<kbd>↓</kbd> 直接列出其他分法
           （<code>game｜你</code>、<code>10｜大</code>），也可以用 <kbd>Shift</kbd>+<kbd>←</kbd> <kbd>→</kbd> 自己推分界。
-          設定頁的「修字練習」有 12 關真的會遇到的錯，可以先玩一遍。</p>
+          設定頁的「練習場」會帶你把這些親手做一次。</p>
       </div>
       <figure>
         <img src="images/correction.png" alt="修正模式的解碼面板，琥珀色外框，三列對齊顯示按鍵、注音、國字">
@@ -572,8 +574,8 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
       <span>註冊輸入法、加進語言清單，最後自動打字測試一次。不需要網路。
         輸入法建在 <a href="https://github.com/EasyIME/PIME">PIME</a> 框架上，安裝檔只帶 PIME 的核心，不會多出新酷音等其他輸入法。</span></div></li>
     <li><div><b>按 <kbd>Win</kbd> + <kbd>Space</kbd> 切到「順打輸入法」</b>
-      <span>完成頁勾著「開啟設定頁的修字練習」：三步開始使用，再玩幾關真的會讀錯的句子，三分鐘就有感覺。
-        之後想練，系統匣圖示按右鍵 →「修字練習…」。</span></div></li>
+      <span>完成頁勾著「開啟練習場」：五分鐘的導覽，每個功能親手試一次，對了就自動到下一步。
+        之後想複習，系統匣圖示按右鍵 →「練習場…」，點章節就好。</span></div></li>
   </ol>
   <div class="cta">
     <a class="btn primary" href="https://github.com/ChouYangEn0401/shunda-ime/releases/latest">到 Releases 下載</a>
