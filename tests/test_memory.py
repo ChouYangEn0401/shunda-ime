@@ -281,6 +281,58 @@ def test_ctrl_d_adds_the_typed_name_with_a_category_note(mem_session):
     assert v.candidate_notes[0] == "人工加入"
 
 
+def test_ctrl_d_adds_an_english_word_as_typed(mem_session, user):
+    """「英文版本的 Ctrl+D 也要可以用」: the word before the cursor, exactly as
+    typed — the IME's own changes to it (a dropped last letter, a one-slip
+    correction) are what the user is overruling."""
+    _, v = run(mem_session, "venv ")
+    assert v.composition == "ven "  # the stray-key drop ate the last letter
+    _, v = run(mem_session, "{C-d}")
+    assert v.notice == "已加入詞庫：venv（常用英文）"
+    assert v.composition == "venv "  # read again with the word known: whole
+    assert user.en["venv"].category == "常用英文"
+    run(mem_session, "{ENTER}")
+    # next time it comes out whole without help, also next to Chinese
+    _, v = run(Session(mem_session.engine), "venv ")
+    assert v.composition == "venv "
+    _, v = run(Session(mem_session.engine), "ji3venv ")
+    assert v.composition == "我venv "
+
+
+def test_ctrl_d_keeps_a_dropped_first_letter_and_undoes_an_autocorrect(mem_session, user):
+    _, v = run(mem_session, "pnpm ")
+    assert v.composition == "npm "
+    _, v = run(mem_session, "{C-d}")
+    assert v.composition == "pnpm " and "pnpm" in user.en
+    run(mem_session, "{ENTER}")
+    _, v = run(mem_session, "wrold ")
+    assert v.composition == "world "  # 英文打錯自動更正
+    _, v = run(mem_session, "{C-d}")
+    assert v.composition == "wrold " and "wrold" in user.en  # "no, I mean it"
+    run(mem_session, "{ENTER}")
+    _, v = run(Session(mem_session.engine), "wrold ")
+    assert v.composition == "wrold "  # a word of mine is never corrected
+
+
+def test_ctrl_d_before_chinese_ignores_a_trailing_stray_key(mem_session, user):
+    # a single letter after a sentence is dropped as a slip; Ctrl+D still
+    # means the Chinese before it, not the letter
+    run(mem_session, "ji3ap7 ")
+    _, v = run(mem_session, "{C-d}")
+    assert v.notice == "已加入詞庫：我們（人工加入）"
+    assert not user.en
+
+
+def test_add_word_in_correction_mode_takes_the_english_word_under_the_cursor(mem_session, user):
+    _, v = run(mem_session, "ji3venv {ESC}")
+    assert v.composition == "我ven " and v.correcting
+    _, v = run(mem_session, "a")  # the cursor stops on the word: a adds it, as typed
+    assert v.composition == "我venv " and v.correcting and "venv" in user.en
+    # Ctrl+D does the same there and stays in correction mode
+    _, v = run(mem_session, "{LEFT}{C-d}")
+    assert v.notice == "已加入詞庫：我（人工加入）" and v.correcting
+
+
 def test_tab_continuation_is_learned(mem_session, user):
     _, v = run(mem_session, "ao6u.3")
     accepted = v.composition + v.suggestion

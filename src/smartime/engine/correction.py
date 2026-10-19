@@ -170,6 +170,9 @@ class CorrectionMixin:
         if key.ctrl and not key.alt and vk in (0x59, 0x5A):  # Ctrl+Y / Ctrl+Z
             self._restore(redo=vk == 0x59 or key.shift)
             return True
+        if key.ctrl and not key.alt and vk == 0x44:  # Ctrl+D: same as a, and stays here
+            self._add_word_here()
+            return True
         if self._ctrl_punct(key) is not None:
             # no typing in correction mode (the frame says so); stay here
             self._notice = "修正模式中不打字：按 Esc 回到打字"
@@ -532,7 +535,8 @@ class CorrectionMixin:
         self._notice = f"重新判定「{span}」· 再按一次 R 多納入一個字"
 
     def _add_word_here(self) -> None:
-        """Add the run of Chinese characters around the cursor (≤ 8)."""
+        """a / Ctrl+D: add the run of Chinese characters around the cursor
+        (≤ 8), or the English word the cursor is on, as typed."""
         self._finish_cycle()
         units = self.decoding.units()
         t = self._target()
@@ -541,7 +545,9 @@ class CorrectionMixin:
         segs = self.decoding.segments
         idx = self._unit_index(t[0])
         if segs[t[3]].kind is not Kind.ZH:
-            self._notice = "游標上不是中文"
+            self._add_typed_word_before(self._typed_word_end(t[0]))  # the whole word, dropped keys included
+            if self.correcting:
+                self._snap_to_unit()
             return
         lo = idx
         while lo > 0 and segs[units[lo - 1][3]].kind is Kind.ZH and idx - lo < 7:

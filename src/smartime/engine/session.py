@@ -1718,9 +1718,23 @@ class Session(CorrectionMixin):
             self._add_to_dict(seg.text.strip(), "", "en")
 
     def _add_composition_to_dict(self) -> None:
-        """Ctrl+D while composing: add the Chinese text before the cursor
-        (e.g. a friend's name just typed and fixed) to my dictionary."""
-        units = [u for u in self.decoding.units() if u[1] <= self.cursor]
+        """Ctrl+D while composing: add what is just before the cursor to my
+        dictionary — the run of Chinese characters (a friend's name just
+        typed and fixed), or the English word exactly as it was typed."""
+        kinds = self._key_kinds()
+        pos = self.cursor
+        while pos > 0 and kinds.get(pos - 1) is Kind.SPACE:
+            pos -= 1  # the space after a finished word
+        start = pos
+        while start > 0 and kinds.get(start - 1) is Kind.DROP:
+            start -= 1  # stray keys dropped just before: part of an English word, noise after Chinese
+        if pos == 0:
+            self._notice = "游標前沒有可以加入詞庫的字"
+            return
+        if kinds.get(start - 1) is not Kind.ZH:
+            self._add_typed_word_before(pos)
+            return
+        units = [u for u in self.decoding.units() if u[1] <= start]
         segs = self.decoding.segments
         chars, readings = [], []
         for a, b, ch, seg_idx in reversed(units):
@@ -1730,11 +1744,55 @@ class Session(CorrectionMixin):
             chars.append(ch)
             readings.append(seg.readings[seg.bounds.index(a)])
         if not chars:
-            self._notice = "游標前沒有中文可以加入詞庫"
+            self._notice = "游標前沒有可以加入詞庫的字"
             return
         chars.reverse()
         readings.reverse()
         self._add_to_dict("".join(chars), "-".join(readings), "zh")
+
+    def _key_kinds(self) -> dict[int, Kind]:
+        """Key offset -> the kind of the segment that reads it."""
+        return {i: s.kind for s in self.decoding.segments for i in range(s.start, s.end)}
+
+    def _typed_word_before(self, pos: int) -> tuple[int, int] | None:
+        """[a, b) of the English word that ends at key ``pos``, *as typed*:
+        the letters and digits the decoder read as English, pending, raw or
+        dropped as stray (venv → ven + a dropped v; pnpm → a dropped p +
+        npm). The user's Ctrl+D says "this is a word", so the word is what
+        they typed, not what the IME made of it. None without a letter."""
+        kinds = self._key_kinds()
+        a = pos
+        while a > 0 and self._typed_letter(a - 1, kinds):
+            a -= 1
+        if a == pos or not any(k.char.isalpha() for k in self.keys[a:pos]):
+            return None
+        return a, pos
+
+    def _typed_letter(self, i: int, kinds: dict[int, Kind]) -> bool:
+        """Key ``i`` is a letter or digit that is not part of a Chinese syllable."""
+        return (kinds.get(i) in (Kind.EN, Kind.LITERAL, Kind.NUM, Kind.PENDING, Kind.DROP)
+                and self.keys[i].char.isascii() and self.keys[i].char.isalnum())
+
+    def _typed_word_end(self, pos: int) -> int:
+        """End of the typed word that key ``pos`` is in (the 按鍵 view can
+        stop on one letter of it)."""
+        kinds = self._key_kinds()
+        while pos < len(self.keys) and self._typed_letter(pos, kinds):
+            pos += 1
+        return pos
+
+    def _add_typed_word_before(self, pos: int) -> None:
+        """Add the English word ending at key ``pos`` as typed, then read
+        the keys again: with the word in my dictionary the stray-key drop
+        and the one-slip correction leave it alone, so it shows whole."""
+        span = self._typed_word_before(pos)
+        if span is None:
+            self._notice = "游標前沒有可以加入詞庫的字"
+            return
+        word = "".join(k.char for k in self.keys[span[0]:span[1]])
+        self._add_to_dict(word, "", "en")
+        if self._notice.startswith("已加入詞庫"):
+            self._redecode()
 
     def _add_to_dict(self, phrase: str, reading: str, kind: str) -> None:
         user = self.engine.user
