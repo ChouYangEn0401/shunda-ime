@@ -30,7 +30,7 @@
       <button data-view="dict"><span class="glyph">詞</span>我的詞庫</button>
       <button data-view="snippets"><span class="glyph">❞</span>片語與顏文字</button>
       <button data-view="keys"><span class="glyph">⌨</span>快捷鍵</button>
-      <button data-view="practice"><span class="glyph">練</span>修字練習</button>
+      <button data-view="practice"><span class="glyph">練</span>練習場</button>
       <button data-view="voice"><span class="glyph">◉</span>語音輸入</button>
       <button data-view="data"><span class="glyph">⇅</span>資料與隱私</button>
       <button data-view="about"><span class="glyph">i</span>關於</button>
@@ -645,23 +645,19 @@
         </div>
       </section>
 
-      <!-- ============ 修字練習 ============ -->
+      <!-- ============ 練習場 ============ -->
       <section class="view" id="view-practice" hidden>
-        <h2>修字練習</h2>
-        <div class="group" id="getting-started">
-          <h3>開始使用</h3>
-          <ol class="start-steps">
-            <li><b>切過來。</b>按 <kbd>Win</kbd>+<kbd>空白</kbd> 選「順打輸入法」。系統匣的圖示：自＝中英自動、中＝純注音、英＝純英文；單按 <kbd>Shift</kbd> 輪流切。</li>
-            <li><b>直接打。</b>注音照平常打，英文不用切換直接打：<code>ji3</code> 是「我」，<code>vscode</code> 照出來。<kbd>Enter</kbd> 送出；打到句號、逗號也會自動送出前面的句子。</li>
-            <li><b>打錯了，<kbd>Esc</kbd>。</b>鍵盤變成指令：<kbd>←</kbd> <kbd>→</kbd> 移到錯的字，<kbd>j</kbd> 換同音字、<kbd>↓</kbd> 打開選字窗，<kbd>Enter</kbd> 送出。下面的關卡練的就是這個。</li>
-          </ol>
+        <h2>練習場</h2>
+        <p class="lead">五分鐘，把順打會的事都玩一遍。每一步都是在框裡真的打字：對了就自動到下一步；想複習哪個功能，點章節就好。</p>
+        <div class="p-top">
+          <div class="p-progress" aria-live="polite"><span id="practice-progress"></span><div class="p-track"><div class="p-fill" id="practice-bar"></div></div></div>
+          <button class="btn primary small" type="button" id="practice-start">從沒做過的那一步開始</button>
+          <button class="btn small" type="button" id="practice-reset">重設進度</button>
         </div>
-        <p class="lead">輸入法難免讀錯。每一關都是它真的會讀錯的句子（句子都是編的）：在框裡用順打輸入法照著打，看它錯在哪，再用修正模式（<kbd>Esc</kbd>）改成目標，改好按 <kbd>Enter</kbd> 送出，對了就過關。</p>
-        <p class="callout">練習的時候輸入法<b>不會學習</b>，也不會改動你的詞庫。如果一打就對了，代表你的詞庫已經學過這個詞，直接送出也算過關。</p>
-        <div class="group">
-          <h3>關卡 <span class="badge done" id="practice-progress"></span></h3>
-          <div id="practice-levels"></div>
-        </div>
+        <div class="p-chips" id="practice-chapters" role="navigation" aria-label="章節"></div>
+        <p class="callout" id="practice-all-done" hidden>全部走完了。之後想複習，系統匣圖示按右鍵 →「練習場…」就回得來。</p>
+        <p class="note">練習時輸入法不會學習、不會動你的詞庫。一打就對的那一步（你的詞庫已經會了）直接送出也算過。</p>
+        <div id="practice-levels"></div>
       </section>
 
       <!-- ============ 資料 ============ -->

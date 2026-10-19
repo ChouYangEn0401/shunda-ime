@@ -379,7 +379,7 @@ def test_tray_menu_has_the_switches_people_actually_flip(engine):
     menu = svc._menu()
     texts = [i.get("text", "") for i in menu]
     assert "設定…" in texts and any(t.startswith("關於") for t in texts)
-    assert "修字練習…" in texts  # the way in for newcomers, one click from the tray
+    assert "練習場…" in texts  # the way in for newcomers, one click from the tray
     assert "檢查更新…" in texts
 
     # every toggle shows its current state, and flipping it writes the config

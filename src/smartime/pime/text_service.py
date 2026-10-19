@@ -25,7 +25,7 @@ from .winapp import KEEP_APPS, foreground_app, foreground_elevated, foreground_p
 log = logging.getLogger(__name__)
 
 ID_MODE_ICON = 1  # left click on the tray icon: same as a Shift tap
-ID_PRACTICE = 2  # 修字練習…: the settings page open on 開始使用 + the practice levels
+ID_PRACTICE = 2  # 練習場…: the settings page open on the guided tour
 ID_ABOUT = 3
 ID_SETTINGS = 4
 # Right-click menu entries for the three modes.
@@ -507,7 +507,7 @@ class SmartTextService:
         items += [{"text": "標點與符號…", "id": ID_SETTINGS_PUNCT},
                   {"text": "我的詞庫…", "id": ID_SETTINGS_DICT},
                   {"text": "按鍵說明…", "id": ID_SETTINGS_KEYS},
-                  {"text": "修字練習…", "id": ID_PRACTICE},
+                  {"text": "練習場…", "id": ID_PRACTICE},
                   {"text": "設定…", "id": ID_SETTINGS},
                   {},
                   {"text": "檢查更新…", "id": ID_UPDATE},

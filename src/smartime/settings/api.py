@@ -123,14 +123,18 @@ class SettingsApp:
             restart.start_voice_when_gone(voice_launch.start, voice_launch.running)
         return {"backend": backend, "voice": voice}
 
-    # ---------------------------------------------------------- 修字練習
+    # ---------------------------------------------------------- 練習場
     def practice_state(self) -> dict:
         layout = get_layout(Config.load(self.config_path).layout)
-        return {"levels": practice.levels_for(self.lexicon, layout), "done": practice.done()}
+        return {"chapters": practice.chapters_for(self.lexicon, layout), "done": practice.done()}
 
     @staticmethod
     def practice_done(body: dict) -> dict:
         return {"done": practice.mark_done(str(body.get("id", "")))}
+
+    @staticmethod
+    def practice_reset() -> dict:
+        return {"done": practice.reset()}
 
     @staticmethod
     def practice_active(body: dict) -> dict:
@@ -672,6 +676,7 @@ class _Handler(BaseHTTPRequestHandler):
             ("POST", "/api/restart"): app.restart_ime,
             ("GET", "/api/practice"): app.practice_state,
             ("POST", "/api/practice/done"): lambda: app.practice_done(self._json_body()),
+            ("POST", "/api/practice/reset"): app.practice_reset,
             ("POST", "/api/practice/active"): lambda: app.practice_active(self._json_body()),
             ("GET", "/api/voice"): app.voice_state,
             ("POST", "/api/voice/download"): lambda: app.start_download(str(self._json_body().get("key", ""))),

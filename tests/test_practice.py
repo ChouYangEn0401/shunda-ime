@@ -1,5 +1,5 @@
-"""修字練習: every level is a real mistake with a fix that works, and
-practising never teaches the IME anything."""
+"""練習場: every task can be passed exactly as its instructions say, every
+mistake it shows is real, and practising never teaches the IME anything."""
 
 import re
 
@@ -9,11 +9,16 @@ from smartime import practice
 from smartime.devtools.keyscript import script_for
 from smartime.devtools.simulate import run
 
+TASKS = [s for s in practice.STEPS if s.kind == "task"]
+TIPS = [s for s in practice.STEPS if s.kind == "tip"]
+
 
 def _expand(session, fix: str) -> str:
-    """Run a level's fix: {T:熱} types 熱, {T:ˋ} is that tone's key, {PICK:帶}
-    picks that candidate by its number. Returns what Enter commits."""
+    """Run a step's fix: {T:熱} types 熱, {T:ˋ} is that tone's key, {PICK:帶}
+    picks that candidate by its number. Returns everything committed,
+    including by the final Enter."""
     engine = session.engine
+    committed = ""
     for part in re.split(r"(\{(?:T|PICK):[^}]+\})", fix):
         if part.startswith("{T:"):
             arg = part[3:-1]
@@ -28,24 +33,42 @@ def _expand(session, fix: str) -> str:
             assert v.candidates and want in v.candidates, (want, v.candidates)
             part = str(v.candidates.index(want) % session.cand.page_size + 1)
         if part:
-            run(session, part)
+            out, _ = run(session, part)
+            committed += out
     out, _ = run(session, "{ENTER}")
-    return out
+    return committed + out
 
 
-@pytest.mark.parametrize("level", practice.LEVELS, ids=[lv.id for lv in practice.LEVELS])
-def test_every_level_is_a_real_mistake_and_its_hint_fixes_it(session, level):
-    keys = script_for(level.type_text, session.engine.lexicon, session.engine.layout)
-    _, v = run(session, keys)
-    assert v.composition == level.wrong, "the IME no longer makes this mistake: pick another sentence"
-    assert _expand(session, level.fix) == level.target
+@pytest.mark.parametrize("step", TASKS, ids=[s.id for s in TASKS])
+def test_every_task_is_passed_by_doing_what_it_says(session, step):
+    keys = practice.step_keys(step, session.engine.lexicon, session.engine.layout)
+    out, v = run(session, keys)
+    if step.wrong:
+        assert v.composition == step.wrong, "the IME no longer makes this mistake: pick another sentence"
+    assert (out + _expand(session, step.fix)).strip() == step.target
 
 
-def test_levels_have_unique_ids_and_say_what_to_press():
-    ids = [lv.id for lv in practice.LEVELS]
+def test_steps_are_well_formed():
+    ids = [s.id for s in practice.STEPS]
     assert len(ids) == len(set(ids))
-    for lv in practice.LEVELS:
-        assert "<kbd>" in lv.hint and lv.target and lv.title
+    chapters = {c.id for c in practice.CHAPTERS}
+    for s in practice.STEPS:
+        assert s.chapter in chapters and s.title and s.hook and s.how
+        if s.kind == "task":
+            assert s.target and (s.type_text or s.keys)
+        else:
+            assert s.kind == "tip" and not s.target
+    # every chapter has something in it, and the tour starts by switching over
+    assert all(any(s.chapter == c.id for s in practice.STEPS) for c in practice.CHAPTERS)
+    assert practice.STEPS[0].id == "hello"
+
+
+def test_the_correction_chapter_covers_the_keys_the_panel_lists():
+    """What the help row's first line names is taught somewhere in the tour."""
+    text = " ".join(s.hook + s.how + s.pro for s in practice.STEPS if s.chapter == "fix")
+    for key in ("<kbd>←</kbd>", "<kbd>↓</kbd>", "<kbd>j</kbd>", "<kbd>r</kbd>", "<kbd>x</kbd>", "<kbd>u</kbd>",
+                "<kbd>Enter</kbd>", "<kbd>Esc</kbd>", "<kbd>Shift</kbd>+<kbd>←</kbd>"):
+        assert key in text, key
 
 
 def test_nothing_is_learned_while_practising(tmp_path):
@@ -83,27 +106,35 @@ def test_the_practising_flag_lapses_by_itself(monkeypatch):
     assert not practice.active()  # a page that closed cannot leave the IME not learning
 
 
-def test_progress_is_kept(tmp_path):
+def test_progress_is_kept_and_can_be_reset(tmp_path):
     assert practice.done() == []
     practice.mark_done("swap")
     practice.mark_done("swap")
-    practice.mark_done("no-such-level")
-    assert practice.done() == ["swap"]
+    practice.mark_done("legend")  # a tip counts too
+    practice.mark_done("no-such-step")
+    assert practice.done() == ["swap", "legend"]
+    assert practice.reset() == [] and practice.done() == []
 
 
-def test_settings_api_gives_the_keys_for_the_users_layout(tmp_path):
+def test_settings_api_gives_the_tour_with_keys_for_the_users_layout(tmp_path):
     from smartime.config import Config
     from smartime.settings.api import SettingsApp
 
     app = SettingsApp()
     try:
-        levels = app.practice_state()["levels"]
-        assert levels[0]["keys"] == "su3vu0 y.318 "  # 你先走吧 on 大千
+        state = app.practice_state()
+        steps = {s["id"]: s for c in state["chapters"] for s in c["steps"]}
+        assert [c["id"] for c in state["chapters"]] == [c.id for c in practice.CHAPTERS]
+        assert steps["swap"]["keys"] == "su3vu0 y.318 " and steps["swap"]["show_keys"]  # 你先走吧 on 大千
+        assert steps["symbol"]["keys"] == "::{TAB}1" and not steps["symbol"]["show_keys"]
+        assert steps["legend"]["kind"] == "tip" and steps["legend"]["keys"] == ""
         cfg = Config.load(app.config_path)
         cfg.layout = "eten"
         cfg.save(app.config_path)
-        assert app.practice_state()["levels"][0]["keys"] != levels[0]["keys"]
+        again = {s["id"]: s for c in app.practice_state()["chapters"] for s in c["steps"]}
+        assert again["swap"]["keys"] != steps["swap"]["keys"]
         assert app.practice_done({"id": "swap"})["done"] == ["swap"]
+        assert app.practice_reset()["done"] == []
         app.practice_active({"on": True})
         assert practice.active()
         app.practice_active({"on": False})

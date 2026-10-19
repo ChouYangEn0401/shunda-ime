@@ -1215,10 +1215,12 @@
 
   // ------------------------------------------------------------ voice
   let voiceTimer = 0;
-  // ------------------------------------------------------------ 修字練習
-  // Typed with the real IME in a text box on this page. While a box has the
-  // focus the page keeps telling the IME "practising" (it expires on its own
-  // a few seconds after the last word), so nothing here is learned.
+  // ------------------------------------------------------------ 練習場
+  // A guided tour typed with the real IME in text boxes on this page. While
+  // a box has the focus the page keeps telling the IME "practising" (it
+  // expires on its own a few seconds after the last word), so nothing here
+  // is learned. Passing a step moves the focus to the next unfinished one;
+  // the chapter chips jump to one chapter to replay it.
   let practiceTimer = null;
   function practiceActive(on) {
     clearInterval(practiceTimer);
@@ -1239,70 +1241,131 @@
     let data;
     try { data = await api("GET", "/api/practice"); } catch (e) { toast(e.message, true); return; }
     const done = new Set(data.done);
+    const steps = data.chapters.flatMap(c => c.steps);
+    const nav = document.getElementById("practice-chapters");
     const list = document.getElementById("practice-levels");
+    const focusables = [];  // one per step, in tour order
     const progress = () => {
-      document.getElementById("practice-progress").textContent = `${done.size} / ${data.levels.length} 過關`;
-    };
-    list.innerHTML = "";
-    data.levels.forEach((lv, i) => {
-      const row = el("div", "row practice" + (done.has(lv.id) ? " passed" : ""));
-      const body = el("div");
-      const head = el("div", "label");
-      head.append(el("span", "p-num", String(i + 1)), document.createTextNode(lv.title + " "),
-                  el("span", "badge later", lv.skill));
-      const pass = el("span", "badge done p-pass", "✓ 過關");
-      pass.hidden = !done.has(lv.id);
-      head.append(" ", pass);
-      const how = el("div", "desc");
-      how.append(lv.note ? "照這樣打：" : "照平常那樣打：", el("b", "", lv.type_text),
-                 lv.note ? `（${lv.note}）` : "", "　", el("span", "p-keys", "按鍵 " + lv.keys.replace(/ /g, "␣")));
-      const goal = el("div", "desc");
-      goal.append("目標：", el("b", "p-target", lv.target));
-      const box = el("input", "p-box");
-      box.type = "text";
-      box.placeholder = "在這裡用順打輸入法打字…";
-      box.setAttribute("aria-label", `第 ${i + 1} 關：打出「${lv.target}」`);
-      const foot = el("div", "p-foot");
-      const hintBtn = el("button", "btn small", "看提示");
-      const clear = el("button", "btn small", "清空重來");
-      const result = el("span", "p-result");
-      foot.append(hintBtn, clear, result);
-      const hint = el("div", "desc p-hint");
-      hint.innerHTML = lv.hint;  // our own text, with <kbd>
-      hint.hidden = true;
-      body.append(head, how, goal, box, foot, hint);
-      row.append(body);
-      list.append(row);
-
-      let composing = false;
-      const check = () => {
-        if (composing) return;
-        const v = box.value.trim();
-        if (v === lv.target) {
-          result.textContent = "對了！";
-          row.classList.add("passed");
-          pass.hidden = false;
-          if (!done.has(lv.id)) {
-            done.add(lv.id);
-            progress();
-            api("POST", "/api/practice/done", { id: lv.id }).catch(() => {});
-          }
-        } else {
-          result.textContent = v ? "還不一樣，再改改看（看提示也行）" : "";
-        }
-      };
-      box.addEventListener("compositionstart", () => { composing = true; });
-      box.addEventListener("compositionend", () => { composing = false; check(); });
-      box.addEventListener("input", e => { if (!e.isComposing) check(); });
-      box.addEventListener("focus", () => practiceActive(true));
-      box.addEventListener("blur", () => practiceActive(false));
-      hintBtn.addEventListener("click", () => {
-        hint.hidden = !hint.hidden;
-        hintBtn.textContent = hint.hidden ? "看提示" : "收起提示";
+      document.getElementById("practice-progress").textContent = `${done.size} / ${steps.length}`;
+      document.getElementById("practice-bar").style.width = `${Math.round(100 * done.size / steps.length)}%`;
+      document.getElementById("practice-all-done").hidden = done.size < steps.length;
+      nav.querySelectorAll("button").forEach(b => {
+        const ch = data.chapters.find(c => c.id === b.dataset.chapter);
+        const n = ch.steps.filter(s => done.has(s.id)).length;
+        b.querySelector(".n").textContent = `${n}/${ch.steps.length}`;
+        b.classList.toggle("done", n === ch.steps.length);
       });
-      clear.addEventListener("click", () => { box.value = ""; result.textContent = ""; box.focus(); });
+    };
+    const focusStep = i => {
+      const t = focusables[i];
+      if (!t) return;
+      t.closest(".p-step").scrollIntoView({ block: "center", behavior: "smooth" });
+      t.focus({ preventScroll: true });
+    };
+    const focusNext = from => {
+      for (let i = from + 1; i < steps.length; i++) if (!done.has(steps[i].id)) { focusStep(i); return; }
+    };
+    nav.innerHTML = "";
+    list.innerHTML = "";
+    data.chapters.forEach(ch => {
+      const chip = el("button", "p-chip");
+      chip.type = "button";
+      chip.dataset.chapter = ch.id;
+      chip.append(ch.title, " ", el("span", "n"));
+      chip.addEventListener("click", () => {
+        document.getElementById("pc-" + ch.id).scrollIntoView({ block: "start", behavior: "smooth" });
+      });
+      nav.append(chip);
+      const sec = el("section", "p-chapter");
+      sec.id = "pc-" + ch.id;
+      const lead = el("p", "p-lead");
+      lead.innerHTML = ch.lead;  // our own text, with <kbd>
+      sec.append(el("h3", "", ch.title), lead);
+      ch.steps.forEach(st => {
+        const i = steps.indexOf(st);
+        const card = el("div", "p-step" + (st.kind === "tip" ? " tip" : "") + (done.has(st.id) ? " passed" : ""));
+        const head = el("div", "p-head");
+        head.append(el("span", "p-num", String(i + 1)), el("b", "", st.title), el("span", "p-pass", "✓ 過了"));
+        const hook = el("p", "p-hook");
+        hook.innerHTML = st.hook;
+        const how = el("p", "p-how");
+        how.innerHTML = st.how;
+        const pro = el("p", "p-pro");
+        if (st.pro) pro.innerHTML = "還可以：" + st.pro;
+        pro.hidden = !st.pro || !done.has(st.id);
+        card.append(head, hook, how);
+        const markDone = () => {
+          if (done.has(st.id)) return false;
+          done.add(st.id);
+          card.classList.add("passed");
+          pro.hidden = !st.pro;
+          progress();
+          api("POST", "/api/practice/done", { id: st.id }).catch(() => {});
+          return true;
+        };
+        if (st.kind === "tip") {
+          const ok = el("button", "btn small", done.has(st.id) ? "看過了" : "知道了");
+          ok.type = "button";
+          ok.addEventListener("click", () => { markDone(); ok.textContent = "看過了"; focusNext(i); });
+          card.append(ok, pro);
+          focusables[i] = ok;
+        } else {
+          const meta = el("div", "p-meta");
+          if (st.note) meta.append(el("span", "p-note", st.note));
+          if (st.show_keys) meta.append(el("span", "p-keys", "按鍵 " + st.keys.replace(/ /g, "␣")));
+          const goal = el("span", "p-goal");
+          goal.append("目標 ", el("b", "p-target", st.target));
+          meta.append(goal);
+          const box = el("input", "p-box");
+          box.type = "text";
+          box.placeholder = "在這裡打…";
+          box.setAttribute("aria-label", `第 ${i + 1} 步：打出「${st.target}」`);
+          const foot = el("div", "p-foot");
+          const result = el("span", "p-result");
+          const clear = el("button", "btn small", "清空");
+          clear.type = "button";
+          foot.append(result, clear);
+          card.append(meta, box, foot, pro);
+          const keysOnly = (st.keys || "").replace(/[ {}A-Z\-]/g, "");
+          const looksRaw = v => /[一-鿿]/.test(st.target) && /^[a-z0-9 ,.;'\[\]\-=\/]+$/i.test(v)
+            && keysOnly.startsWith(v.replace(/ /g, "").toLowerCase());
+          let composing = false;
+          const check = () => {
+            if (composing) return;
+            const v = box.value.trim();
+            if (v === st.target) {
+              result.textContent = "對了！";
+              result.className = "p-result ok";
+              if (markDone()) setTimeout(() => focusNext(i), 600);
+            } else if (!v) {
+              result.textContent = "";
+              result.className = "p-result";
+            } else if (v.length >= 3 && looksRaw(v)) {
+              result.textContent = "打出來的是原始按鍵——好像還沒切到順打輸入法（Win+空白）";
+              result.className = "p-result warn";
+            } else {
+              result.textContent = "還不一樣，再試試";
+              result.className = "p-result";
+            }
+          };
+          box.addEventListener("compositionstart", () => { composing = true; });
+          box.addEventListener("compositionend", () => { composing = false; check(); });
+          box.addEventListener("input", e => { if (!e.isComposing) check(); });
+          box.addEventListener("focus", () => practiceActive(true));
+          box.addEventListener("blur", () => practiceActive(false));
+          clear.addEventListener("click", () => { box.value = ""; result.textContent = ""; result.className = "p-result"; box.focus(); });
+          focusables[i] = box;
+        }
+        sec.append(card);
+      });
+      list.append(sec);
     });
     progress();
+    document.getElementById("practice-start").onclick = () => focusNext(-1);
+    document.getElementById("practice-reset").onclick = async () => {
+      try { await api("POST", "/api/practice/reset", {}); } catch (e) { toast(e.message, true); return; }
+      loadPractice();
+    };
   }
 
   async function loadVoice() {

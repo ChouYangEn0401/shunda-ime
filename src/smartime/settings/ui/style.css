@@ -300,25 +300,46 @@ tr.blocked td { color: var(--muted); }
 .confirm { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .offline { margin-bottom: 14px; }
 
-/* 修字練習 */
+/* 練習場 */
 #view-practice .callout { margin: 0 0 18px; }
-#getting-started { margin-bottom: 18px; }
-.start-steps { margin: 0; padding: 4px 18px 6px 2.1em; max-width: 75ch; line-height: 1.7; font-size: 14px; }
-.start-steps li { margin: 6px 0; }
-.start-steps li::marker { color: var(--accent); font-weight: 700; font-family: var(--font-key); }
-.row.practice { grid-template-columns: minmax(0, 1fr); }
-.row.practice.passed { background: color-mix(in srgb, var(--ok-soft) 45%, transparent); }
-.practice .label { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.practice .p-num { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 700; font-family: var(--font-key); }
-.practice .desc { margin-top: 4px; }
-.practice .desc b { color: var(--fg); font-size: 15px; }
-.practice .p-keys { font-family: var(--font-key); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-.practice .p-box { display: block; width: 100%; box-sizing: border-box; margin-top: 10px; padding: 8px 12px; font-size: 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); }
-.practice .p-box:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.practice .p-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
-.practice .p-result { font-size: 13px; color: var(--muted); }
-.practice.passed .p-result { color: var(--ok); font-weight: 700; }
-.practice .p-hint { border-left: 3px solid var(--accent); padding: 6px 10px; margin-top: 8px; line-height: 1.9; }
+.p-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; }
+.p-progress { display: flex; align-items: center; gap: 10px; font-family: var(--font-key); font-size: 13px; color: var(--muted); min-width: 200px; }
+.p-track { flex: 1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.p-fill { height: 100%; width: 0; background: var(--ok); border-radius: 3px; transition: width .3s; }
+.p-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; }
+.p-chip { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.p-chip:hover { border-color: var(--accent); }
+.p-chip .n { font-family: var(--font-key); font-size: 11px; color: var(--muted); margin-left: 2px; }
+.p-chip.done { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); background: var(--ok-soft); }
+.p-chip.done .n { color: var(--ok); }
+.p-chapter { margin: 26px 0 0; }
+.p-chapter h3 { margin: 0; font-size: 17px; }
+.p-lead { margin: 2px 0 10px; color: var(--muted); font-size: 14px; }
+.p-step { border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px 12px; margin: 0 0 10px; background: var(--panel); transition: border-color .15s; }
+.p-step:focus-within { border-color: var(--accent); }
+.p-step.passed { border-color: color-mix(in srgb, var(--ok) 35%, var(--line)); background: color-mix(in srgb, var(--ok-soft) 35%, var(--panel)); }
+.p-head { display: flex; align-items: center; gap: 8px; }
+.p-head b { font-size: 15px; }
+.p-num { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 700; font-family: var(--font-key); flex: none; }
+.p-step.passed .p-num { background: var(--ok-soft); color: var(--ok); }
+.p-pass { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--ok); visibility: hidden; }
+.p-step.passed .p-pass { visibility: visible; }
+.p-hook { margin: 6px 0 0; font-size: 16px; line-height: 1.6; }
+.p-how { margin: 4px 0 0; font-size: 14px; color: var(--muted); line-height: 1.8; }
+.p-step.tip .p-how { color: var(--fg); }
+.p-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 5px -1px 0; }
+.p-meta { display: flex; gap: 14px; flex-wrap: wrap; align-items: baseline; margin-top: 8px; font-size: 13px; color: var(--muted); }
+.p-keys { font-family: var(--font-key); font-size: 12px; overflow-wrap: anywhere; }
+.p-note { color: var(--plan); }
+.p-target { color: var(--fg); font-size: 15px; }
+.p-box { display: block; width: 100%; box-sizing: border-box; margin-top: 8px; padding: 8px 12px; font-size: 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); }
+.p-box:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.p-foot { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px; min-height: 26px; }
+.p-result { font-size: 13px; color: var(--muted); }
+.p-result.ok { color: var(--ok); font-weight: 700; }
+.p-result.warn { color: var(--plan); }
+.p-step.tip .btn { margin-top: 8px; }
+.p-pro { margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; background: var(--accent-soft); font-size: 13.5px; line-height: 1.8; }
 
 @media (max-width: 760px) {
   .window { grid-template-columns: minmax(0, 1fr); }
