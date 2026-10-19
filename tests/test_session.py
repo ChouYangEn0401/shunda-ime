@@ -409,3 +409,22 @@ def test_newline_symbol_types_a_line_break(session):
     session.cand.index = next(i for i, c in enumerate(session.cand.shown) if c.text == NEWLINE_SYMBOL)
     more, v = run(session, "{ENTER}")
     assert out + more == "我們\n" and v.composition == ""
+
+
+def test_a_letter_dropped_from_an_english_word_comes_back_as_the_whole_word(session):
+    """Dropping is fine only while it is reversible. pnpm lost its p with no
+    hint and nothing in ↓ (the 4-key window never reached a 4-letter word's
+    first key); venv's ↓ offered a bare "v". Now the hint names the key
+    wherever it was in the word, and ↓ offers the word as typed."""
+    _, v = run(session, "pnpm ")
+    assert v.composition == "npm " and "略過 p" in v.hint
+    _, v = run(session, "{DOWN}")
+    assert "pnpm" in v.candidates
+    _, v = run(session, str(v.candidates.index("pnpm") % session.cand.page_size + 1))
+    assert v.composition == "pnpm "
+    _, v = run(session, "{ENTER}")
+    # and at the end of the word, in one piece (one ← stop, not ven + v)
+    _, v = run(session, "venv {DOWN}")
+    assert "venv" in v.candidates and "v" not in v.candidates
+    run(session, str(v.candidates.index("venv") % session.cand.page_size + 1))
+    assert session.decoding.segments[0].text == "venv"

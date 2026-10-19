@@ -1057,9 +1057,11 @@ class Session(CorrectionMixin):
         dropped = self._drop_candidates()
         t = self._target_unit()
         start = self.decoding.units()[t][0] if t is not None else self.cursor
-        if dropped and any(c.pin is not None and c.pin.end == start for c in dropped):
-            # right before this character: the panel says 「↓ 可以救回」,
-            # so they lead instead of waiting past every homophone of 畫
+        if dropped and any(c.pin is not None and (c.pin.end == start or c.pin.kind is Kind.EN) for c in dropped):
+            # right before this character, or a letter out of the English
+            # word just typed: the panel says 「↓ 可以救回」, so they lead
+            # instead of waiting past every homophone of 畫 (or every case
+            # of npm)
             items = self._regroup_candidates() + dropped + self._candidate_items()
         else:
             items = self._regroup_candidates() + self._candidate_items() + dropped
@@ -1218,16 +1220,51 @@ class Session(CorrectionMixin):
         keystrokes and then quietly stopped being offered at all, no matter
         where the cursor went looking for it afterwards).
         """
-        out = []
+        out: list[Candidate] = []
         near = self.cursor
+        word = self._typed_word_at(near)
         for seg in self.decoding.segments:
-            if seg.kind is not Kind.DROP or not (near - 4 < seg.end <= near):
+            if seg.kind is not Kind.DROP:
+                continue
+            in_word = word is not None and word[0] <= seg.start < word[1]
+            if not in_word and not (near - 4 < seg.end <= near):
                 continue
             raw = "".join(k.char for k in self.keys[seg.start:seg.end])
+            if in_word:
+                # A letter taken out of an English word (pnpm → npm, venv →
+                # ven): what comes back is the word as typed, in one piece —
+                # a bare "p" in the list said nothing about what it would do,
+                # and a word longer than 4 keys put its first letter outside
+                # the window, so pnpm lost its p with no way back at all.
+                a, b = word
+                text = "".join(k.char for k in self.keys[a:b])
+                if all(c.text != text for c in out):
+                    pin = Segment(a, b, text, Kind.EN, -10.0, pinned=True)
+                    out.append(Candidate(text, pin, f"保留 {raw}", group="略過的鍵"))
+                continue
             pin = Segment(seg.start, seg.end, raw, Kind.LITERAL, -10.0, pinned=True)
             out.append(Candidate(raw, pin, "保留這個鍵", group="略過的鍵"))
             out += self._dropped_as_zhuyin(seg.start, seg.end)
         return out
+
+    def _typed_word_at(self, near: int) -> tuple[int, int] | None:
+        """The English word just before (or ending at) key ``near``, spaces
+        after it skipped, dropped keys included — None when the run is
+        nothing but dropped keys (a slip next to Chinese: e before 化)."""
+        kinds = self._key_kinds()
+        pos = near
+        while pos > 0 and kinds.get(pos - 1) is Kind.SPACE:
+            pos -= 1
+        span = self._typed_word_before(pos)
+        if span is None:
+            return None
+        # a word, not a lone letter next to Chinese (我 + e e: the kept e may
+        # well be ㄍ, so that drop is still offered as the key and the symbol)
+        a, b = span
+        if not any(s.kind in (Kind.EN, Kind.PENDING, Kind.LITERAL) and s.end - s.start >= 2
+                   and a <= s.start and s.end <= b for s in self.decoding.segments):
+            return None
+        return span
 
     def _dropped_as_zhuyin(self, a: int, b: int) -> list[Candidate]:
         """A dropped zhuyin key meant as itself: the symbol (ㄣ) and the
@@ -1531,7 +1568,7 @@ class Session(CorrectionMixin):
         True if the phrase was new to my memory."""
         user = self.engine.user
         if user is None or not self.cfg.learn or practice.active():
-            return False  # 修字練習: the sentences are made up, nothing to learn from them
+            return False  # 練習場: the sentences are made up, nothing to learn from them
         if seg.kind is Kind.ZH:
             new = user.learn(seg.text, "-".join(seg.readings), "zh", origin)
         elif seg.kind is Kind.EN:
@@ -1867,8 +1904,10 @@ class Session(CorrectionMixin):
     def _recent_drops(self, window: int = 4) -> str:
         """Keys among the last ``window`` typed that the decoder dropped."""
         n = len(self.keys)
+        word = self._typed_word_at(n)  # a letter dropped from the English word just typed, wherever it was
         return "".join(self.keys[s.start].char for s in self.decoding.segments
-                       if s.kind is Kind.DROP and s.start >= n - window)
+                       if s.kind is Kind.DROP and (s.start >= n - window
+                                                   or (word is not None and word[0] <= s.start < word[1])))
 
     def _unit_context(self, t: int, width: int = 3) -> str:
         """The sentence around unit ``t`` with ［ ］ on it, so it is clear
