@@ -106,6 +106,12 @@ class Weights:
     # A stray lowercase/layout key typed by accident (fast typing, or left
     # behind by Backspace) is dropped rather than shown as a lone letter.
     drop: float = -6.5  # must stay below the rarest real syllable (ㄟ -5.9 + space)
+    # A bare zhuyin symbol (v␣ = ㄒ, typable on purpose) glued to the end of an
+    # English word is the word's last letter, not a symbol: venv␣我們 showed
+    # venㄒ我們 (ㄒ −6.6 + switch −1.5 beat drop −6.5 + space), and the way
+    # back was a regroup nobody could read. After Chinese or a space it is
+    # still the symbol.
+    symbol_after_english: float = -4.0
     # The same key twice in a row (cc96 for c96: a bounce or a double press).
     # Zhuyin never needs that — a syllable cannot hold one symbol twice and a
     # tone key sits between syllables — so it is the likeliest slip of all.
@@ -347,6 +353,9 @@ class Decoder:
                         new_state = state
                     else:
                         total = score + seg.score + self._transition(lang, prev_kind, seg.kind)
+                        if prev_kind is Kind.EN and seg.kind is Kind.ZH and len(seg.readings) == 1 \
+                                and seg.text == seg.readings[0]:
+                            total += self.w.symbol_after_english
                         new_lang = _ZH if seg.kind is Kind.ZH else _EN if seg.kind is Kind.EN else lang
                         new_state = (new_lang, seg.kind)
                     cur = best[seg.end].get(new_state)

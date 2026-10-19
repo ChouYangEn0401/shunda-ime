@@ -1252,9 +1252,17 @@ class Session(CorrectionMixin):
         after it skipped, dropped keys included — None when the run is
         nothing but dropped keys (a slip next to Chinese: e before 化)."""
         kinds = self._key_kinds()
+        typed = (Kind.EN, Kind.LITERAL, Kind.NUM, Kind.PENDING, Kind.DROP)
         pos = near
-        while pos > 0 and kinds.get(pos - 1) is Kind.SPACE:
-            pos -= 1
+        # the cursor on or inside the word (correction mode stops at its
+        # start): take the whole word, the letter dropped at its end included
+        # — venv我們 with ↓ on ven offered ven/VEN/Ven and no venv
+        while pos < len(self.keys) and kinds.get(pos) in typed and self.keys[pos].char.isascii() \
+                and self.keys[pos].char.isalnum():
+            pos += 1
+        if pos == near:
+            while pos > 0 and kinds.get(pos - 1) is Kind.SPACE:
+                pos -= 1
         span = self._typed_word_before(pos)
         if span is None:
             return None

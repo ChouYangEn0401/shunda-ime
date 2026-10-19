@@ -428,3 +428,30 @@ def test_a_letter_dropped_from_an_english_word_comes_back_as_the_whole_word(sess
     assert "venv" in v.candidates and "v" not in v.candidates
     run(session, str(v.candidates.index("venv") % session.cand.page_size + 1))
     assert session.decoding.segments[0].text == "venv"
+
+
+def test_a_bare_symbol_glued_to_an_english_word_is_its_last_letter(session):
+    """venv␣我們 showed venㄒ我們: the v + space read as the lone symbol ㄒ
+    (typable on purpose), and ↓ offered a regroup nobody could read.
+    After an English word the letter belongs to the word; on its own, or
+    after Chinese, v␣ is still ㄒ."""
+    _, v = run(session, "venv ji3ap7")
+    assert v.composition == "ven 我們"
+    _, v = run(session, "{ESC}{LEFT}{LEFT}{DOWN}")
+    assert v.candidates[0] == "venv"
+    run(session, "{ESC}{ESC}{ENTER}")
+    _, v = run(session, "v ")
+    assert v.composition == "ㄒ"
+    run(session, "{ENTER}")
+    _, v = run(session, "ji3v ")
+    assert v.composition == "我ㄒ"
+
+
+def test_the_whole_word_is_offered_wherever_the_cursor_stands_on_it(session):
+    # the letter dropped at the END of the word, Chinese right after it:
+    # ↓ with the cursor on ven (correction mode stops at the word's start)
+    # offered ven / VEN / Ven and no venv
+    _, v = run(session, "venvji3ap7{ESC}{HOME}{DOWN}")
+    assert v.candidates[0] == "venv"
+    run(session, "1")
+    assert session.decoding.text == "venv我們"
