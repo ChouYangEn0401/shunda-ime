@@ -123,7 +123,7 @@ var
   InstallError: String;
   CoreMode: Boolean;   { we provide the PIME core (see the top of this file) }
   Takeover: Boolean;   { official PIME present and the user chose to keep only us }
-  FreshInstall: Boolean;  { no earlier version in {app} when Setup started }
+  FreshInstall: Boolean;  { no earlier version in the install folder when Setup started }
 
 function GetFileAttributes(lpFileName: String): Cardinal;
   external 'GetFileAttributesW@kernel32.dll stdcall';
