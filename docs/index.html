@@ -255,7 +255,7 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
 .alphas > details > summary:hover .v-note { color: var(--ink); }
 .alphas .chev { font-size: 9px; color: var(--faint); margin-left: 8px; transform: rotate(-90deg); transition: transform .15s; }
 .alphas > details[open] .chev { transform: none; }
-.alphas .ver-list { margin-bottom: 6px; }
+.alphas .ver-list { margin-bottom: 6px; padding-left: 14px; }
 .alphas .ver-list li:first-child { border-top: 1px solid var(--line); }
 @media (prefers-reduced-motion: reduce) { .alphas .chev { transition: none } }
 .v-name { font-family: var(--mono); font-size: 12.5px; font-weight: 700; color: var(--ink); }
@@ -279,6 +279,7 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
   .ver { top: 12px }
   .ver-list li { grid-template-columns: 6.6em minmax(0, 1fr) }
   .alphas > details > summary { padding-left: calc(6.6em + 12px) }
+  .alphas .ver-list { padding-left: 10px }
 }
 </style>
 
@@ -297,19 +298,24 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
         <p class="eyebrow">開發中 · 0.9.0</p>
         <ul class="ver-list">
           <li><span class="v-name">rc.1<span class="v-date">2026-10-19</span></span>
-            <span class="v-body"><span class="st st-current">候選版・目前</span><span class="v-note">英文字被略過的字母一定救得回：venv 我們 不再變 venㄒ我們，修正模式游標停在字的任何位置按 ↓ 第一個都是整個字</span></span></li>
-          <li><span class="v-name">alpha.6<span class="v-date">2026-10-19</span></span>
-            <span class="v-body"><span class="st st-alpha">測試版</span><span class="v-note">連打三個以上同一個字母一律照打（wwwwww 不再變 www）；練習場移到「一般」下面、沒走完前亮著、升級安裝也會打開、進度跟著匯出檔走</span></span></li>
-          <li><span class="v-name">alpha.5<span class="v-date">2026-10-19</span></span>
-            <span class="v-body"><span class="st st-alpha">測試版</span><span class="v-note">練習場：五章 26 步把每個功能親手玩一遍，第一次安裝完自動打開、章節可單獨複習；略過的鍵不管在字的哪裡都提示、↓ 整個字照打的救回</span></span></li>
-          <li><span class="v-name">alpha.4<span class="v-date">2026-10-19</span></span>
-            <span class="v-body"><span class="st st-alpha">測試版</span><span class="v-note">Ctrl+D 也能加英文字（照你打的：venv 不再變 ven）；第一次安裝完直接帶去練習，系統匣多一項</span></span></li>
-          <li><span class="v-name">alpha.3<span class="v-date">2026-10-19</span></span>
-            <span class="v-body"><span class="st st-alpha">測試版</span><span class="v-note">英文打錯一鍵自己更正（teh → the、wrold → world）；修正模式方向鍵優先、英文整個字一格、j 只換這個字；終端機跳出來不再卡住，卡住時可以「重新啟動輸入法」</span></span></li>
-          <li><span class="v-name">alpha.2<span class="v-date">2026-10-15</span></span>
-            <span class="v-body"><span class="st st-alpha">測試版</span><span class="v-note">修正模式重新分組：↓ 列出英文／數字和中文的其他分法，Shift+←/→ 自己推分界；設定頁「修字練習」12 關</span></span></li>
-          <li><span class="v-name">alpha.1<span class="v-date">2026-10-15</span></span>
-            <span class="v-body"><span class="st st-alpha">測試版</span><span class="v-note">在句子中間打字、r 重打不再黏到旁邊的字（低一下 → 點一下）；語音：說過的話不丟、長度不限、錄音秒數、睡眠鎖定不出怪事、可閒置釋放模型</span></span></li>
+            <span class="v-body"><span class="st st-current">候選版・目前</span><span class="v-note">英文字被略過的字母一定救得回：venv 我們 不再變 venㄒ我們，修正模式游標停在字的任何位置按 ↓ 第一個都是整個字</span><a href="https://github.com/ChouYangEn0401/shunda-ime/releases/tag/v0.9.0-rc.1">下載</a></span></li>
+          <li class="alphas"><details>
+            <summary><span class="st st-alpha">0.9.0 的測試版</span><span class="v-note">alpha.1 – alpha.6 · 6 個</span><span class="chev" aria-hidden="true">▼</span></summary>
+            <ul class="ver-list">
+          <li class="compact"><span class="v-name">alpha.6<span class="v-date">2026-10-19</span></span>
+            <span class="v-body"><span class="v-note">連打三個以上同一個字母一律照打（wwwwww 不再變 www）；練習場移到「一般」下面、沒走完前亮著、升級安裝也會打開、進度跟著匯出檔走</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/320e6e4ee8af476fb7c06a6c6ef160099a19f61a">原始碼</a></span></li>
+          <li class="compact"><span class="v-name">alpha.5<span class="v-date">2026-10-19</span></span>
+            <span class="v-body"><span class="v-note">練習場：五章 26 步把每個功能親手玩一遍，第一次安裝完自動打開、章節可單獨複習；略過的鍵不管在字的哪裡都提示、↓ 整個字照打的救回</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/fdf6327abacd4c98eea59f957905665b3539e639">原始碼</a></span></li>
+          <li class="compact"><span class="v-name">alpha.4<span class="v-date">2026-10-19</span></span>
+            <span class="v-body"><span class="v-note">Ctrl+D 也能加英文字（照你打的：venv 不再變 ven）；第一次安裝完直接帶去練習，系統匣多一項</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/ebcd48046a90d34d988cde303132792d34870f68">原始碼</a></span></li>
+          <li class="compact"><span class="v-name">alpha.3<span class="v-date">2026-10-19</span></span>
+            <span class="v-body"><span class="v-note">英文打錯一鍵自己更正（teh → the、wrold → world）；修正模式方向鍵優先、英文整個字一格、j 只換這個字；終端機跳出來不再卡住，卡住時可以「重新啟動輸入法」</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/b20ef1b9b33f680b9e447c24df45ac18c97fc4c4">原始碼</a></span></li>
+          <li class="compact"><span class="v-name">alpha.2<span class="v-date">2026-10-15</span></span>
+            <span class="v-body"><span class="v-note">修正模式重新分組：↓ 列出英文／數字和中文的其他分法，Shift+←/→ 自己推分界；設定頁「修字練習」12 關</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/ff12cdc8555694647d38ddb535428d8a02ec778b">原始碼</a></span></li>
+          <li class="compact"><span class="v-name">alpha.1<span class="v-date">2026-10-15</span></span>
+            <span class="v-body"><span class="v-note">在句子中間打字、r 重打不再黏到旁邊的字（低一下 → 點一下）；語音：說過的話不丟、長度不限、錄音秒數、睡眠鎖定不出怪事、可閒置釋放模型</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/6cf4a414552ce3e08cb1e795eb5cc4684e8c3473">原始碼</a></span></li>
+            </ul>
+          </details></li>
         </ul>
       </div>
 
@@ -322,33 +328,33 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
             <summary><span class="st st-alpha">0.8.0 的測試版</span><span class="v-note">rc.2、rc.1、alpha.1 – alpha.10 · 12 個</span><span class="chev" aria-hidden="true">▼</span></summary>
             <ul class="ver-list">
           <li class="compact"><span class="v-name">rc.2<span class="v-date">2026-10-14</span></span>
-            <span class="v-body"><span class="v-note">候選版，只在本機建置；試用後修字和語音還有要修的</span></span></li>
+            <span class="v-body"><span class="v-note">候選版，只在本機建置；試用後修字和語音還有要修的</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/v0.8.0-rc.2">原始碼</a></span></li>
           <li class="compact"><span class="v-name">rc.1<span class="v-date">2026-10-13</span></span>
-            <span class="v-body"><span class="v-note">候選版，只在本機建置；選字框的 Delete 能把湊錯的組合（開新）標成錯的</span></span></li>
+            <span class="v-body"><span class="v-note">候選版，只在本機建置；選字框的 Delete 能把湊錯的組合（開新）標成錯的</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/7edceb1e6cf54317148cb8adc436cf0fe8b6f56a">原始碼</a></span></li>
           <li class="compact"><span class="v-name">alpha.10<span class="v-date">2026-10-13</span></span>
-            <span class="v-body"><span class="v-note">打錯更多種也認得（聲調打早、漏聲調、按兩下）；略過的鍵救得成注音符號；片語多了也管得動</span></span></li>
+            <span class="v-body"><span class="v-note">打錯更多種也認得（聲調打早、漏聲調、按兩下）；略過的鍵救得成注音符號；片語多了也管得動</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/57a48603c3222e285ff0264274c5fee68c3e599c">原始碼</a></span></li>
           <li class="compact"><span class="v-name">alpha.9<span class="v-date">2026-10-12</span></span>
-            <span class="v-body"><span class="v-note">修正模式 j 第一下就換成最可能的字</span></span></li>
+            <span class="v-body"><span class="v-note">修正模式 j 第一下就換成最可能的字</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/f6beb3a44bfd1d1da44bcb545a1e898dacc3f34a">原始碼</a></span></li>
           <li class="compact"><span class="v-name">alpha.8<span class="v-date">2026-10-09</span></span>
-            <span class="v-body"><span class="v-note">學到的東西不再把原本選對的字改壞</span></span></li>
+            <span class="v-body"><span class="v-note">學到的東西不再把原本選對的字改壞</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/bdb7bcd7a3b924051f3945c12429a188e6504608">原始碼</a></span></li>
           <li class="compact"><span class="v-name">alpha.7<span class="v-date">2026-10-08</span></span>
-            <span class="v-body"><span class="v-note">符號面板每一頁都是同一套分組清單</span></span></li>
+            <span class="v-body"><span class="v-note">符號面板每一頁都是同一套分組清單</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/52bf4226314607cb4a3ab97ab3f2612d2b73a934">原始碼</a></span></li>
           <li class="compact"><span class="v-name">alpha.6<span class="v-date">2026-10-08</span></span>
-            <span class="v-body"><span class="v-note">多台電腦的匯出檔可以一份一份合併；略過的鍵救得回來</span></span></li>
+            <span class="v-body"><span class="v-note">多台電腦的匯出檔可以一份一份合併；略過的鍵救得回來</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/cc16c2ff4dfc3c479db658170681f5f7e32f8614">原始碼</a></span></li>
           <li class="compact"><span class="v-name">alpha.5<span class="v-date">2026-10-08</span></span>
-            <span class="v-body"><span class="v-note">emoji 分類分組；可選下載「更多符號」</span></span></li>
+            <span class="v-body"><span class="v-note">emoji 分類分組；可選下載「更多符號」</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/37d265ac4eae5dc6e04585c0e828ebaac8342a96">原始碼</a></span></li>
           <li class="compact"><span class="v-name">alpha.4<span class="v-date">2026-10-08</span></span>
-            <span class="v-body"><span class="v-note">Ctrl+數字不再誤吃數字鍵盤的方向鍵</span></span></li>
+            <span class="v-body"><span class="v-note">Ctrl+數字不再誤吃數字鍵盤的方向鍵</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/4f9182d41b546ec10d455fd2c9e5c76738e0c761">原始碼</a></span></li>
           <li class="compact"><span class="v-name">alpha.3<span class="v-date">2026-10-08</span></span>
-            <span class="v-body"><span class="v-note">打 ::: 搜尋 emoji；我的符號</span></span></li>
+            <span class="v-body"><span class="v-note">打 ::: 搜尋 emoji；我的符號</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/296a77ae8e1553a0e7062753a6c6ce68458be74a">原始碼</a></span></li>
           <li class="compact"><span class="v-name">alpha.2<span class="v-date">2026-10-07</span></span>
-            <span class="v-body"><span class="v-note">選字窗用 → ← 展開成多欄、收回成一列</span></span></li>
+            <span class="v-body"><span class="v-note">選字窗用 → ← 展開成多欄、收回成一列</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/9357fc7fc6a0dce9cafe91bb970122f88b844182">原始碼</a></span></li>
           <li class="compact"><span class="v-name">alpha.1<span class="v-date">2026-10-07</span></span>
-            <span class="v-body"><span class="v-note">修正模式按聲調鍵改聲調；提示列建議加上編號</span></span></li>
+            <span class="v-body"><span class="v-note">修正模式按聲調鍵改聲調；提示列建議加上編號</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/9c5a1c7ba76537719402d91d19f4ddc816b196dc">原始碼</a></span></li>
             </ul>
           </details></li>
           <li><span class="v-name">0.7.0<span class="v-date">2026-10-07</span></span>
-            <span class="v-body"><span class="st st-unpub">未發佈</span><span class="v-note">提示列換掉 PIME 的黃框、修字救得回來、可以檢查更新</span></span></li>
+            <span class="v-body"><span class="st st-unpub">未發佈</span><span class="v-note">提示列換掉 PIME 的黃框、修字救得回來、可以檢查更新</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/37731214267373e4a6f367bd4f33a5cafffc26dc">原始碼</a></span></li>
           <li><span class="v-name">0.6.0<span class="v-date">2026-10-05</span></span>
             <span class="v-body"><span class="st st-release">正式版</span><span class="v-note">拼音與倉頡、片語與顏文字、裝置修正</span><a href="https://github.com/ChouYangEn0401/shunda-ime/releases/tag/v0.6.0">下載</a></span></li>
           <li class="compact"><span class="v-name">0.5.0<span class="v-date">2026-10-02</span></span>
@@ -472,8 +478,7 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
   <p class="eyebrow">看它工作</p>
   <h2 style="font-size:clamp(24px,4vw,32px)">畫面都是真的</h2>
   <p class="lede" style="margin-top:14px">
-    下面每一張圖都由輸入法自己的繪圖程式產生（<code>tools/make_docs_images.py</code>），
-    不是示意圖。產品改了，這頁的圖下一次就跟著改。
+    以下都是真實操作畫面，不是示意圖。
   </p>
 
   <div style="margin-top:40px">

@@ -346,6 +346,9 @@
 - PIME launcher 的除錯紀錄（`%LOCALAPPDATA%\PIME\PIMELauncher.json` 的 `logLevel: debug`）會記下每個按鍵與回覆，
   是分析實機問題的最佳資料（配對 SEND/RECV 的 seqNum 即可重建每個 session）；也因此含有使用者打過的字，除錯完應建議關閉。
 - 用 bash heredoc 產生含反斜線的檔案時，`\\` 可能被吃成 `\`（ime.json 事故）；這類檔案請用編輯器／Write 工具寫，並驗證。
+- `docs/index.html`、`docs/*.md` 裡用到的圖都是 `tools\make_docs_images.py` 用輸入法自己的繪圖程式
+  （`smartime.ui.panels`）和真正的設定頁產生的，不是手動截圖或示意圖。動了面板外觀、設定頁或版本號就要重跑一次，
+  文件和產品才不會偷偷脫節（見 CLAUDE.md §2）。
 
 ## 10. 已知限制
 
