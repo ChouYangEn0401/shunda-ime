@@ -1,4 +1,4 @@
-"""Symbol panel (a lone tap of the right Ctrl key): categories of symbols that
+"""Symbol panel (a lone tap of the right or left Ctrl key, or ::): categories of symbols that
 have no key of their own, then 片語 (the user's saved texts) and 顏文字. The
 first category, 常用, puts recently used symbols first; 顏文字 puts recently
 used faces first.

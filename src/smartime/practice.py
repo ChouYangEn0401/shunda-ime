@@ -198,7 +198,7 @@ STEPS: tuple[Step, ...] = (
          "之後打 <kbd>;;addr</kbd>，先預覽再 <kbd>Enter</kbd>。顏文字也在那一頁。",
          kind="tip"),
     Step("voice", "more", "用說的",
-         "按住右 <kbd>Ctrl</kbd> 說話，放開就打在游標位置。",
+         "按住右 <kbd>Ctrl</kbd> 說話，放開就打在游標位置（沒有右 Ctrl 的話，在「快捷鍵」換成左 Ctrl）。",
          "第一次要到「語音輸入」裝語音元件。辨識全在這台電腦上，聲音不會上傳。",
          kind="tip"),
     Step("modes", "more", "三種模式",

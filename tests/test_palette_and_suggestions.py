@@ -1,4 +1,4 @@
-"""Symbol panel (a lone right-Ctrl tap) and continuation suggestions (Tab, Shift+Tab)."""
+"""Symbol panel (a lone Ctrl tap) and continuation suggestions (Tab, Shift+Tab)."""
 
 from smartime.devtools.simulate import run
 from smartime.engine.session import Session
