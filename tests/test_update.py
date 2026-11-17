@@ -237,3 +237,32 @@ def test_a_release_without_an_installer_is_said(monkeypatch):
     state = app.update_state()
     assert state["newer"] and not state["canInstall"] and state["url"] == "https://x/r"
     app.close()
+
+
+def test_skipping_a_version_turns_its_dot_off_until_a_newer_one(monkeypatch):
+    """「略過這個版本」: no dot, no menu entry, no automatic install for that
+    version; the next newer one brings it all back. Checking again keeps it."""
+    _write_cache("99.0.0")
+    assert upd.available() == "99.0.0"
+    upd.skip("99.0.0")
+    assert upd.available() == "" and not upd.cached().wanted
+    assert not upd.auto_install(upd.Release(version="99.0.0", asset_url="u", skipped="99.0.0"))
+    monkeypatch.setattr(upd, "__version__", "0.10.0")
+    _github(monkeypatch, [], {"tag_name": "v99.0.0", "assets": []})
+    assert upd.check().skipped == "99.0.0"  # a fresh check remembers the skip
+    upd._seen["looked"] = 0.0
+    assert upd.available() == ""
+    _github(monkeypatch, [], {"tag_name": "v99.0.1", "assets": []})
+    upd.check()
+    upd._seen["looked"] = 0.0
+    assert upd.available() == "99.0.1"
+
+
+def test_settings_skip_and_unskip():
+    from smartime.settings.api import SettingsApp
+
+    _write_cache("99.0.0")
+    app = SettingsApp()
+    assert app.skip_update({"skip": True})["skipped"] is True
+    assert app.skip_update({"skip": False})["skipped"] is False
+    app.close()

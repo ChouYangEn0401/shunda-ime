@@ -81,6 +81,12 @@ class Release:
     checked: float = 0.0  # when we last asked (epoch seconds)
     error: str = ""  # why the last check failed, for the settings page
     started: str = ""  # the version whose installer was opened automatically (once per version)
+    skipped: str = ""  # 「略過這個版本」: no red dot for this one; a newer one brings it back
+
+    @property
+    def wanted(self) -> bool:
+        """Newer, and not the version the user chose to skip."""
+        return self.newer and self.version != self.skipped
 
     @property
     def newer(self) -> bool:
@@ -198,7 +204,7 @@ def check(force: bool = True) -> Release:
     old = cached()
     if not force and old.checked and time.time() - old.checked < EVERY:
         return old
-    release = Release(checked=time.time(), started=old.started)
+    release = Release(checked=time.time(), started=old.started, skipped=old.skipped)
     try:
         if wants_prereleases():
             data = pick_release(_get_json(API_LIST)) or {}
@@ -260,6 +266,14 @@ def run_installer(path: Path) -> None:
         os.startfile(str(path))  # noqa: S606 - a file this module just downloaded
 
 
+def skip(version: str) -> Release:
+    """「略過這個版本」 (``version`` = "" takes the skip back)."""
+    release = cached()
+    release.skipped = version
+    _seen["looked"] = 0.0
+    return _store(release)
+
+
 # ------------------------------------------------------------ background
 # The backend (the process that draws the tray icon) runs the schedule. The
 # settings page may also check, in its own process; both write update.json,
@@ -283,7 +297,7 @@ def available(now: float | None = None) -> str:
     if mtime != _seen["mtime"]:
         _seen["mtime"] = mtime
         release = cached()
-        _seen["version"] = release.version if release.newer else ""
+        _seen["version"] = release.version if release.wanted else ""
     return _seen["version"]
 
 
@@ -313,7 +327,7 @@ def auto_install(release: Release) -> bool:
     it — once per version, so cancelling the elevation prompt does not bring
     it back every minute (the red dot and the menu stay). Windows still asks
     for administrator rights; nothing installs without the user saying yes."""
-    if not (release.newer and release.asset_url) or release.started == release.version:
+    if not (release.wanted and release.asset_url) or release.started == release.version:
         return False
     try:
         path = download(release)

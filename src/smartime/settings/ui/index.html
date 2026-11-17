@@ -707,13 +707,19 @@
       <section class="view" id="view-about" hidden>
         <h2>關於</h2>
         <p class="lead"><span data-text="product">順打輸入法</span> <span data-text="version"></span>。免切換中英混打的注音輸入法。</p>
-        <div class="group whatsnew" id="whatsnew" data-new="whatsnew-dots" hidden>
-          <h3>這一版的新功能 <span class="note" style="letter-spacing:0" id="whatsnew-count"></span></h3>
-          <ul class="whatsnew-list" id="whatsnew-list"></ul>
-          <div class="whatsnew-foot">
-            <span class="note">紅點標的就是新東西；打開那一頁就算看過了。新的單字、片語不會亮紅點。</span>
-            <button class="btn small" type="button" id="whatsnew-all">都看過了</button>
+        <div class="group whatsnew" id="whatsnew" hidden>
+          <div id="whatsnew-new" hidden>
+            <h3 data-new="whatsnew-dots">這一版的新功能 <span class="note" style="letter-spacing:0" id="whatsnew-count"></span></h3>
+            <ul class="whatsnew-list" id="whatsnew-list"></ul>
+            <div class="whatsnew-foot">
+              <span class="note">按「看看」帶你到那個設定，順便標成看過、收進下面的更新紀錄。</span>
+              <button class="btn small" type="button" id="whatsnew-all">全部標為看過</button>
+            </div>
           </div>
+          <details class="whatsnew-log" id="whatsnew-log">
+            <summary>更新紀錄 <span class="note" id="whatsnew-log-count"></span></summary>
+            <ul class="whatsnew-old" id="whatsnew-old"></ul>
+          </details>
         </div>
         <div class="group">
           <h3>版本與更新</h3>
@@ -724,6 +730,8 @@
             </div>
             <span>
               <button class="btn" id="update-check">檢查更新</button>
+              <button class="btn" id="update-skip" data-new="update-skip" hidden>略過這個版本</button>
+              <button class="btn" id="update-unskip" hidden>取消略過</button>
               <button class="btn primary" id="update-install" hidden>下載並安裝</button>
               <a class="btn primary" id="update-page" hidden target="_blank" rel="noopener">到 GitHub 下載</a>
             </span>

@@ -262,8 +262,11 @@
   沒有 config／user.db／practice.json＝新安裝，全部算看過；否則＝升級，全部沒看過。
 - 後端：`whatsnew.unseen_count()`（最多每 5 秒 stat 一次）＞0 時圖示也換成紅點版，選單第一項「● 這一版有 N 項新功能」
   （`ID_WHATSNEW`，開設定頁「關於」）；有新版本時以新版本優先。
-- 設定頁：`/api/whatsnew`、`/api/whatsnew/seen`。左邊那一頁亮紅點、那一列標「新」；打開那一頁 1.2 秒後算看過
-  （這次瀏覽「新」還留著）；「關於」頂端「這一版的新功能」列出全部、「看看」跳過去、「都看過了」。
+- 設定頁：`/api/whatsnew`、`/api/whatsnew/seen`。左邊那一頁亮紅點、那一列標「新」（可點＝標成看過）。
+  不會因為打開那一頁就算看過（使用者回報清單一打開就自己清空）：「關於」頂端「這一版的新功能」只列沒看過的，
+  「看看」跳過去並標成看過；看過的收進預設摺起來的「更新紀錄」；「全部標為看過」。
+- 略過這個版本：`Release.skipped`（`update.skip()`、`/api/update/skip`）；`Release.wanted` = 比較新且不是略過的那版，
+  紅點、選單第一項、自動安裝都看 `wanted`。
 
 ## 6. 安裝檔（`installer/`、`tools/build_installer.py`）
 

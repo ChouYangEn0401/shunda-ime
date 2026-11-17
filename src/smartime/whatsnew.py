@@ -12,8 +12,9 @@ so people find out what changed without reading a changelog:
 
 Adding a feature: one ``Feature`` below (``view`` = the settings page's
 ``data-view``) and ``data-new="<id>"`` on its row in
-``settings/ui/index.html``. Opening that settings page counts as seen; the
-「這一版的新功能」 card on 關於 lists them all and has 「都看過了」.
+``settings/ui/index.html``. Marked seen on purpose, never by passing by:
+「看看」 on the 關於 card (jumps there), a click on the row's 「新」 tag, or
+「全部標為看過」. Seen ones fold into the card's collapsed 更新紀錄.
 
 Seen ids live in ``%APPDATA%\\SmartIME\\seen.json``. A fresh install starts
 with everything seen (a newcomer has the 練習場 tour, not twenty dots); an
@@ -43,9 +44,11 @@ class Feature:
 
 # Newest first. Only features — never words, phrases or symbol data.
 FEATURES: tuple[Feature, ...] = (
+    Feature("update-skip", "0.10.0-alpha.1.3", "about", "略過這個版本",
+            "不想裝這一版：按「略過這個版本」，紅點就不亮了，有更新的版本才會再提醒。"),
     Feature("whatsnew-dots", "0.10.0-alpha.1.2", "about", "紅點告訴你哪裡有新東西",
-            "更新之後，有新功能的設定頁在左邊標紅點、那一列標「新」，工作列圖示也會有紅點。"
-            "打開那一頁就算看過了。新的單字、片語不會亮紅點。"),
+            "更新之後，工作列圖示、設定頁左邊有新功能的那一頁、那一列都會標紅點。"
+            "按「看看」帶你過去，看過的收進下面的更新紀錄。新的單字、片語不會亮紅點。"),
     Feature("update-auto-install", "0.10.0-alpha.1.1", "about", "找到新版本自動下載並開始安裝",
             "打開以後，查到新版本就在背景下載、直接打開安裝程式；Windows 的權限確認按「是」才會裝。"),
     Feature("update-time", "0.10.0-alpha.1.1", "about", "檢查更新的時間設到分鐘",

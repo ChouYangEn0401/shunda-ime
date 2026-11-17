@@ -536,8 +536,16 @@ class SettingsApp:
             "checked": release.checked,
             "error": release.error,
             "canInstall": bool(release.asset_url),
+            "skipped": bool(release.version) and release.skipped == release.version,
             "size": release.size,
         }
+
+    def skip_update(self, body: dict) -> dict:
+        """「略過這個版本」 / 「取消略過」."""
+        from .. import update as upd
+
+        version = upd.cached().version if body.get("skip", True) else ""
+        return {**self._release_dict(upd.skip(version)), "job": dict(self.update_job)}
 
     def install_update(self) -> dict:
         """Download the installer and start it. It asks for administrator
@@ -707,6 +715,7 @@ class _Handler(BaseHTTPRequestHandler):
             ("GET", "/api/update"): lambda: app.update_state(
                 (query.get("force") or ["0"])[0] == "1"),
             ("POST", "/api/update/install"): app.install_update,
+            ("POST", "/api/update/skip"): lambda: app.skip_update(self._json_body()),
             ("POST", "/api/restart"): app.restart_ime,
             ("GET", "/api/practice"): app.practice_state,
             ("POST", "/api/practice/done"): lambda: app.practice_done(self._json_body()),
