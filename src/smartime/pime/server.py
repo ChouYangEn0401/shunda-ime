@@ -101,6 +101,9 @@ def main(icon_dir: Path) -> None:
     from .. import restart
 
     restart.record_backend()  # 設定頁「重新啟動輸入法」 ends this process
+    from .. import whatsnew
+
+    whatsnew.ensure_baseline()  # before user.db exists: tells a fresh install from an upgrade
     try:
         engine = build_engine()
     except Exception:

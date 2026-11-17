@@ -208,6 +208,7 @@
     renderConfig();
     renderDebug();
     loadUpdate();
+    loadWhatsnew();
     renderCategories();
     renderShortcuts();
     for (const feature of ["correction_mode", "palette_hotkey"]) {
@@ -1590,6 +1591,103 @@
     } catch (e) { toast(e.message, true); }
   });
 
+  // ------------------------------------------------------------ 這一版的新功能 (red dots)
+  // whatsnew.py lists the features an update brought. Unseen ones put a red
+  // dot on their page in the rail and a 「新」 tag on their row. They are
+  // marked seen on purpose, not by passing by (reported: the card emptied
+  // itself the moment 關於 opened): 「看看」 on the card (jumps there),
+  // clicking the 「新」 tag, or 「全部標為看過」. Seen ones fold into the
+  // collapsed 更新紀錄. 關於 also gets a dot for a newer version.
+  let whatsnew = [];
+  const seenThisVisit = new Set();
+  function railDot(view, on, title) {
+    const b = document.querySelector(`nav.rail button[data-view="${view}"]`);
+    if (!b) return;
+    let d = b.querySelector(".rail-dot");
+    if (on && !d) { d = document.createElement("span"); d.className = "rail-dot"; b.appendChild(d); }
+    if (d) { d.hidden = !on; d.title = title || ""; }
+  }
+  function renderWhatsnew() {
+    const unseen = whatsnew.filter(f => !f.seen);
+    const byView = {};
+    unseen.forEach(f => { (byView[f.view] = byView[f.view] || []).push(f); });
+    document.querySelectorAll("nav.rail button[data-view]").forEach(b => {
+      const v = b.dataset.view;
+      if (v === "about") return;  // 關於 also shows the update dot: renderAboutDot
+      railDot(v, !!byView[v], byView[v] ? `${byView[v].length} 項新功能` : "");
+    });
+    renderAboutDot();
+    document.querySelectorAll("[data-new]").forEach(el => {
+      const f = whatsnew.find(x => x.id === el.dataset.new);
+      const fresh = !!f && (!f.seen || seenThisVisit.has(f.id));
+      el.classList.toggle("is-new", fresh);
+      const label = el.matches(".label, h3") ? el : el.querySelector(".label, h3");
+      let tag = label && label.querySelector(".new-tag");
+      if (fresh && label && !tag) {
+        tag = document.createElement("button"); tag.type = "button"; tag.className = "new-tag"; tag.textContent = "新";
+        tag.title = "知道了，標成看過";
+        tag.addEventListener("click", e => { e.stopPropagation(); e.preventDefault(); markSeen([el.dataset.new]); });
+        label.appendChild(tag);
+      }
+      if (!fresh && tag) tag.remove();
+    });
+    // the card on 關於: what is new, then the folded 更新紀錄
+    const card = document.getElementById("whatsnew");
+    card.hidden = !whatsnew.length;
+    document.getElementById("whatsnew-new").hidden = !unseen.length;
+    document.getElementById("whatsnew-count").textContent = `${unseen.length} 項`;
+    const list = document.getElementById("whatsnew-list");
+    list.replaceChildren(...unseen.map(f => featureItem(f, true)));
+    const old = whatsnew.filter(f => f.seen);
+    const log = document.getElementById("whatsnew-log");
+    log.hidden = !old.length;
+    document.getElementById("whatsnew-log-count").textContent = `${old.length} 項`;
+    document.getElementById("whatsnew-old").replaceChildren(...old.map(f => featureItem(f, false)));
+  }
+  function featureItem(f, isNew) {
+    const li = document.createElement("li");
+    const text = document.createElement("div");
+    const t = document.createElement("b"); t.textContent = f.title;
+    const v = document.createElement("span"); v.className = "ver"; v.textContent = f.version;
+    text.append(t, v);
+    if (isNew) { const p = document.createElement("p"); p.textContent = f.text; text.appendChild(p); }
+    const go = document.createElement("button"); go.type = "button";
+    go.className = isNew ? "btn small primary" : "linkish"; go.textContent = isNew ? "看看" : "前往";
+    go.addEventListener("click", () => {
+      show(f.view);
+      const row = document.querySelector(`[data-new="${f.id}"]`);
+      if (row) {
+        const target = row.closest(".row, .group") || row;
+        target.scrollIntoView({ block: "center" });
+        target.classList.add("flash"); setTimeout(() => target.classList.remove("flash"), 1600);
+      }
+      if (isNew) markSeen([f.id]);
+    });
+    li.append(text, go);
+    return li;
+  }
+  async function markSeen(ids) {
+    ids.forEach(i => seenThisVisit.add(i));
+    try { whatsnew = (await api("POST", "/api/whatsnew/seen", ids ? { ids } : { all: true })).features; }
+    catch (e) { toast(e.message, true); return; }
+    renderWhatsnew();
+  }
+  let updateNewer = false;  // a newer version, not skipped
+  function renderAboutDot() {
+    const news = whatsnew.filter(f => !f.seen && f.view === "about").length;
+    railDot("about", updateNewer || news > 0, updateNewer ? "有新版本" : news ? `${news} 項新功能` : "");
+    const row = document.getElementById("update-row");
+    if (row) row.classList.toggle("is-new", updateNewer);
+  }
+  async function loadWhatsnew() {
+    try { whatsnew = (await api("GET", "/api/whatsnew")).features; } catch (e) { return; }
+    renderWhatsnew();
+  }
+  document.getElementById("whatsnew-all").addEventListener("click", async () => {
+    await markSeen(whatsnew.filter(f => !f.seen).map(f => f.id));
+    toast("都標成看過了，收進更新紀錄");
+  });
+
   // ------------------------------------------------------------ updates
   function fmtSize(n) { return n ? (n / 1048576).toFixed(0) + " MB" : ""; }
 
@@ -1598,16 +1696,48 @@
     const el = document.getElementById("update-next");
     if (!el) return;
     if (!u.scheduled) { el.textContent = ""; return; }
-    if (!u.nextCheck) { el.textContent = "下一次：開始打字後幾分鐘內。"; return; }
+    if (!u.nextCheck) { el.textContent = "下一次：一分鐘內（輸入法有在用時）。"; return; }
     const d = new Date(u.nextCheck * 1000);
-    el.textContent = `下一次：${d.getMonth() + 1}/${d.getDate()}（週${WEEKDAYS[(d.getDay() + 6) % 7]}）${d.getHours()}:00 以後第一次打字時。`;
+    const hm = `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+    el.textContent = `下一次：${d.getMonth() + 1}/${d.getDate()}（週${WEEKDAYS[(d.getDay() + 6) % 7]}）${hm}，那時輸入法有在用就查，沒在用就等下一次打字。`;
   }
+
+  // the time of day: one <input type=time> for update_hour + update_minute
+  // (it was a list of five hours — reported: 「你時間幹嘛寫死」)
+  const updateTime = document.getElementById("update-time");
+  function showUpdateTime() {
+    if (!updateTime || config.update_hour === undefined) return;
+    updateTime.value = `${String(config.update_hour).padStart(2, "0")}:${String(config.update_minute || 0).padStart(2, "0")}`;
+  }
+  if (updateTime) {
+    updateTime.addEventListener("change", () => {
+      const [h, m] = (updateTime.value || "14:00").split(":").map(x => parseInt(x, 10) || 0);
+      save({ update_hour: h, update_minute: m });
+    });
+  }
+  // the 「下一次」 line follows the schedule as soon as it is changed (it
+  // kept showing the old day and hour until the page was opened again)
+  ["update_check", "update_weekday"].forEach(k => {
+    const el = document.querySelector(`[data-cfg="${k}"]`);
+    if (el) el.addEventListener("change", () => setTimeout(loadUpdate, 700));
+  });
+  if (updateTime) updateTime.addEventListener("change", () => setTimeout(loadUpdate, 700));
 
   function renderUpdate(u) {
     const status = document.getElementById("update-status");
     const install = document.getElementById("update-install");
+    const page = document.getElementById("update-page");
+    updateNewer = !!u.newer && !u.skipped;
+    renderAboutDot();
+    document.getElementById("update-skip").hidden = !(u.newer && !u.skipped) || !!(u.job && u.job.active);
+    document.getElementById("update-unskip").hidden = !(u.newer && u.skipped);
     renderNextCheck(u);
+    showUpdateTime();
     install.hidden = !(u.newer && u.canInstall);
+    // a release with no installer attached: say so and link to it, instead
+    // of a status that says 「有新版本」 and no button at all (reported)
+    page.hidden = !(u.newer && !u.canInstall);
+    if (u.url) page.href = u.url;
     if (u.job && u.job.active) {
       const pct = u.job.total ? Math.round(100 * u.job.done / u.job.total) : 0;
       status.textContent = `下載中… ${pct}%（${fmtSize(u.job.total)}）`;
@@ -1616,11 +1746,18 @@
       return;
     }
     if (u.job && u.job.error) { status.textContent = "下載失敗：" + u.job.error; return; }
-    if (u.job && u.job.path) { status.textContent = "安裝檔已下載，請在安裝視窗繼續。"; return; }
+    if (u.job && u.job.path) {
+      status.textContent = "下載好了，正在安裝：Windows 會先問系統管理員權限，按「是」就會安靜地裝好（只有一個進度條），輸入法會暫停幾秒再回來。";
+      return;
+    }
     if (u.error && !u.latest) { status.textContent = "這次連不上 GitHub（離線也沒關係，輸入法照常用）。"; return; }
     if (!u.latest) { status.textContent = "尚未檢查。"; return; }
-    if (u.newer) {
-      status.textContent = `有新版本 ${u.latest}${u.size ? "（" + fmtSize(u.size) + "）" : ""}。`;
+    if (u.newer && u.skipped) {
+      status.textContent = `已略過 ${u.latest}：不再亮紅點，有更新的版本出來才會再提醒。還是想裝的話，按旁邊的按鈕。`;
+    } else if (u.newer && !u.canInstall) {
+      status.textContent = `有新版本 ${u.latest}，但 GitHub 上這一版沒有附安裝檔（.exe），沒辦法自動下載；可以到 GitHub 頁面看看。`;
+    } else if (u.newer) {
+      status.textContent = `有新版本 ${u.latest}${u.size ? "（" + fmtSize(u.size) + "）" : ""}，按「下載並安裝」。`;
     } else if (u.ahead) {
       // "已經是最新版本（GitHub 上也是 0.6.0）" while running 0.8.0-alpha.6
       // read as a contradiction (reported). Say which way round it is.
@@ -1652,6 +1789,12 @@
     document.getElementById("update-status").textContent = "檢查中…";
     await loadUpdate(true);
   });
+  ["update-skip", "update-unskip"].forEach(id => document.getElementById(id).addEventListener("click", async () => {
+    try {
+      renderUpdate(await api("POST", "/api/update/skip", { skip: id === "update-skip" }));
+      toast(id === "update-skip" ? "已略過這個版本，紅點會消失" : "取消略過了");
+    } catch (e) { toast(e.message, true); }
+  }));
   document.getElementById("update-install").addEventListener("click", async () => {
     try {
       await api("POST", "/api/update/install");

@@ -80,6 +80,8 @@ def main() -> int:
     ap.add_argument("--height", type=int, default=1100)
     ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                     help="a setting for the screenshot (JSON value), e.g. --set punct_style=\"fullwidth\"")
+    ap.add_argument("--whatsnew", action="store_true",
+                    help="as just after an upgrade: no feature seen yet, and a newer version out (red dots)")
     args = ap.parse_args()
     edge = next((p for p in EDGE if p.exists()), None)
     if edge is None:
@@ -97,6 +99,14 @@ def main() -> int:
         voice_launch.start = lambda: True
         app = SettingsApp()
         sample_data(app)
+        if args.whatsnew:
+            import time as _time
+
+            from .. import update, whatsnew
+
+            whatsnew._write(set())
+            update._store(update.Release(version="99.0.0", asset_url="https://example.invalid/setup.exe",
+                                         size=20_000_000, checked=_time.time()))
         if args.set:
             import json
 

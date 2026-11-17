@@ -260,13 +260,32 @@
 ### 5.1 檢查更新（`src/smartime/update.py`）
 
 - 兩個行程都會查：設定頁的「檢查更新」按鈕，和後端的排程執行緒（`update.start_background`，
-  十分鐘看一次 `due()`：上次查的時間早於最近一個排程時刻〔預設週五 14:00，`update_weekday`／`update_hour`〕就查；
+  每分鐘看一次 `due()`：上次查的時間早於最近一個排程時刻〔預設週五 14:00，`update_weekday`／`update_hour`／`update_minute`〕就查；
   上次失敗則一小時後重查）。結果都寫進 `%APPDATA%\SmartIME\update.json`。
 - 工作列圖示的紅點：`text_service._update_mode_icon` 每次重畫時問 `update.available()`（最多每 5 秒 stat 一次
   `update.json`），有比自己新的版本就把 `auto.ico` 換成 `auto-new.ico`（`tools/make_icons.py` 產生），
   右鍵選單最前面加「● 有新版本」。設定頁關掉自動檢查就不顯示。
 - 頻道：版號有 `-`（測試版）讀整個 `releases` 清單取版號最大的；正式版只讀 `releases/latest`
-  （GitHub 定義為最新的非 pre-release）。不自動安裝：下載到 %TEMP% 後啟動安裝檔，由它要管理員權限。
+  （GitHub 定義為最新的非 pre-release）。下載到 %TEMP%：先寫 `.part`、大小對了才改名、失敗重試並用 HTTP Range 接著下載。
+  安裝檔以 `/SILENT /SUPPRESSMSGBOXES /NORESTART` 啟動（Inno 的 loader 是 asInvoker，會自己要管理員權限），
+  DETACHED＋CREATE_BREAKAWAY_FROM_JOB（不行就不帶）：安裝會停掉 PIME，不能跟著後端／設定頁一起被收掉。
+  `update_auto_install`（預設關）：背景執行緒每分鐘 `auto_install_once`——知道有新版本就試，失敗 `AUTO_RETRY`（10 分鐘）後再試，
+  成功打開安裝程式後每版只一次（`Release.started`）。
+- 版號排序（`version_tuple`）：`0.10.0-alpha.1 < 0.10.0-alpha.1.1 < 0.10.0-alpha.2 < 0.10.0`（hotfix 多一層號碼）。
+
+### 5.2 紅點：這一版的新功能（`src/smartime/whatsnew.py`）
+
+- `FEATURES`：每個新功能一筆（id、版號、設定頁 `view`、標題、說明）；設定頁那一列有 `data-new="<id>"`。
+  只放功能——新詞、片語、符號資料不放（使用者說會干擾）。
+- 看過的 id 存在 `%APPDATA%\SmartIME\seen.json`。`ensure_baseline()`（後端與設定頁啟動時，在 user.db 建立之前）：
+  沒有 config／user.db／practice.json＝新安裝，全部算看過；否則＝升級，全部沒看過。
+- 後端：`whatsnew.unseen_count()`（最多每 5 秒 stat 一次）＞0 時圖示也換成紅點版，選單第一項「● 這一版有 N 項新功能」
+  （`ID_WHATSNEW`，開設定頁「關於」）；有新版本時以新版本優先。
+- 設定頁：`/api/whatsnew`、`/api/whatsnew/seen`。左邊那一頁亮紅點、那一列標「新」（可點＝標成看過）。
+  不會因為打開那一頁就算看過（使用者回報清單一打開就自己清空）：「關於」頂端「這一版的新功能」只列沒看過的，
+  「看看」跳過去並標成看過；看過的收進預設摺起來的「更新紀錄」；「全部標為看過」。
+- 略過這個版本：`Release.skipped`（`update.skip()`、`/api/update/skip`）；`Release.wanted` = 比較新且不是略過的那版，
+  紅點、選單第一項、自動安裝都看 `wanted`。
 
 ## 6. 安裝檔（`installer/`、`tools/build_installer.py`）
 

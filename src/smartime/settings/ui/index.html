@@ -290,14 +290,14 @@
             <label class="switch"><input type="checkbox" data-cfg="learn_notice" aria-label="學到新詞時提示"><span></span></label>
           </div>
           <div class="row">
-            <div><div class="label">刪掉重打時換一個</div><div class="desc">用 <kbd>Backspace</kbd> 刪掉剛打的字、一分鐘內又打一模一樣的鍵、結果還是同一個字——代表不是要這個。
+            <div><div class="label" data-new="retype-swap">刪掉重打時換一個</div><div class="desc">用 <kbd>Backspace</kbd> 刪掉剛打的字、一分鐘內又打一模一樣的鍵、結果還是同一個字——代表不是要這個。
               這時會自動換成同音的下一個（每一洲 → 每一周 → 每一週，再刪再打就再往下換），提示框會說換了什麼；<kbd>Ctrl</kbd>+<kbd>Z</kbd> 換回原本的，<kbd>↓</kbd> 看全部。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="retype_swap" aria-label="刪掉重打時換一個"><span></span></label>
           </div>
         </div>
 
         <div class="group">
-          <h3>修正紀錄 <span class="note" style="letter-spacing:0" id="corr-count"></span></h3>
+          <h3 data-new="corrections-log">修正紀錄 <span class="note" style="letter-spacing:0" id="corr-count"></span></h3>
           <div class="row"><div class="full">
             <p class="note" style="margin-top:0">你在畫面上改過的字：原本是什麼、改成什麼、怎麼改的、改過幾次。
               同一個修正做到第 2 次，就代表上次學的沒記牢——改成的那個詞會自動加進「我的詞庫」的「程式推薦」分類（標 ✓），
@@ -434,7 +434,7 @@
         </div>
 
         <div class="group">
-          <h3>詞條 <span class="note" style="letter-spacing:0" id="dict-stats"></span></h3>
+          <h3 data-new="dict-edit">詞條 <span class="note" style="letter-spacing:0" id="dict-stats"></span></h3>
           <div class="row"><div class="full">
             <div class="seg dict-tabs" id="dict-tabs" role="group" aria-label="詞條分區">
               <button data-dict="inbox">自動收集<span class="n"></span></button><button data-dict="mine">我的詞庫<span class="n"></span></button><button data-dict="blocked">已封鎖<span class="n"></span></button>
@@ -586,14 +586,14 @@
             </div>
           </div>
           <div class="row">
-            <div><div class="label">符號面板：單按一下</div><div class="desc">單按一下就打開（再按一次關閉）；和其他鍵一起按、或按著點滑鼠，是一般快捷鍵。
+            <div><div class="label" data-new="palette-key">符號面板：單按一下</div><div class="desc">單按一下就打開（再按一次關閉）；和其他鍵一起按、或按著點滑鼠，是一般快捷鍵。
               沒有右 Ctrl 的筆電選左 Ctrl。</div></div>
             <div class="seg" role="group" aria-label="符號面板的鍵" data-cfg="palette_hotkey">
               <button data-value="rctrl">右 Ctrl</button><button data-value="lctrl">左 Ctrl</button><button data-value="off">關閉</button>
             </div>
           </div>
           <div class="row">
-            <div><div class="label">語音輸入：按住</div><div class="desc">按住說話、放開就打出來（要先在<a href="#voice" data-goto="voice">「語音輸入」</a>開啟）。
+            <div><div class="label" data-new="voice-key">語音輸入：按住</div><div class="desc">按住說話、放開就打出來（要先在<a href="#voice" data-goto="voice">「語音輸入」</a>開啟）。
               和其他鍵一起按不會錄音；選左 Ctrl 時，按著點滑鼠或轉滾輪也不會。
               可以和符號面板用同一個鍵：短按開面板，按住滿 0.35 秒才是語音。</div></div>
             <div class="seg" role="group" aria-label="語音輸入的鍵" data-cfg="voice_hotkey">
@@ -747,44 +747,67 @@
       <section class="view" id="view-about" hidden>
         <h2>關於</h2>
         <p class="lead"><span data-text="product">順打輸入法</span> <span data-text="version"></span>。免切換中英混打的注音輸入法。</p>
+        <div class="group whatsnew" id="whatsnew" hidden>
+          <div id="whatsnew-new" hidden>
+            <h3 data-new="whatsnew-dots">這一版的新功能 <span class="note" style="letter-spacing:0" id="whatsnew-count"></span></h3>
+            <ul class="whatsnew-list" id="whatsnew-list"></ul>
+            <div class="whatsnew-foot">
+              <span class="note">按「看看」帶你到那個設定，順便標成看過、收進下面的更新紀錄。</span>
+              <button class="btn small" type="button" id="whatsnew-all">全部標為看過</button>
+            </div>
+          </div>
+          <details class="whatsnew-log" id="whatsnew-log">
+            <summary>更新紀錄 <span class="note" id="whatsnew-log-count"></span></summary>
+            <ul class="whatsnew-old" id="whatsnew-old"></ul>
+          </details>
+        </div>
         <div class="group">
           <h3>版本與更新</h3>
-          <div class="row">
+          <div class="row" id="update-row">
             <div>
-              <div class="label">目前版本 <span data-text="version"></span></div>
+              <div class="label" data-new="update-quiet">目前版本 <span data-text="version"></span></div>
               <div class="desc" id="update-status">尚未檢查。</div>
             </div>
             <span>
               <button class="btn" id="update-check">檢查更新</button>
+              <button class="btn" id="update-skip" data-new="update-skip" hidden>略過這個版本</button>
+              <button class="btn" id="update-unskip" hidden>取消略過</button>
               <button class="btn primary" id="update-install" hidden>下載並安裝</button>
+              <a class="btn primary" id="update-page" hidden target="_blank" rel="noopener">到 GitHub 下載</a>
             </span>
           </div>
-          <div class="row">
+          <div class="row" data-new="update-check">
             <div>
               <div class="label">自動檢查更新</div>
               <div class="desc">找到新版本時，工作列上的輸入法圖示會多一個<b style="color:#EF4444">紅點</b>，
-                按右鍵選第一項就能更新。只對 GitHub 發一個公開的 HTTPS 查詢，不帶帳號、不帶任何可以認出你的識別碼，
-                也不會自己安裝任何東西。關掉以後輸入法完全不連網。</div>
+                按右鍵選第一項就能更新。只對 GitHub 發一個公開的 HTTPS 查詢，不帶帳號、不帶任何可以認出你的識別碼。
+                關掉以後輸入法完全不連網。</div>
             </div>
             <label class="switch"><input type="checkbox" data-cfg="update_check"><span></span></label>
           </div>
-          <div class="row">
+          <div class="row" data-new="update-time">
             <div>
               <div class="label">什麼時候檢查</div>
-              <div class="desc">那個時間電腦沒開也沒關係，下一次打字時會補查；沒網路會一小時後再試。
+              <div class="desc">時間可以設到分鐘（想馬上試：設成一兩分鐘後）。那個時間電腦沒開也沒關係，之後打字時會補查；沒網路會一小時後再試。
                 <span id="update-next"></span></div>
             </div>
-            <span>
+            <span class="update-when">
               <select data-cfg="update_weekday" data-type="int" aria-label="檢查更新的日子">
                 <option value="-1">每天</option><option value="0">每週一</option><option value="1">每週二</option>
                 <option value="2">每週三</option><option value="3">每週四</option><option value="4">每週五</option>
                 <option value="5">每週六</option><option value="6">每週日</option>
               </select>
-              <select data-cfg="update_hour" data-type="int" aria-label="檢查更新的時間">
-                <option value="9">早上 9 點</option><option value="12">中午 12 點</option><option value="14">下午 2 點</option>
-                <option value="17">下午 5 點</option><option value="20">晚上 8 點</option>
-              </select>
+              <input type="time" id="update-time" step="60" aria-label="檢查更新的時間">
             </span>
+          </div>
+          <div class="row" data-new="update-auto-install">
+            <div>
+              <div class="label">找到新版本時自動下載並開始安裝</div>
+              <div class="desc">關閉（預設）：只亮紅點，等你按「下載並安裝」。開啟：知道有新版本就在背景下載（網路斷了會自己再試），
+                下載完直接安靜安裝——Windows 會跳出系統管理員權限確認，按「是」才會裝，只會看到一個進度條；
+                按「否」這一版就不會再自動跳（紅點還在，「下載並安裝」隨時可以按）。</div>
+            </div>
+            <label class="switch"><input type="checkbox" data-cfg="update_auto_install"><span></span></label>
           </div>
         </div>
         <div class="group">

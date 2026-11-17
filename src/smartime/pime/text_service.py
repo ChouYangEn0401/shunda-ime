@@ -43,6 +43,7 @@ MODE_MENU_IDS = {10: Mode.AUTO, 11: Mode.CHINESE, 12: Mode.ENGLISH, 13: Mode.PIN
 ID_SETTINGS_PUNCT, ID_SETTINGS_DICT, ID_SETTINGS_KEYS = 5, 6, 7
 ID_UPDATE = 8
 ID_RESTART = 9  # 重新啟動輸入法: this backend exits, the launcher starts a fresh one
+ID_WHATSNEW = 50  # 「這一版有 N 項新功能」: the settings page's 關於 (whatsnew). Not 10–14: the mode entries
 TOGGLES = {  # id: (config field, label)
     20: ("autocomplete", "接續建議（Tab 接詞）"),
     21: ("composing_indicator", "組字中顯示小點"),
@@ -82,7 +83,7 @@ ANCHOR_MESSAGE = " "
 SELECTION_KEYS = "123456789"
 SETTINGS_SECTIONS = {ID_SETTINGS: "", ID_ABOUT: "about", ID_SETTINGS_PUNCT: "punct",
                      ID_SETTINGS_DICT: "dict", ID_SETTINGS_KEYS: "keys", ID_PRACTICE: "practice",
-                     ID_UPDATE: "about"}
+                     ID_UPDATE: "about", ID_WHATSNEW: "about"}
 
 
 def _panel_window(create: bool, second: bool = False):
@@ -512,9 +513,12 @@ class SmartTextService:
             items.append({"text": f"{title}（{here}）" if here else title, "submenu": sub})
         items.append({})
         dot = self._update_available()
+        news = self._new_features()
         if dot:
             # the red dot on the icon brought the user here: acting on it comes first
             items[:0] = [{"text": f"● 有新版本 {dot}，按這裡更新…", "id": ID_UPDATE}, {}]
+        elif news:
+            items[:0] = [{"text": f"● 這一版有 {news} 項新功能，看看…", "id": ID_WHATSNEW}, {}]
         items += [{"text": "標點與符號…", "id": ID_SETTINGS_PUNCT},
                   {"text": "我的詞庫…", "id": ID_SETTINGS_DICT},
                   {"text": "按鍵說明…", "id": ID_SETTINGS_KEYS},
@@ -568,9 +572,21 @@ class SmartTextService:
             log.exception("cannot read the update state")
             return ""
 
+    def _new_features(self) -> int:
+        """New features the user has not looked at yet (whatsnew)."""
+        try:
+            from .. import whatsnew
+
+            return whatsnew.unseen_count()
+        except Exception:
+            log.exception("cannot read the whatsnew state")
+            return 0
+
     def _update_mode_icon(self, reply: dict, force: bool = False, add: bool = False) -> None:
         mode = self.session.mode
-        dot = self._update_available()
+        update, news = self._update_available(), self._new_features()
+        # the dot means 「有新東西」: a newer version, or features not looked at yet
+        dot = f"{update}|{news}" if (update or news) else ""
         if not force and mode is self._mode_shown and dot == self._dot_shown:
             return
         self._mode_shown = mode
@@ -586,7 +602,8 @@ class SmartTextService:
             "id": "windows-mode-icon",
             "icon": icon,
             "tooltip": f"{PRODUCT_NAME}：{self.session.mode_label()}（Shift 切換模式，右鍵選模式）"
-                       + (f"。有新版本 {dot}，按右鍵更新" if dot else ""),
+                       + (f"。有新版本 {update}，按右鍵更新" if update
+                          else f"。這一版有 {news} 項新功能，按右鍵看看" if news else ""),
             "commandId": ID_MODE_ICON,
             "enable": self.keyboard_open,
         }

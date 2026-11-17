@@ -63,6 +63,9 @@ class SettingsApp:
 
     def __init__(self, system_db: Path | None = None):
         self.config_path = paths.config_path()
+        from .. import whatsnew
+
+        whatsnew.ensure_baseline()  # before user.db exists: tells a fresh install from an upgrade
         self.user = UserDict(paths.user_db_path())
         self.lexicon = Lexicon(system_db or paths.system_db_path())
         self.valid_syllables = self.lexicon.valid_syllables
@@ -514,6 +517,18 @@ class SettingsApp:
         return {"merged": report["words"] + report["updated"] + report["snippets"] + report["symbols"],
                 **report, "settingsApplied": applied, "practice": practice_total - before}
 
+    # ---------------------------------------------------------- 這一版的新功能
+    def whatsnew(self) -> dict:
+        from .. import whatsnew
+
+        return {"features": whatsnew.listing()}
+
+    def whatsnew_seen(self, body: dict) -> dict:
+        from .. import whatsnew
+
+        ids = None if body.get("all") else [str(x) for x in body.get("ids") or []]
+        return {"marked": whatsnew.mark_seen(ids), "features": whatsnew.listing()}
+
     # ---------------------------------------------------------- updates
     def update_state(self, force: bool = False) -> dict:
         from .. import update as upd
@@ -528,10 +543,11 @@ class SettingsApp:
 
         cfg = Config.load(self.config_path)
         now = time.time()
-        due = upd.due(now, release, cfg.update_weekday, cfg.update_hour)
+        when = upd.schedule_of(cfg)
+        due = upd.due(now, release, *when)
         return {
-            # 「下次檢查」: the next scheduled moment, or 0 = 「下一次打字時」 (already due)
-            "nextCheck": 0 if due else upd.next_slot(now, cfg.update_weekday, cfg.update_hour),
+            # 「下次檢查」: the next scheduled moment, or 0 = within a minute (already due)
+            "nextCheck": 0 if due else upd.next_slot(now, *when),
             "scheduled": cfg.update_check,
             "testBuild": upd.wants_prereleases(),
             "current": __version__,
@@ -545,8 +561,16 @@ class SettingsApp:
             "checked": release.checked,
             "error": release.error,
             "canInstall": bool(release.asset_url),
+            "skipped": bool(release.version) and release.skipped == release.version,
             "size": release.size,
         }
+
+    def skip_update(self, body: dict) -> dict:
+        """「略過這個版本」 / 「取消略過」."""
+        from .. import update as upd
+
+        version = upd.cached().version if body.get("skip", True) else ""
+        return {**self._release_dict(upd.skip(version)), "job": dict(self.update_job)}
 
     def install_update(self) -> dict:
         """Download the installer and start it. It asks for administrator
@@ -710,12 +734,15 @@ class _Handler(BaseHTTPRequestHandler):
             ("POST", "/api/clear-learned"): app.clear_learned,
             ("GET", "/api/corrections"): app.corrections,
             ("POST", "/api/corrections/clear"): app.clear_corrections,
+            ("GET", "/api/whatsnew"): app.whatsnew,
+            ("POST", "/api/whatsnew/seen"): lambda: app.whatsnew_seen(self._json_body()),
             ("POST", "/api/memory/tidy"): app.tidy_memory,
             ("POST", "/api/open-folder"): app.open_folder,
             ("POST", "/api/debug-log"): lambda: app.set_debug_log(bool(self._json_body().get("on"))),
             ("GET", "/api/update"): lambda: app.update_state(
                 (query.get("force") or ["0"])[0] == "1"),
             ("POST", "/api/update/install"): app.install_update,
+            ("POST", "/api/update/skip"): lambda: app.skip_update(self._json_body()),
             ("POST", "/api/restart"): app.restart_ime,
             ("GET", "/api/practice"): app.practice_state,
             ("POST", "/api/practice/done"): lambda: app.practice_done(self._json_body()),
