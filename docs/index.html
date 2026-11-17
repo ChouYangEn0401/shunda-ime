@@ -289,7 +289,7 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
   <!-- Version list: written by hand, updated with every version (CLAUDE.md §3).
        It ships with the page so the local copy opens offline. -->
   <details class="ver" id="ver">
-    <summary aria-label="版本：目前開發中 0.10.0-alpha.1，點開看所有版本"><i class="dot"></i><b>v0.10.0-alpha.1</b>開發中<span class="chev" aria-hidden="true">▼</span></summary>
+    <summary aria-label="版本：目前開發中 0.10.0-alpha.2，點開看所有版本"><i class="dot"></i><b>v0.10.0-alpha.2</b>開發中<span class="chev" aria-hidden="true">▼</span></summary>
     <div class="ver-pop">
       <h3>版本</h3>
       <p class="intro">「下載安裝檔」拿到的是最新的正式版。測試版、候選版只在開發者的電腦上建置、試用，沒有公開下載——除非下面標成「正式版」並附了下載連結。</p>
@@ -297,8 +297,15 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
       <div class="ver-group">
         <p class="eyebrow">開發中 · 0.10.0</p>
         <ul class="ver-list">
-          <li><span class="v-name">alpha.1<span class="v-date">2026-11-17</span></span>
-            <span class="v-body"><span class="st st-current">測試版・目前</span><span class="v-note">自動檢查更新：預設每週五下午查一次，有新版時工作列圖示出現紅點，右鍵第一項就能更新</span></span></li>
+          <li><span class="v-name">alpha.2<span class="v-date">2026-11-17</span></span>
+            <span class="v-body"><span class="st st-current">測試版・目前</span><span class="v-note">改好的字不再被改壞（選字、按標點都不動旁邊的字）；修正紀錄，同一個修正兩次自動加進「程式推薦」；刪掉重打換同音的下一個；我的詞庫的詞排在同音詞前面、可直接編輯；多行片語在 PowerShell 不再顛倒</span></span></li>
+          <li class="alphas"><details>
+            <summary><span class="st st-alpha">0.10.0 的測試版</span><span class="v-note">alpha.1 · 1 個</span><span class="chev" aria-hidden="true">▼</span></summary>
+            <ul class="ver-list">
+          <li class="compact"><span class="v-name">alpha.1<span class="v-date">2026-11-17</span></span>
+            <span class="v-body"><span class="v-note">自動檢查更新：預設每週五下午查一次，有新版時工作列圖示出現紅點，右鍵第一項就能更新</span></span></li>
+            </ul>
+          </details></li>
         </ul>
       </div>
 
@@ -467,7 +474,7 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
     <div class="cell"><b>不想打字，用說的</b><span>按住右 <kbd>Ctrl</kbd> 說話，放開就打在游標位置。不用學新的打字方式，動動嘴就好——而且聲音不會離開這台電腦。</span></div>
     <div class="cell" data-accent="fix"><b>打反了、聲調打早或漏了也認得</b><span>注音鍵順序顛倒（<code>k27</code> → 的）、聲調打早（<code>248</code> → 大）、忘了打聲調（<code>clm/4</code> → 好用）照樣出字，解碼面板會標出哪裡是輸入法替你補的。</span></div>
     <div class="cell" data-accent="drop"><b>多按的鍵會被略過</b><span>快打時蹭到的鍵、同一鍵按兩下都不會變成亂碼，提示框會說「略過 e」，按 <kbd>↓</kbd> 隨時救回來——要原樣的鍵、注音符號或這個音的字都可以。</span></div>
-    <div class="cell" data-accent="memory"><b>會記住你的用詞</b><span>只從你明確的選擇學習。改錯字時連同前後文記成「詞」，下次同一句話就對了。</span></div>
+    <div class="cell" data-accent="memory"><b>會記住你的用詞</b><span>只從你明確的選擇學習。改錯字時連同前後文記成「詞」，下次同一句話就對了；同一個錯改到第二次，直接加進你的詞庫。改好的字，不會因為你改旁邊的字或按下標點又被換掉。</span></div>
     <div class="cell" data-accent="memory"><b>學錯了刪得掉</b><span>選字框停在那個詞上按 <kbd>Delete</kbd>：學過的詞忘掉，湊錯的組合（像「開新」）以後不會再湊在一起。也可以到設定頁的「自動收集」整批整理。</span></div>
     <div class="cell"><b>注音、拼音、倉頡共用一份詞庫</b><span>三種打法學到的東西互通，中英自動模式一次混用一種。</span></div>
   </div>
