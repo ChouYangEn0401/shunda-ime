@@ -20,6 +20,30 @@ from .userdict import Entry, UserDict
 _TONES = str.maketrans("", "", bopomofo.TONE_MARKS)
 
 
+# A word the user put in 我的詞庫 (added, or given a category) ranks above
+# every other word with the same reading, by this much. Before, an added
+# word started at MANUAL_BASE (-3.0), so a very common homophone still won:
+# 臺灣 added by hand lost to 台灣 (-2.79), 她們 to 他們, 甚麼 to 什麼
+# (reported: 「我都加入常用了，打字的時候還是出現別的…同一個打法有兩種，
+# 常常不好換」). Single characters are left out: one character has no
+# context, and putting it first everywhere is what turned every 只 into 指.
+MINE_LEAD = 0.3
+
+
+def _mine_first(out: dict, mine: dict) -> None:
+    """Raise the user's own multi-character words (``mine``: phrase -> Entry,
+    one reading) above the best other phrase in ``out`` (phrase -> score)."""
+    manual = [p for p, e in mine.items() if e.source == "manual" and len(p) > 1 and p in out]
+    if not manual:
+        return
+    others = [s for p, s in out.items() if p not in manual]
+    if not others:
+        return
+    floor = max(others) + MINE_LEAD
+    for p in manual:
+        out[p] = max(out[p], floor)
+
+
 def plain(reading: str) -> str:
     """Reading without tone marks: ㄨㄛˇ-ㄇㄣ˙ -> ㄨㄛ-ㄇㄣ (pinyin is typed toneless)."""
     return reading.translate(_TONES)
@@ -168,6 +192,7 @@ class Lexicon:
         for p, e in mine.items():
             if p not in out and not user.is_blocked(p, reading):
                 out[p] = e.score(None)
+        _mine_first(out, mine)
         return tuple(sorted(out.items(), key=lambda kv: -kv[1]))
 
     def entry(self, phrase: str, reading: str) -> Entry | None:

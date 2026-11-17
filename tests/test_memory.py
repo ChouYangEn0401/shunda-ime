@@ -655,3 +655,18 @@ def test_j_in_correction_mode_goes_to_the_most_likely_other_character(mem_engine
     assert v.composition == "我嘛"
     _, v = run(s, "k")
     assert v.composition == "我嗎", "k comes straight back"
+
+
+def test_a_word_i_added_beats_a_common_homophone(user, mem_session):
+    """Reported: 「我都加入常用了，打字的時候還是出現別的…同一個打法有兩種」.
+    An added word started at -3.0, so a very common homophone (台灣 -2.79)
+    still won over 臺灣 added by hand. A multi-character word in 我的詞庫
+    now ranks first among words with its reading."""
+    run(mem_session, "w96j0 ")
+    assert mem_session.view().composition == "台灣"
+    mem_session.reset()
+    user.add("臺灣", "ㄊㄞˊ-ㄨㄢ", category="常用詞")
+    mem_session.engine.lexicon.invalidate()
+    run(mem_session, "w96j0 ")
+    assert mem_session.view().composition == "臺灣"
+    assert mem_session.engine.lexicon.phrases("ㄊㄞˊ-ㄨㄢ")[0][0] == "臺灣"
