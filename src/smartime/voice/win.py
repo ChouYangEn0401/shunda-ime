@@ -333,7 +333,7 @@ class PushToTalkHook:
         # hook callbacks are delivered while this thread waits for messages
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
-            if msg.hwnd is None and msg.message == self.REINSTALL:
+            if not msg.hWnd and msg.message == self.REINSTALL:
                 self._reinstall_now()
                 continue
             user32.TranslateMessage(ctypes.byref(msg))

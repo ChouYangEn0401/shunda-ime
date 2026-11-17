@@ -410,3 +410,30 @@ def test_gpu_without_cuda_libraries_uses_the_cpu(monkeypatch):
 
     monkeypatch.setattr(asr.ctypes, "WinDLL", missing)
     assert not asr.cuda_available()
+
+
+def test_hook_thread_survives_its_own_thread_messages():
+    """REINSTALL (after waking, unlocking, a missed release) is a thread
+    message. The loop read msg.hwnd, but ctypes' MSG calls it hWnd: the
+    AttributeError ended the hook's thread, which took the hook with it, and
+    push-to-talk was dead until the service restarted. Installs a real
+    low-level hook for a moment; no input is sent."""
+    import sys
+    import time
+
+    if sys.platform != "win32":
+        pytest.skip("Windows only")
+    from smartime.voice import win
+
+    hook = win.PushToTalkHook(_Target())
+    try:
+        assert hook.handle
+        first = hook.handle
+        hook.reinstall()
+        deadline = time.monotonic() + 2
+        while hook.handle == first and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert hook._thread.is_alive() and hook.handle and hook.handle != first
+    finally:
+        hook.close()
+    assert not hook._thread.is_alive()
