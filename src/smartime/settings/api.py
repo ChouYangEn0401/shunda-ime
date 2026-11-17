@@ -63,6 +63,9 @@ class SettingsApp:
 
     def __init__(self, system_db: Path | None = None):
         self.config_path = paths.config_path()
+        from .. import whatsnew
+
+        whatsnew.ensure_baseline()  # before user.db exists: tells a fresh install from an upgrade
         self.user = UserDict(paths.user_db_path())
         self.lexicon = Lexicon(system_db or paths.system_db_path())
         self.valid_syllables = self.lexicon.valid_syllables
@@ -489,6 +492,18 @@ class SettingsApp:
         return {"merged": report["words"] + report["updated"] + report["snippets"] + report["symbols"],
                 **report, "settingsApplied": applied, "practice": practice_total - before}
 
+    # ---------------------------------------------------------- 這一版的新功能
+    def whatsnew(self) -> dict:
+        from .. import whatsnew
+
+        return {"features": whatsnew.listing()}
+
+    def whatsnew_seen(self, body: dict) -> dict:
+        from .. import whatsnew
+
+        ids = None if body.get("all") else [str(x) for x in body.get("ids") or []]
+        return {"marked": whatsnew.mark_seen(ids), "features": whatsnew.listing()}
+
     # ---------------------------------------------------------- updates
     def update_state(self, force: bool = False) -> dict:
         from .. import update as upd
@@ -684,6 +699,8 @@ class _Handler(BaseHTTPRequestHandler):
             ("GET", "/api/symbols-extra"): app.symbols_extra_state,
             ("POST", "/api/symbols-extra/download"): app.download_symbols_extra,
             ("POST", "/api/clear-learned"): app.clear_learned,
+            ("GET", "/api/whatsnew"): app.whatsnew,
+            ("POST", "/api/whatsnew/seen"): lambda: app.whatsnew_seen(self._json_body()),
             ("POST", "/api/memory/tidy"): app.tidy_memory,
             ("POST", "/api/open-folder"): app.open_folder,
             ("POST", "/api/debug-log"): lambda: app.set_debug_log(bool(self._json_body().get("on"))),

@@ -707,9 +707,17 @@
       <section class="view" id="view-about" hidden>
         <h2>關於</h2>
         <p class="lead"><span data-text="product">順打輸入法</span> <span data-text="version"></span>。免切換中英混打的注音輸入法。</p>
+        <div class="group whatsnew" id="whatsnew" data-new="whatsnew-dots" hidden>
+          <h3>這一版的新功能 <span class="note" style="letter-spacing:0" id="whatsnew-count"></span></h3>
+          <ul class="whatsnew-list" id="whatsnew-list"></ul>
+          <div class="whatsnew-foot">
+            <span class="note">紅點標的就是新東西；打開那一頁就算看過了。新的單字、片語不會亮紅點。</span>
+            <button class="btn small" type="button" id="whatsnew-all">都看過了</button>
+          </div>
+        </div>
         <div class="group">
           <h3>版本與更新</h3>
-          <div class="row">
+          <div class="row" id="update-row">
             <div>
               <div class="label">目前版本 <span data-text="version"></span></div>
               <div class="desc" id="update-status">尚未檢查。</div>
@@ -720,7 +728,7 @@
               <a class="btn primary" id="update-page" hidden target="_blank" rel="noopener">到 GitHub 下載</a>
             </span>
           </div>
-          <div class="row">
+          <div class="row" data-new="update-check">
             <div>
               <div class="label">自動檢查更新</div>
               <div class="desc">找到新版本時，工作列上的輸入法圖示會多一個<b style="color:#EF4444">紅點</b>，
@@ -729,7 +737,7 @@
             </div>
             <label class="switch"><input type="checkbox" data-cfg="update_check"><span></span></label>
           </div>
-          <div class="row">
+          <div class="row" data-new="update-time">
             <div>
               <div class="label">什麼時候檢查</div>
               <div class="desc">時間可以設到分鐘（想馬上試：設成一兩分鐘後）。那個時間電腦沒開也沒關係，之後打字時會補查；沒網路會一小時後再試。
@@ -744,7 +752,7 @@
               <input type="time" id="update-time" step="60" aria-label="檢查更新的時間">
             </span>
           </div>
-          <div class="row">
+          <div class="row" data-new="update-auto-install">
             <div>
               <div class="label">找到新版本時自動下載並開始安裝</div>
               <div class="desc">關閉（預設）：只亮紅點，等你按「下載並安裝」。開啟：查到就在背景下載，下載完直接打開安裝程式——

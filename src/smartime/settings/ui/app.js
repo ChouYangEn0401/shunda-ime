@@ -47,6 +47,7 @@
     if (id === "dict") loadEntries();
     if (id === "voice") loadVoice();
     if (id === "practice") loadPractice();
+    seeView(id);
     if (id === "snippets") { loadSnippets(); loadCustomSymbols(); loadSymbolsExtra(); }
   }
   rail.forEach(b => b.addEventListener("click", () => show(b.dataset.view)));
@@ -196,6 +197,7 @@
     renderConfig();
     renderDebug();
     loadUpdate();
+    loadWhatsnew();
     renderCategories();
     renderShortcuts();
     for (const feature of ["correction_mode", "palette_hotkey"]) {
@@ -1501,6 +1503,94 @@
     } catch (err) { toast(err.message, true); }
   });
 
+  // ------------------------------------------------------------ 這一版的新功能 (red dots)
+  // whatsnew.py lists the features an update brought. Unseen ones put a red
+  // dot on their page in the rail and a 「新」 tag on their row; opening the
+  // page counts as seen (the tags stay until the page is opened again, so
+  // what is new can still be found). 關於 also gets a dot for a newer version.
+  let whatsnew = [];
+  const seenThisVisit = new Set();
+  function railDot(view, on, title) {
+    const b = document.querySelector(`nav.rail button[data-view="${view}"]`);
+    if (!b) return;
+    let d = b.querySelector(".rail-dot");
+    if (on && !d) { d = document.createElement("span"); d.className = "rail-dot"; b.appendChild(d); }
+    if (d) { d.hidden = !on; d.title = title || ""; }
+  }
+  function renderWhatsnew() {
+    const unseen = whatsnew.filter(f => !f.seen);
+    const byView = {};
+    unseen.forEach(f => { (byView[f.view] = byView[f.view] || []).push(f); });
+    document.querySelectorAll("nav.rail button[data-view]").forEach(b => {
+      const v = b.dataset.view;
+      if (v === "about") return;  // 關於 also shows the update dot: renderAboutDot
+      railDot(v, !!byView[v], byView[v] ? `${byView[v].length} 項新功能` : "");
+    });
+    renderAboutDot();
+    document.querySelectorAll("[data-new]").forEach(el => {
+      const f = whatsnew.find(x => x.id === el.dataset.new);
+      const fresh = !!f && (!f.seen || seenThisVisit.has(f.id));
+      el.classList.toggle("is-new", fresh);
+      const label = el.querySelector(".label, h3");
+      let tag = label && label.querySelector(".new-tag");
+      if (fresh && label && !tag) { tag = document.createElement("span"); tag.className = "new-tag"; tag.textContent = "新"; label.appendChild(tag); }
+      if (!fresh && tag) tag.remove();
+    });
+    // the card on 關於: every feature of this version line, newest first
+    const card = document.getElementById("whatsnew");
+    const list = document.getElementById("whatsnew-list");
+    card.hidden = !whatsnew.length;
+    document.getElementById("whatsnew-count").textContent = unseen.length ? `${unseen.length} 項沒看過` : "都看過了";
+    list.replaceChildren();
+    whatsnew.forEach(f => {
+      const li = document.createElement("li");
+      if (!f.seen) li.className = "unseen";
+      const text = document.createElement("div");
+      const t = document.createElement("b"); t.textContent = f.title;
+      const v = document.createElement("span"); v.className = "ver"; v.textContent = f.version;
+      const p = document.createElement("p"); p.textContent = f.text;
+      text.append(t, v, p);
+      const go = document.createElement("button"); go.type = "button"; go.className = "btn small"; go.textContent = "看看";
+      go.addEventListener("click", () => {
+        show(f.view);
+        const row = document.querySelector(`[data-new="${f.id}"]`);
+        if (row) { row.scrollIntoView({ block: "center" }); row.classList.add("flash"); setTimeout(() => row.classList.remove("flash"), 1600); }
+      });
+      li.append(text, go);
+      list.appendChild(li);
+    });
+  }
+  let updateNewer = false;
+  function renderAboutDot() {
+    const news = whatsnew.filter(f => !f.seen && f.view === "about").length;
+    railDot("about", updateNewer || news > 0, updateNewer ? "有新版本" : news ? `${news} 項新功能` : "");
+    const row = document.getElementById("update-row");
+    if (row) row.classList.toggle("is-new", updateNewer);
+  }
+  async function loadWhatsnew() {
+    try { whatsnew = (await api("GET", "/api/whatsnew")).features; } catch (e) { return; }
+    renderWhatsnew();
+  }
+  let seenTimer = 0;
+  function seeView(view) {
+    // opening a page = seen; a moment later, so a click through the rail
+    // on the way somewhere else does not count
+    clearTimeout(seenTimer);
+    seenTimer = setTimeout(async () => {
+      const ids = whatsnew.filter(f => !f.seen && f.view === view).map(f => f.id);
+      if (!ids.length) return;
+      ids.forEach(i => seenThisVisit.add(i));
+      try { whatsnew = (await api("POST", "/api/whatsnew/seen", { ids })).features; } catch (e) { return; }
+      renderWhatsnew();
+    }, 1200);
+  }
+  document.getElementById("whatsnew-all").addEventListener("click", async () => {
+    whatsnew.forEach(f => { if (!f.seen) seenThisVisit.add(f.id); });
+    try { whatsnew = (await api("POST", "/api/whatsnew/seen", { all: true })).features; } catch (e) { toast(e.message, true); return; }
+    renderWhatsnew();
+    toast("都標成看過了，紅點會消失");
+  });
+
   // ------------------------------------------------------------ updates
   function fmtSize(n) { return n ? (n / 1048576).toFixed(0) + " MB" : ""; }
 
@@ -1540,6 +1630,8 @@
     const status = document.getElementById("update-status");
     const install = document.getElementById("update-install");
     const page = document.getElementById("update-page");
+    updateNewer = !!u.newer;
+    renderAboutDot();
     renderNextCheck(u);
     showUpdateTime();
     install.hidden = !(u.newer && u.canInstall);
