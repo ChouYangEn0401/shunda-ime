@@ -1,6 +1,6 @@
 # 架構與交接說明
 
-> 讀者：接手或參與開發的工程師。最後更新：0.3.0 之後（開發中，見 CHANGELOG 的「未發布」）。產品名稱「順打輸入法 Shunda IME」，內部代號 `smartime`。
+> 讀者：接手或參與開發的工程師。最後更新：0.10.0-beta.1（開發中，見 CHANGELOG 的「0.10.0（開發中）」）。產品名稱「順打輸入法 Shunda IME」，內部代號 `smartime`。
 
 ## 1. 全貌
 
@@ -271,7 +271,7 @@
   DETACHED＋CREATE_BREAKAWAY_FROM_JOB（不行就不帶）：安裝會停掉 PIME，不能跟著後端／設定頁一起被收掉。
   `update_auto_install`（預設關）：背景執行緒每分鐘 `auto_install_once`——知道有新版本就試，失敗 `AUTO_RETRY`（10 分鐘）後再試，
   成功打開安裝程式後每版只一次（`Release.started`）。
-- 版號排序（`version_tuple`）：`0.10.0-alpha.1 < 0.10.0-alpha.1.1 < 0.10.0-alpha.2 < 0.10.0`（hotfix 多一層號碼）。
+- 版號排序（`version_tuple`）：`0.10.0-alpha.1 < 0.10.0-alpha.1.1 < 0.10.0-alpha.2 < 0.10.0-beta.1 < 0.10.0-rc.1 < 0.10.0`（`PRE_RANK`：alpha < beta < rc；hotfix 多一層號碼）。
 
 ### 5.2 紅點：這一版的新功能（`src/smartime/whatsnew.py`）
 

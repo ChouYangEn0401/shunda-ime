@@ -147,6 +147,8 @@ PIMETextService.dll）就是順打安裝檔帶來的，解除安裝時會一起�
 ```
 0.8.0-alpha.1   自己或使用者在試的建置，可能一天好幾個
 0.8.0-alpha.2
+0.8.0-alpha.2.1 某個測試版的 hotfix（多一層號碼，排在 alpha.3 前面）
+0.8.0-beta.1    功能收齊了，整包給人試
 0.8.0-rc.1      準備要發了，只差最後確認
 0.8.0           正式版
 ```
@@ -155,10 +157,11 @@ PIMETextService.dll）就是順打安裝檔帶來的，解除安裝時會一起�
   `releases/latest` 的定義就是「最新的、沒有被標成 pre-release 的版本」，
   所以設定頁的「檢查更新」不會把 alpha 推給一般使用者；而跑 alpha 的人在正式版
   出來時照樣會被通知（`update.version_tuple` 的排序：
-  `0.7.0 < 0.8.0-alpha.3 < 0.8.0-rc.1 < 0.8.0`）。
+  `0.7.0 < 0.8.0-alpha.3 < 0.8.0-beta.1 < 0.8.0-rc.1 < 0.8.0`）。
+  跑測試版的人會收到更新的測試版，所以 Release **一定要附上安裝檔**，不然他們只看得到「到 GitHub 下載」。
 - `pyproject.toml` 會自動寫成 Python 工具認得的拼法（`0.8.0a1`），其他地方維持
   SemVer 的寫法。`set_version.py` 會處理，不用自己改。
-- CHANGELOG 的小節用正式版號（`## 0.8.0`），alpha 階段一直往那一節裡補。
+- CHANGELOG 的小節用正式版號（`## 0.8.0`），alpha／beta 階段一直往那一節裡補。
 
 ```powershell
 .venv\Scripts\python tools\set_version.py                  # 看目前版本
