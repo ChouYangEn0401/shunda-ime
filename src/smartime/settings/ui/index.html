@@ -289,6 +289,11 @@
             <div><div class="label">學到新詞時提示</div><div class="desc">第一次記住某個詞時，在提示框顯示「記住了「…」」，讓你知道學了什麼、怎麼忘掉。選字框裡學過的詞旁邊會標「學過」，自己加的詞標分類。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="learn_notice" aria-label="學到新詞時提示"><span></span></label>
           </div>
+          <div class="row">
+            <div><div class="label">刪掉重打時換一個</div><div class="desc">用 <kbd>Backspace</kbd> 刪掉剛打的字、一分鐘內又打一模一樣的鍵、結果還是同一個字——代表不是要這個。
+              這時會自動換成同音的下一個（每一洲 → 每一周 → 每一週，再刪再打就再往下換），提示框會說換了什麼；<kbd>Ctrl</kbd>+<kbd>Z</kbd> 換回原本的，<kbd>↓</kbd> 看全部。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="retype_swap" aria-label="刪掉重打時換一個"><span></span></label>
+          </div>
         </div>
 
         <div class="group">

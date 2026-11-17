@@ -400,3 +400,27 @@ def test_punctuation_sends_what_was_on_screen(session, monkeypatch):
 def test_punctuation_still_finishes_a_half_typed_syllable(session):
     out, view = run(session, "ji3u {C-,}")  # 我 + ㄧ (tone typed, shown as keys a moment)
     assert "u" not in out + view.composition
+
+
+# ---------------------------------------------------------------- delete and retype
+def test_deleting_and_retyping_the_same_keys_offers_the_next_word(session):
+    """Reported: 「重複打幾個字然後刪掉再打，意味著有錯誤…希望短時間內幫使用者
+    換推薦」. Same keys, same text back: the next word with that reading takes
+    its place, and doing it again walks on. Ctrl+Z puts it back."""
+    _, v = run(session, "ao3u 5. {BS}5. ")
+    assert v.composition == "每一周" and "刪掉重打" in v.notice
+    _, v = run(session, "{BS}5. ")
+    assert v.composition == "每一週"
+    _, v = run(session, "{C-z}")
+    assert v.composition != "每一週"
+
+
+def test_retyping_different_keys_changes_nothing(session):
+    _, v = run(session, "ao3u 5. {BS}2k7")
+    assert v.composition == "每一的"
+
+
+def test_retype_swap_can_be_turned_off(session):
+    session.engine.config.retype_swap = False
+    _, v = run(session, "ao3u 5. {BS}5. ")
+    assert v.composition == "每一洲"

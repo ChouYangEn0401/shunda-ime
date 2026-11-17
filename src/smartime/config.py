@@ -151,6 +151,10 @@ class Config:
     # Assistance
     spelling_hint: bool = True  # show zhuyin of the unfinished syllable
     key_hint_on_move: bool = True  # cursor moved back: show 字 注音 ⌨ 按鍵
+    # Backspace over text and type the very same keys again within a minute,
+    # and the same text comes back: that text was not wanted. Offer the next
+    # word with that reading instead (Ctrl+Z puts it back).
+    retype_swap: bool = True
     autocomplete: bool = True  # Tab to accept a phrase continuation
     suggestion_count: int = 5  # continuations shown next to the composition
     # Ctrl+2 … Ctrl+9 take the second, third … continuation. Tab takes the

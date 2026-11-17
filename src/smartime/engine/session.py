@@ -51,6 +51,7 @@ SHIFT_TAP_SECONDS = 0.5
 # so the two never both happen.
 CTRL_TAP_SECONDS = 0.3
 SELECTION_DIGITS = "123456789"
+RETYPE_WINDOW = 60.0  # seconds: Backspace and the same keys again within this is "not that one"
 SINGLE_CHAR_SUGGEST_MARGIN = 1.5  # stricter autocomplete threshold for 1-char context
 MAX_SUGGESTIONS = 18  # continuations kept (the hint box shows suggestion_count; Shift+Tab lists all)
 
@@ -351,6 +352,8 @@ class Session(CorrectionMixin):
         self._commit = ""
         self._notice = ""
         self._learned_here: list[tuple[str, str]] = []  # (phrase, reading) this composition invented
+        self._erased: dict | None = None  # a Backspace run at the end: what was there (see _check_retype)
+        self._rejected: dict[tuple, tuple[float, set]] = {}  # keys -> (when, texts deleted and retyped)
         self._text_here = ""  # everything this composition has put on screen so far
         self._shift_down_at: float | None = None
         self._palette_down_at: float | None = None  # the symbol-panel key went down (alone) at
@@ -838,6 +841,8 @@ class Session(CorrectionMixin):
             # sent, with no chance to see it. What was read is what is sent.
             # (An unfinished syllable is not held: it was never shown as text.)
             self._hold_outside(pos, pos + 1, old, chinese_only=True)
+        if not middle and not self.correcting:
+            self._check_retype()
         here = next((s for s in self.decoding.segments if s.start <= pos < s.end), None)
         # a finished syllable, a space or punctuation ends this undo step
         self._typing_run = not (k.char == " " or not k.char.isalnum() or (here is not None and here.kind is Kind.ZH))
@@ -909,6 +914,8 @@ class Session(CorrectionMixin):
         behaviour surprising people: `…顯d` + Backspace became `…顯g` (a
         dropped key came back), `自己wj的` lost two letters at once."""
         units = self.decoding.units()
+        if before and not self.correcting and self.cursor == len(self.keys):
+            self._note_erase()
         if before:
             prev = [u for u in units if u[1] <= self.cursor]
             if not prev:
@@ -926,6 +933,72 @@ class Session(CorrectionMixin):
             return
         self._checkpoint()
         self._delete_range(a, b)
+        if self._erased is not None:
+            self._erased["low"] = min(self._erased["low"], len(self.keys))
+
+    # ------------------------------------------------- delete and retype
+    def _note_erase(self) -> None:
+        """The first Backspace of a run at the end of the text: keep what
+        was on screen, to compare with what the same keys give again."""
+        e, chars = self._erased, tuple(k.char for k in self.keys)
+        fresh = e is not None and time.monotonic() - e["at"] <= RETYPE_WINDOW and e["keys"][:len(chars)] == chars
+        if not fresh:
+            self._erased = {"at": time.monotonic(), "keys": chars, "text": self.decoding.text,
+                            "dec": self.decoding, "low": len(chars)}
+
+    def _check_retype(self) -> None:
+        """After a key typed at the end: were the deleted keys typed again,
+        exactly, and did the same text come back? Reported: 「重複打幾個字
+        然後刪掉再打，意味著有錯誤，使用者嘗試去換…希望短時間內幫使用者換
+        推薦」. The deleted text is set aside as unwanted and the next word
+        with the same reading takes its place; deleting and retyping again
+        walks on (每一洲 → 周 → 週)."""
+        e = self._erased
+        if e is None:
+            return
+        chars = tuple(k.char for k in self.keys)
+        if time.monotonic() - e["at"] > RETYPE_WINDOW or e["keys"][:len(chars)] != chars:
+            self._erased = None  # typed something else: a new sentence, not a retry
+            return
+        if len(chars) < len(e["keys"]) or e["low"] >= len(chars):
+            return  # still retyping (or nothing was deleted)
+        self._erased = None
+        if not self.cfg.retype_swap:
+            return
+        units, segs = self.decoding.units(), self.decoding.segments
+        span = [u for u in units if u[1] > e["low"]]
+        if not span or any(segs[u[3]].kind is not Kind.ZH for u in span):
+            return
+        a = span[0][0]
+        now = time.monotonic()
+        self._rejected = {k: v for k, v in self._rejected.items() if now - v[0] <= RETYPE_WINDOW}
+        gone = "".join(ch for s, _, ch, _ in e["dec"].units() if s >= a)
+        key = chars[a:]
+        rejected = self._rejected.get(key, (now, set()))[1] | {gone}
+        self._rejected[key] = (now, rejected)
+        if self._text_over(a, len(self.keys)) not in rejected:
+            return  # it came out as something not deleted yet: leave it
+        # the whole retyped stretch, else its last word, else its last character
+        last_seg = [u for u in span if u[3] == span[-1][3]]
+        for part in (span, last_seg, span[-1:]):
+            readings = tuple(segs[si].readings[segs[si].bounds.index(x)] for x, _, _, si in part)
+            current = "".join(ch for _, _, ch, _ in part)
+            alt = next((p for p, _ in self.engine.lexicon.phrases("-".join(readings))
+                        if len(p) == len(current) and p != current
+                        and gone[:len(gone) - len(current)] + p not in rejected), None)
+            if alt is not None:
+                break
+        else:
+            return
+        start, end = part[0][0], part[-1][1]
+        old = self.decoding
+        self._checkpoint()
+        pin = Segment(start, end, alt, Kind.ZH, 0.0, readings, (start,) + tuple(b for _, b, _, _ in part), pinned=True)
+        self.pins = sorted([p for p in self.pins if p.end <= start or p.start >= end] + [pin], key=lambda p: p.start)
+        self._redecode()
+        self._hold_outside(start, end, old)
+        self._rejected[key] = (now, rejected | {self._text_over(a, len(self.keys))})
+        self._notice = f"刪掉重打：換成「{alt}」（原本「{current}」）· ↓ 看其他 · Ctrl+Z 換回"
 
     def _delete_range(self, a: int, b: int, stable: bool = True) -> None:
         """Delete keys [a, b) and decode again. With ``stable``, every other
