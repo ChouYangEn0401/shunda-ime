@@ -54,7 +54,7 @@ def test_voice_service_exits_on_the_flag(tmp_path, monkeypatch):
     monkeypatch.setattr(win, "quit_message_loop", lambda: quit_.append(1))
     s = object.__new__(service.VoiceService)
     s.hook = types.SimpleNamespace(down=False, combo=False, last_down=time.monotonic(), close=lambda: None,
-                                   reset=lambda: None, reinstall=lambda: None)
+                                   reset=lambda: None, reinstall=lambda: None, set_key=lambda vk, watch_mouse: None)
     s.recording, s.hook_suspect = False, 0
     s.jobs = __import__("queue").Queue()
     cfg = Config()

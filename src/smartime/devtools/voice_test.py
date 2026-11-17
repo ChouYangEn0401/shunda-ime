@@ -1,14 +1,15 @@
 """Voice input, end to end on the real desktop, without a microphone:
 
-    python -m smartime.devtools.voice_test [--engine auto|breeze|sensevoice] [--wav FILE --expect TEXT]
+    python -m smartime.devtools.voice_test [--engine auto|breeze|sensevoice] [--key rctrl|lctrl]
+                                          [--wav FILE --expect TEXT]
 
 A recorded clip stands in for the microphone; everything else is real: the
-push-to-talk hook (right Ctrl pressed with SendInput), the recognizer, the
+push-to-talk hook (the key pressed with SendInput; right Ctrl unless --key lctrl), the recognizer, the
 cleanup and typing the result into a text box with this IME active (so the
 IME must let the typed text through). Checks:
 
-1. hold right Ctrl, release  -> the clip's text appears in the box
-2. right Ctrl + A (shortcut) -> cancelled, nothing typed
+1. hold the key, release      -> the clip's text appears in the box
+2. the key + A (shortcut)     -> cancelled, nothing typed
 3. a quick tap               -> ignored, nothing typed
 
 Like tsf_typing_test it waits until the keyboard and mouse have been idle
@@ -28,7 +29,6 @@ from pathlib import Path
 
 from . import tsf_typing_test as tt
 
-VK_RCONTROL = 0xA3
 VK_A = 0x41
 
 
@@ -73,10 +73,12 @@ def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     engine = _arg("--engine", "auto")
+    which = _arg("--key", "rctrl")
     user_dir = Path(tempfile.mkdtemp(prefix="smartime-voice-test-"))
     os.environ["SMARTIME_USER_DIR"] = str(user_dir)
 
-    from ..config import Config
+    from ..config import HOTKEY_NAMES, Config
+    from ..voice.win import HOTKEY_VK
     from ..voice import models
     from ..voice.service import VoiceService
 
@@ -86,7 +88,11 @@ def main() -> int:
         print(f"no test clip at {wav}; pass --wav FILE (16-bit mono WAV) and --expect TEXT")
         return 2
     cfg = Config()
-    cfg.voice_enabled, cfg.voice_engine = True, engine
+    if which not in HOTKEY_VK:
+        print(f"--key must be one of {', '.join(HOTKEY_VK)}")
+        return 2
+    key, name = HOTKEY_VK[which], HOTKEY_NAMES[which]
+    cfg.voice_enabled, cfg.voice_engine, cfg.voice_hotkey = True, engine, which
     cfg.save(user_dir / "config.json")
     audio = load_wav(wav)
 
@@ -129,11 +135,11 @@ def main() -> int:
             return box.text()
 
         # 1. hold, release
-        box.set_caption(f"  1/3 按住右 Ctrl 說話（用錄好的 {wav.name} 代替麥克風）")
+        box.set_caption(f"  1/3 按住{name} 說話（用錄好的 {wav.name} 代替麥克風）")
         box.clear()
-        box._send(VK_RCONTROL, False)
+        box._send(key, False)
         tt.pump(0.8)
-        box._send(VK_RCONTROL, True)
+        box._send(key, True)
         t0 = time.monotonic()
         got = wait_text(30)
         ok = bool(got) and expect in got
@@ -141,23 +147,23 @@ def main() -> int:
         print(f"{'PASS' if ok else 'FAIL'}  hold + release -> {got!r} ({time.monotonic() - t0:.2f}s after release)"
               + ("" if ok else f"  (expected to contain {expect!r})"))
 
-        # 2. right Ctrl + A is a shortcut: cancelled
-        box.set_caption("  2/3 右 Ctrl + A 是快速鍵：不應該打出任何字")
+        # 2. the key + A is a shortcut: cancelled
+        box.set_caption(f"  2/3 {name} + A 是快速鍵：不應該打出任何字")
         box.clear()
-        box._send(VK_RCONTROL, False)
+        box._send(key, False)
         tt.pump(0.5)
         box._send(VK_A, False)
         box._send(VK_A, True)
-        box._send(VK_RCONTROL, True)
+        box._send(key, True)
         got = wait_text(3)
         failures += bool(got)
-        print(f"{'PASS' if not got else 'FAIL'}  right Ctrl + A  -> {got!r}")
+        print(f"{'PASS' if not got else 'FAIL'}  {which} + A       -> {got!r}")
 
         # 3. a quick tap is not a recording
-        box.set_caption("  3/3 輕按一下右 Ctrl：不應該打出任何字")
+        box.set_caption(f"  3/3 輕按一下{name}：不應該打出任何字")
         box.clear()
-        box._send(VK_RCONTROL, False)
-        box._send(VK_RCONTROL, True)
+        box._send(key, False)
+        box._send(key, True)
         got = wait_text(3)
         failures += bool(got)
         print(f"{'PASS' if not got else 'FAIL'}  quick tap       -> {got!r}")
