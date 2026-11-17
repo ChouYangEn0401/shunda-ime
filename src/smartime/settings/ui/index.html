@@ -40,7 +40,7 @@
       <!-- ============ 一般 ============ -->
       <section class="view" id="view-general">
         <h2>一般</h2>
-        <p class="lead">每一種打字方式自成一張卡片：右邊的開關決定它在不在 <kbd>Shift</kbd> 的輪流裡，點卡片展開它自己的細部設定。用不到的關掉就好，裡面的設定不用管。</p>
+        <p class="lead">每一種打字方式一張卡片。右邊的開關決定它在不在 <kbd>Shift</kbd> 的輪流裡，「開啟時」選一開始用哪一種，點卡片展開它自己的設定。用不到的關掉就好，裡面的設定不用管。</p>
 
         <div class="methods" id="methods">
           <div class="method" data-mode="auto">
@@ -164,9 +164,9 @@
         </div>
 
         <div class="group">
-          <h3>Shift 輪流</h3>
+          <h3>Shift 切換模式</h3>
           <div class="row">
-            <div><div class="label">Shift 的切換方式</div><div class="desc" id="cycle-desc">三段（預設）：上面開著的模式依序輪流。兩段：英文 ⇄ 上次用的中文模式，切英文只要按一下。用左邊還是右邊的 Shift，在「快捷鍵」頁設定。</div></div>
+            <div><div class="label">Shift 的切換方式</div><div class="desc" id="cycle-desc">三段（預設）：上面開著的模式依序輪流。兩段：英文 ⇄ 上次用的中文模式，切英文只要按一下。用左邊還是右邊的 Shift，在<a href="#keys" data-goto="keys">「快捷鍵」</a>選。</div></div>
             <div class="seg" role="group" aria-label="Shift 的切換方式" data-cfg="shift_cycle">
               <button data-value="three">三段循環</button><button data-value="two">兩段</button>
             </div>
@@ -178,10 +178,10 @@
       <!-- ============ 打字與選字 ============ -->
       <section class="view" id="view-typing" hidden>
         <h2>打字與選字</h2>
-        <p class="lead">打字時旁邊的提示、Tab 接續，以及候選窗的樣子。</p>
+        <p class="lead">打字時游標旁邊的提示列、選字用的候選窗，以及什麼時候把字送出。</p>
 
         <div class="group">
-          <h3>預覽</h3>
+          <h3>提示列</h3>
           <div class="row"><div class="full preview">
             <div>
               <div class="compose"><span class="u">我們今天開</span><span class="cur"></span></div>
@@ -190,12 +190,16 @@
             <div class="cand" aria-label="候選窗預覽" hidden>
               <ol id="cand-list"></ol>
             </div>
-            <p class="note" style="margin:0; max-width:40ch">游標旁邊的提示列：還沒成字的注音、被略過的鍵、接續建議（按 <kbd>Tab</kbd> 帶入）。選字時的候選窗見下方「順打面板」。</p>
+            <p class="note" style="margin:0; max-width:40ch">游標旁邊的一小列：還沒成字的注音、被略過的鍵、接續建議都顯示在這裡。</p>
           </div></div>
-        </div>
-
-        <div class="group">
-          <h3>提示</h3>
+          <div class="row">
+            <div><div class="label">接續建議</div><div class="desc">打完一個詞，提示列出現可能接下去的字，按 <kbd>Tab</kbd> 帶入。你接受過的接續會排到前面。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="autocomplete" aria-label="接續建議"><span></span></label>
+          </div>
+          <div class="row" id="row-sugg-count">
+            <div><div class="label">一次顯示幾個建議</div><div class="desc"><kbd>Tab</kbd> 帶入第一個；<kbd>Shift</kbd>+<kbd>Tab</kbd> 打開完整接續清單（1–9 選）。</div></div>
+            <div style="display:flex; gap:10px; align-items:center"><input type="range" min="1" max="9" data-cfg="suggestion_count" data-type="int" aria-label="建議數量"><b data-out="suggestion_count" style="font-variant-numeric: tabular-nums">3</b></div>
+          </div>
           <div class="row">
             <div><div class="label">游標往回移時顯示按鍵對照</div><div class="desc">例：<span class="tip" style="margin:0">（略過 e）更 ㄍㄥˋ ⌨ e/4</span>，一眼看出多按了哪個鍵。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="key_hint_on_move" aria-label="按鍵對照"><span></span></label>
@@ -203,19 +207,7 @@
         </div>
 
         <div class="group">
-          <h3>Tab 接續</h3>
-          <div class="row">
-            <div><div class="label">接續建議</div><div class="desc">打完一個詞，旁邊出現可能接下去的字，按 <kbd>Tab</kbd> 帶入。你接受過的接續會排到前面。</div></div>
-            <label class="switch"><input type="checkbox" data-cfg="autocomplete" aria-label="接續建議"><span></span></label>
-          </div>
-          <div class="row" id="row-sugg-count">
-            <div><div class="label">一次顯示幾個建議</div><div class="desc"><kbd>Tab</kbd> 帶入第一個；<kbd>Shift</kbd>+<kbd>Tab</kbd> 打開完整接續清單（1–9 選）。</div></div>
-            <div style="display:flex; gap:10px; align-items:center"><input type="range" min="1" max="9" data-cfg="suggestion_count" data-type="int" aria-label="建議數量"><b data-out="suggestion_count" style="font-variant-numeric: tabular-nums">3</b></div>
-          </div>
-        </div>
-
-        <div class="group">
-          <h3>順打面板</h3>
+          <h3>候選窗</h3>
           <div class="row"><div class="full">
             <picture class="shot">
               <source srcset="img/cand-zh-dark.png" media="(prefers-color-scheme: dark)">
@@ -232,6 +224,14 @@
             <label class="switch"><input type="checkbox" data-cfg="candidate_multi_column" aria-label="候選窗多欄"><span></span></label>
           </div>
           <div class="row">
+            <div><div class="label">每頁候選數</div><div class="desc">一欄列出幾個候選。</div></div>
+            <select data-cfg="candidates_per_page" data-type="int" aria-label="每頁候選數"><option>5</option><option>7</option><option>9</option></select>
+          </div>
+          <div class="row">
+            <div><div class="label">候選字大小</div><div class="desc">下次切換到輸入法時生效。</div></div>
+            <select data-cfg="candidate_font_size" data-type="int" aria-label="候選字大小"><option>14</option><option>16</option><option>18</option><option>20</option><option>24</option></select>
+          </div>
+          <div class="row">
             <div><div class="label">面板顏色</div><div class="desc">跟隨 Windows 的淺色／深色模式，或固定一種。</div></div>
             <div class="seg" role="group" aria-label="面板顏色" data-cfg="panel_theme">
               <button data-value="system">跟隨系統</button><button data-value="light">淺色</button><button data-value="dark">深色</button>
@@ -239,29 +239,8 @@
           </div>
         </div>
 
-        <div class="group" id="group-experimental">
-          <h3>實驗功能 <span class="badge plan">實驗</span></h3>
-          <div class="row"><div class="full"><p class="note" style="margin:0">還在試的功能，預設關閉。覺得不好用就關掉，不影響其他功能。</p></div></div>
-          <div class="row">
-            <div><div class="label">超智慧推薦</div><div class="desc">打字時多一個紫色面板：「接下來」用詞庫接出比較長的一串（例：電腦 → 斷層掃描器），「也許是」列出和剛打的字同音、但比較常見的詞（打鬥號 → 逗號）。一直顯示到送出為止，<kbd>Shift</kbd>+<kbd>Tab</kbd> 按數字選。另外，修正一個字時就算旁邊已經湊成詞，也會把周圍三個字一起記住，下次打到前兩個字就可能接得出來。只靠詞頻、沒有語意，長句有時會接得很怪。</div></div>
-            <label class="switch"><input type="checkbox" data-cfg="smart_suggest" aria-label="超智慧推薦"><span></span></label>
-          </div>
-          <div class="row">
-            <div><div class="label">瘋狂模式（注音）</div><div class="desc">每個字只打注音的開頭（聲母或前一兩個符號、不打聲調），一路打下去自動猜成詞：<kbd>j</kbd><kbd>a</kbd>（ㄨㄇ）→ 我們、<kbd>r</kbd><kbd>w</kbd><kbd>u</kbd> → 今天。開啟時會順便讓解碼面板一直顯示（看得到每個音節是怎麼猜的，琥珀色「…」是猜出來的）——兩者是不同的東西：解碼面板只是顯示，瘋狂模式是改變打法。猜錯照樣用 <kbd>↓</kbd> 或修正模式改；打完整的注音也照常可以。</div></div>
-            <label class="switch"><input type="checkbox" data-cfg="crazy_mode" aria-label="瘋狂模式"><span></span></label>
-          </div>
-        </div>
-
         <div class="group">
-          <h3>候選窗與送出</h3>
-          <div class="row">
-            <div><div class="label">每頁候選數</div></div>
-            <select data-cfg="candidates_per_page" data-type="int" aria-label="每頁候選數"><option>5</option><option>7</option><option>9</option></select>
-          </div>
-          <div class="row">
-            <div><div class="label">候選字大小</div><div class="desc">下次切換到輸入法時生效。</div></div>
-            <select data-cfg="candidate_font_size" data-type="int" aria-label="候選字大小"><option>14</option><option>16</option><option>18</option><option>20</option><option>24</option></select>
-          </div>
+          <h3>送出</h3>
           <div class="row">
             <div><div class="label">句讀標點自動送出</div><div class="desc">打 ，。？！：； 時把整段送出。關掉後要按 <kbd>Enter</kbd> 才送出，但可以在這些標點上按 <kbd>↓</kbd> 換成半形或其他符號。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="commit_on_clause_punct" aria-label="句讀送出"><span></span></label>
@@ -270,6 +249,20 @@
             <div><div class="label">組字區最多幾個字</div><div class="desc">超過時自動送出前面的字（正在打的音節不會被打斷）。</div></div>
             <input type="number" min="10" max="80" style="width: 80px" data-cfg="max_buffer_chars" data-type="int" aria-label="組字區字數">
           </div>
+          <div class="row"><div class="full"><p class="note" style="margin:0">組字中要「送出並換行」的 <kbd>Enter</kbd>，在<a href="#keys" data-goto="keys">「快捷鍵」</a>設定。</p></div></div>
+        </div>
+
+        <div class="group" id="group-experimental">
+          <h3>實驗功能 <span class="badge plan">實驗</span></h3>
+          <div class="row"><div class="full"><p class="note" style="margin:0">還在試的功能，預設關閉。覺得不好用就關掉，不影響其他功能。</p></div></div>
+          <div class="row">
+            <div><div class="label">超智慧推薦</div><div class="desc">打字時多一個紫色面板，一直顯示到送出為止：「接下來」用詞庫接出比較長的一串（電腦 → 斷層掃描器），「也許是」列出和剛打的字同音、但比較常見的詞（鬥號 → 逗號）；按 <kbd>Shift</kbd>+<kbd>Tab</kbd> 再按數字選。修正一個字時，也會把周圍三個字一起記住。只靠詞頻、沒有語意，長句有時會接得很怪。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="smart_suggest" aria-label="超智慧推薦"><span></span></label>
+          </div>
+          <div class="row">
+            <div><div class="label">瘋狂模式（注音）</div><div class="desc">每個字只打注音的開頭（聲母或前一兩個符號、不打聲調），一路打下去自動猜成詞：<kbd>j</kbd><kbd>a</kbd>（ㄨㄇ）→ 我們、<kbd>r</kbd><kbd>w</kbd><kbd>u</kbd> → 今天。開著時解碼面板會一直顯示，看得到每個音節是怎麼猜的（琥珀色「…」是猜出來的）。猜錯照樣用 <kbd>↓</kbd> 或修正模式改；打完整的注音也照常可以。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="crazy_mode" aria-label="瘋狂模式"><span></span></label>
+          </div>
         </div>
       </section>
 
@@ -277,46 +270,22 @@
       <section class="view" id="view-fix" hidden>
         <h2>智慧修正</h2>
         <p class="lead">打快時的錯誤會自動修好；修不好的，用候選窗或修正模式手動改，改過的會記成詞。</p>
-        <p class="callout" style="margin-top:0">注音順序容錯、略過多按的雜鍵、單一字母判斷，是各打字方式自己的設定，搬到「一般」裡對應的卡片（注音、中英自動）。</p>
-
-        <div class="group">
-          <h3>學習</h3>
-          <div class="row">
-            <div><div class="label">記住我選的字</div><div class="desc">從候選窗選過的詞、接受過的接續、英文↔中文的選擇，下次排前面。只從你明確的選擇學習。改錯一個字時記的是它跟前後文組成的詞；單獨選過的一個字只會在選字框排前面，不會改變自動選的字（單字沒有上下文，到處加分會把對的詞拆錯）。學錯的：按 <kbd>↓</kbd> 打開選字框、移到那個詞上按 <kbd>Delete</kbd>，或在「我的詞庫」刪除。</div></div>
-            <label class="switch"><input type="checkbox" data-cfg="learn" aria-label="記住我選的字"><span></span></label>
-          </div>
-          <div class="row">
-            <div><div class="label">學到新詞時提示</div><div class="desc">第一次記住某個詞時，在提示框顯示「記住了「…」」，讓你知道學了什麼、怎麼忘掉。選字框裡學過的詞旁邊會標「學過」，自己加的詞標分類。</div></div>
-            <label class="switch"><input type="checkbox" data-cfg="learn_notice" aria-label="學到新詞時提示"><span></span></label>
-          </div>
-          <div class="row">
-            <div><div class="label" data-new="retype-swap">刪掉重打時換一個</div><div class="desc">用 <kbd>Backspace</kbd> 刪掉剛打的字、一分鐘內又打一模一樣的鍵、結果還是同一個字——代表不是要這個。
-              這時會自動換成同音的下一個（每一洲 → 每一周 → 每一週，再刪再打就再往下換），提示框會說換了什麼；<kbd>Ctrl</kbd>+<kbd>Z</kbd> 換回原本的，<kbd>↓</kbd> 看全部。</div></div>
-            <label class="switch"><input type="checkbox" data-cfg="retype_swap" aria-label="刪掉重打時換一個"><span></span></label>
-          </div>
-        </div>
-
-        <div class="group">
-          <h3 data-new="corrections-log">修正紀錄 <span class="note" style="letter-spacing:0" id="corr-count"></span></h3>
-          <div class="row"><div class="full">
-            <p class="note" style="margin-top:0">你在畫面上改過的字：原本是什麼、改成什麼、怎麼改的、改過幾次。
-              同一個修正做到第 2 次，就代表上次學的沒記牢——改成的那個詞會自動加進「我的詞庫」的「程式推薦」分類（標 ✓），
-              以後排在同音詞前面；不想要就到「我的詞庫」刪掉。</p>
-            <div class="dict-table corr-table" id="corr-scroll">
-              <table>
-                <thead><tr><th>原本</th><th></th><th>改成</th><th>怎麼改的</th><th>次數</th><th>最近</th></tr></thead>
-                <tbody id="corr-body"></tbody>
-              </table>
-            </div>
-            <p class="note" style="margin-bottom:0"><button class="btn small" type="button" id="corr-clear">清除紀錄</button>
-              只清掉這張表，不動已經學到的詞。</p>
-          </div></div>
-        </div>
+        <p class="callout" style="margin-top:0">自動修正的開關跟著打字方式走，在<a href="#general" data-goto="general">「一般」</a>的卡片裡：「注音」有注音打錯容錯、略過多按的雜鍵；「中英自動」有單一字母判斷、英文打錯自動更正。</p>
 
         <div class="group" id="group-correction">
           <h3>修正模式（類似 Vim） <span class="badge plan" id="badge-correction">即將推出</span></h3>
+          <div class="row" id="row-correction-toggle" hidden>
+            <div><div class="label">使用修正模式</div><div class="desc">組字中按 <kbd>Esc</kbd> 進入，再按一次回到打字。關閉後 <kbd>Esc</kbd> 直接清除整段。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="correction_mode" aria-label="修正模式"><span></span></label>
+          </div>
+          <div class="row">
+            <div><div class="label">解碼面板（按鍵／注音／國字）</div><div class="desc">什麼時候顯示：只在修正模式（預設）、打字時一直顯示（隨時看得到每個鍵被當成什麼），或關閉。只是顯示，不會改變打出來的字；瘋狂模式開著時固定一直顯示。</div></div>
+            <div class="seg" role="group" aria-label="解碼面板" data-cfg="panel_decode">
+              <button data-value="correction">修正模式時</button><button data-value="always">一直顯示</button><button data-value="off">關閉</button>
+            </div>
+          </div>
           <div class="row"><div class="full">
-            <p class="callout" style="margin-top:0">組字中按 <kbd>Esc</kbd> 進入修正模式：旁邊出現琥珀色外框的解碼面板，三列對齊顯示「按鍵 → 注音 → 國字」，被略過的雜鍵、順序被修正的音節都看得到。面板下方第一行就是平常改字用得到的鍵；只有 <kbd>Esc</kbd>／<kbd>Enter</kbd>／<kbd>D</kbd><kbd>D</kbd> 這些明確的指令才會離開。</p>
+            <p style="margin-top:0">進入修正模式後，旁邊出現琥珀色外框的解碼面板，三列對齊顯示「按鍵 → 注音 → 國字」，被略過的雜鍵、順序被修正的音節都看得到。面板下方第一行就是平常改字用得到的鍵；只有 <kbd>Esc</kbd>／<kbd>Enter</kbd>／<kbd>D</kbd><kbd>D</kbd> 這些明確的指令才會離開。</p>
             <picture class="shot" style="margin: 12px 0">
               <source srcset="img/decode-correcting-dark.png" media="(prefers-color-scheme: dark)">
               <img src="img/decode-correcting-light.png" alt="修正模式的解碼面板：按鍵、注音、國字三列對齊" width="560">
@@ -339,23 +308,47 @@
               </tbody>
             </table></div>
           </div></div>
-          <div class="row" id="row-correction-toggle" hidden>
-            <div><div class="label">使用修正模式</div><div class="desc">關閉後 <kbd>Esc</kbd> 直接清除整段（舊的行為）。</div></div>
-            <label class="switch"><input type="checkbox" data-cfg="correction_mode" aria-label="修正模式"><span></span></label>
+        </div>
+
+        <div class="group">
+          <h3>學習</h3>
+          <div class="row">
+            <div><div class="label">記住我選的字</div><div class="desc">從候選窗選過的詞、接受過的接續、英文↔中文的選擇，下次排前面；只從你明確的選擇學習。改錯一個字時，記的是它和前後文組成的詞；單獨選的一個字只在選字框排前面，不會改變自動選的字。學錯的：按 <kbd>↓</kbd> 打開選字框，移到那個詞上按 <kbd>Delete</kbd>，或到<a href="#dict" data-goto="dict">「我的詞庫」</a>刪除。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="learn" aria-label="記住我選的字"><span></span></label>
           </div>
           <div class="row">
-            <div><div class="label">解碼面板（按鍵／注音／國字）</div><div class="desc">什麼時候顯示：只在修正模式（預設）、打字時一直顯示（隨時看得到每個鍵被當成什麼），或關閉。只是顯示，不會改變打出來的字；瘋狂模式開著時固定一直顯示。</div></div>
-            <div class="seg" role="group" aria-label="解碼面板" data-cfg="panel_decode">
-              <button data-value="correction">修正模式時</button><button data-value="always">一直顯示</button><button data-value="off">關閉</button>
-            </div>
+            <div><div class="label">學到新詞時提示</div><div class="desc">第一次記住某個詞時，提示列顯示「記住了「…」」，讓你知道學了什麼。選字框裡學過的詞旁邊標「學過」，自己加的詞標分類。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="learn_notice" aria-label="學到新詞時提示"><span></span></label>
           </div>
+          <div class="row">
+            <div><div class="label" data-new="retype-swap">刪掉重打時換一個</div><div class="desc">用 <kbd>Backspace</kbd> 刪掉剛打的字、一分鐘內又打一模一樣的鍵、結果還是同一個字——代表不是要這個。
+              這時會自動換成同音的下一個（每一洲 → 每一周 → 每一週，再刪再打就再往下換），提示列會說換了什麼；<kbd>Ctrl</kbd>+<kbd>Z</kbd> 換回原本的，<kbd>↓</kbd> 看全部。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="retype_swap" aria-label="刪掉重打時換一個"><span></span></label>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3 data-new="corrections-log">修正紀錄 <span class="note" style="letter-spacing:0" id="corr-count"></span></h3>
+          <div class="row"><div class="full">
+            <p class="note" style="margin-top:0">你在畫面上改過的字：原本是什麼、改成什麼、怎麼改的、改過幾次。
+              同一個修正做到第 2 次，就代表上次學的沒記牢——改成的那個詞會自動加進「我的詞庫」的「程式推薦」分類（標 ✓），
+              以後排在同音詞前面；不想要就到「我的詞庫」刪掉。</p>
+            <div class="dict-table corr-table" id="corr-scroll">
+              <table>
+                <thead><tr><th>原本</th><th></th><th>改成</th><th>怎麼改的</th><th>次數</th><th>最近</th></tr></thead>
+                <tbody id="corr-body"></tbody>
+              </table>
+            </div>
+            <p class="note" style="margin-bottom:0"><button class="btn small" type="button" id="corr-clear">清除紀錄</button>
+              只清掉這張表，不動已經學到的詞。</p>
+          </div></div>
         </div>
       </section>
 
       <!-- ============ 標點與符號 ============ -->
       <section class="view" id="view-punct" hidden>
         <h2>標點與符號</h2>
-        <p class="lead">鍵盤上每個符號鍵，單按、Shift、Ctrl、Ctrl+Shift 各打出什麼，都在下面這張表。看得到的符號都打得出來，同一個鍵的四種按法不會重複。</p>
+        <p class="lead">鍵盤上每個符號鍵，單按、Shift、Ctrl、Ctrl+Shift 各打出什麼，都在下面這張表。鍵盤上沒有的符號（希臘字母、數學、箭頭、emoji……）從符號面板選。</p>
 
         <div class="group">
           <h3>符號鍵的四種按法</h3>
@@ -375,11 +368,11 @@
             <ul class="pk-legend note">
               <li><b>Ctrl</b>、<b>Ctrl+Shift</b> 兩欄可以直接改（每格一個字）；清空＝這個組合交給程式（例如 VS Code 的 <kbd>Ctrl</kbd>+<kbd>\</kbd> 分割編輯器），<b>↺</b> 恢復預設。只在中文模式有效，純英文模式的 Ctrl 組合鍵一律交給程式。</li>
               <li><span class="pk-out dup">黃底</span>＝同一個鍵有兩種按法打出一樣的字（可以改掉，多放一種符號）。</li>
-              <li>打錯寬度時，游標停在標點後按 <kbd>↓</kbd>，全形、半形和相關符號都在選字框裡（表中「↓ ，」）。<b>例外：</b>，。？！：； 預設會立刻把整段送出，之後就不能再按 <kbd>↓</kbd> 換——可到「打字與選字」關掉「句讀標點自動送出」。</li>
+              <li>打錯寬度時，游標停在標點後按 <kbd>↓</kbd>，全形、半形和相關符號都在選字框裡（表中「↓ ，」）。<b>例外：</b>，。？！：； 預設會立刻把整段送出，之後就不能再按 <kbd>↓</kbd> 換——可到<a href="#typing" data-goto="typing">「打字與選字」</a>關掉「句讀標點自動送出」。</li>
             </ul>
           </div></div>
           <div class="row">
-            <div><div class="label"><kbd>Ctrl</kbd>+符號 打中文標點</div><div class="desc">關掉後 Ctrl 欄全部交給程式。純英文模式時本來就交給程式。</div></div>
+            <div><div class="label"><kbd>Ctrl</kbd>+符號 打中文標點</div><div class="desc">關掉後 Ctrl、Ctrl+Shift 兩欄全部交給程式。純英文模式時本來就交給程式。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="ctrl_punctuation" aria-label="Ctrl 標點"><span></span></label>
           </div>
         </div>
@@ -392,24 +385,25 @@
               <div class="grid" id="palette-grid"></div>
             </div>
             <div style="max-width: 46ch; min-width: 0">
-              <p style="margin-top:0">單按一下 <b data-key-of="palette_hotkey">右 Ctrl</b> 打開面板，再按一次關閉（也可以打 <kbd>:</kbd><kbd>:</kbd>；<kbd>`</kbd> 保留給你框程式碼）。<kbd>Tab</kbd> 換分類、<kbd>Shift</kbd>+<kbd>Tab</kbd> 上一類、<kbd>1</kbd>–<kbd>9</kbd> 或方向鍵選。沒在打字時選的符號會直接打出來。</p>
-              <p class="note">希臘字母、數學符號、箭頭、單位（℃、㎡、％）都在這裡，不用記快捷鍵。常用的符號會自動排前面。</p>
+              <p style="margin-top:0">單按一下 <b data-key-of="palette_hotkey">右 Ctrl</b> 打開面板，再按一次關閉（也可以打 <kbd>:</kbd><kbd>:</kbd>）。<kbd>Tab</kbd> 換分類、<kbd>Shift</kbd>+<kbd>Tab</kbd> 上一類、<kbd>1</kbd>–<kbd>9</kbd> 或方向鍵選。沒在打字時選的符號會直接打出來。</p>
+              <p class="note">希臘字母、數學符號、箭頭、單位（℃、㎡、％）都在這裡，不用記快捷鍵；常用的會自動排前面。片語、顏文字、自己收藏的符號也是面板的分頁，內容在<a href="#snippets" data-goto="snippets">「片語與顏文字」</a>整理。</p>
+              <p class="note" style="margin-bottom:0">用哪個鍵打開、要不要 <kbd>:</kbd><kbd>:</kbd>，在<a href="#keys" data-goto="keys">「快捷鍵」</a>選。</p>
             </div>
           </div></div>
-          <div class="row">
-            <div><div class="label">打開符號面板的鍵</div><div class="desc">只有「單獨按一下」才算：和其他鍵一起按（Ctrl+C）或按著點滑鼠，是一般快捷鍵。
-              沒有右 Ctrl 的筆電選左 Ctrl。語音輸入也用同一個鍵時，按住超過 0.35 秒是語音。</div></div>
-            <div class="seg" role="group" aria-label="打開符號面板的鍵" data-cfg="palette_hotkey">
-              <button data-value="rctrl">單按右 Ctrl</button><button data-value="lctrl">單按左 Ctrl</button><button data-value="off">關閉</button>
-            </div>
-          </div>
         </div>
 
         <div class="group">
-          <h3>為什麼不是 Ctrl+Alt+符號？</h3>
-          <div class="row"><div class="full">
-            <p class="callout warn" style="margin:0">Windows 不會把「按住 Alt 時按的鍵」交給輸入法，所以 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>,</kbd> 這類組合在這個輸入法收不到。<kbd>Ctrl</kbd> 單獨按一下則收得到，因此用「單按 Ctrl」（右邊或左邊，上面選）開符號面板；單按 <kbd>Alt</kbd> 會讓很多程式打開選單列，所以不用。全形／半形用上面的設定或候選窗 <kbd>↓</kbd> 切換。</p>
-          </div></div>
+          <h3>更多符號 <span class="badge" id="symx-status"></span></h3>
+          <div class="row">
+            <div><div class="label">下載更大的符號庫</div><div class="desc">多約 1300 個符號（技術、數學、箭頭、圖形、圈號……），來自 Unicode 官方字元資料庫。安裝檔裡沒有，下載一次（約 150 KB）就存在你的電腦上。
+              <p class="error" id="symx-error" hidden style="margin:4px 0 0"></p>
+            </div></div>
+            <button class="btn small primary" type="button" id="symx-download">下載</button>
+          </div>
+          <div class="row">
+            <div><div class="label">在 emoji 分頁裡使用</div><div class="desc">下載完成後才能打開；關閉時符號面板的「emoji」分頁只用內建的常用符號。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="symbols_extra_enabled" id="symx-enabled" aria-label="使用更多符號"><span></span></label>
+          </div>
         </div>
       </section>
 
@@ -476,7 +470,7 @@
       <!-- ============ 片語與顏文字 ============ -->
       <section class="view" id="view-snippets" hidden>
         <h2>片語與顏文字</h2>
-        <p class="lead">常用的一段話——罐頭訊息、地址、簽名、同一類業務的回覆——存在這裡。打字時打 <kbd>;</kbd><kbd>;</kbd>（可以接著打關鍵字篩選），選中時先在面板預覽全文，按 <kbd>Enter</kbd> 才打出來。也可以單按右 <kbd>Ctrl</kbd> 打開符號面板，在「片語」分頁選。</p>
+        <p class="lead">常用的一段話——罐頭訊息、地址、簽名、同一類業務的回覆——存在這裡。打字時打 <kbd>;</kbd><kbd>;</kbd>（可以接著打關鍵字篩選），選中時先在面板預覽全文，按 <kbd>Enter</kbd> 才打出來。顏文字和你自己收藏的符號也在這一頁；它們都是符號面板的分頁。</p>
 
         <div class="group">
           <h3>新增片語</h3>
@@ -518,16 +512,6 @@
         </div>
 
         <div class="group">
-          <h3>叫出方式</h3>
-          <div class="row">
-            <div><div class="label">打字時打 <kbd>;</kbd><kbd>;</kbd> 叫出片語</div><div class="desc"><kbd>;;</kbd> 不是任何注音，英文裡也幾乎不會出現。按 <kbd>Esc</kbd> 關掉清單時會保留打的字，真的要打 <code>;;</code> 也可以。拼音、倉頡模式的 <kbd>;</kbd> 是全形標點，請用符號面板的「片語」分頁。</div></div>
-            <div class="seg" role="group" aria-label="片語觸發" data-cfg="snippet_trigger">
-              <button data-value=";;">開啟</button><button data-value="">關閉</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="group">
           <h3>顏文字</h3>
           <div class="row"><div class="full">
             <p style="margin-top:0">單按 <b data-key-of="palette_hotkey">右 Ctrl</b>（或打 <kbd>:</kbd><kbd>:</kbd>）打開符號面板，<kbd>Shift</kbd>+<kbd>Tab</kbd> 就到「顏文字」分頁：依心情分組（開心、喜歡、難過、生氣、驚訝、無奈、害羞、打招呼、謝謝抱歉、加油、睡覺、動物……），最近用過的排在最前面。</p>
@@ -538,9 +522,7 @@
         <div class="group">
           <h3>我的符號 <span class="note" style="letter-spacing:0" id="sym-count"></span></h3>
           <div class="row"><div class="full">
-            <p style="margin-top:0">網路上收藏的顏文字、特殊符號，貼在這裡就能在打字時用——
-              <b>打 <kbd>:</kbd><kbd>:</kbd><kbd>:</kbd></b> 開啟符號面板後 <kbd>Tab</kbd> 到「我的符號」分頁選，
-              最近用過的排最前面。</p>
+            <p style="margin-top:0">網路上收藏的顏文字、特殊符號，貼在這裡就能在打字時用：打開符號面板，在「我的符號」分頁選，最近用過的排最前面。</p>
             <form class="snipform" id="sym-form" autocomplete="off">
               <textarea id="sym-paste" rows="4" placeholder="每行貼一個，例如：&#10;(=^・ω・^=)&#10;( ͡° ͜ʖ ͡°)&#10;★" aria-label="貼上符號"></textarea>
               <div class="snip-edit-acts"><button class="btn primary" type="submit">加入</button></div>
@@ -549,68 +531,19 @@
             <div class="sym-list" id="sym-list"></div>
           </div></div>
         </div>
-
-        <div class="group">
-          <h3>更多符號 <span class="badge" id="symx-status"></span></h3>
-          <div class="row">
-            <div><div class="label">下載更大的符號庫</div><div class="desc">額外收錄約 1300 多個符號（技術、數學、箭頭、圖形、圈號……），來自 Unicode 官方字元資料庫。不內建在安裝檔裡——下載一次（約 150 KB），存在你的電腦上。
-              <p class="error" id="symx-error" hidden style="margin:4px 0 0"></p>
-            </div></div>
-            <button class="btn small primary" type="button" id="symx-download">下載</button>
-          </div>
-          <div class="row">
-            <div><div class="label">在 emoji 分頁裡使用</div><div class="desc">下載完成後才能打開；關閉時「emoji」分頁只用內建的常用符號。</div></div>
-            <label class="switch"><input type="checkbox" data-cfg="symbols_extra_enabled" id="symx-enabled" aria-label="使用更多符號"><span></span></label>
-          </div>
-        </div>
+        <p class="note">片語的 <kbd>;</kbd><kbd>;</kbd>、打開符號面板的鍵要換或關掉，都在<a href="#keys" data-goto="keys">「快捷鍵」</a>。更大的符號庫在<a href="#punct" data-goto="punct">「標點與符號」</a>下載。</p>
       </section>
 
       <!-- ============ 快捷鍵 ============ -->
       <section class="view" id="view-keys" hidden>
         <h2>快捷鍵</h2>
-        <p class="lead">可以調整的按鍵放在最上面；下面是打字時能用的所有按鍵。</p>
+        <p class="lead">會用到的鍵都在這一頁：上面是可以換、可以關的，下面是打字時所有按鍵的對照表。</p>
         <div class="group">
           <h3>可以調整的按鍵</h3>
           <div class="row">
             <div><div class="label">切換模式的 Shift</div><div class="desc">單按一下哪一邊的 Shift 切換模式（像 Windows 注音可以選左右）。按住 Shift 打大寫不受影響。要輪流哪些模式在<a href="#general" data-goto="general">「一般」</a>選。</div></div>
             <div class="seg" role="group" aria-label="切換模式的 Shift" data-cfg="toggle_shift">
               <button data-value="left">左</button><button data-value="right">右</button><button data-value="both">兩邊</button><button data-value="none">關閉</button>
-            </div>
-          </div>
-          <div class="row">
-            <div><div class="label">符號面板：打 <kbd>:</kbd><kbd>:</kbd></div><div class="desc">連打兩個冒號（<kbd>Shift</kbd>+<kbd>;</kbd> 兩下）就打開，
-              不需要任何熱鍵。<kbd>Tab</kbd> 換到括號、希臘字母、數學、箭頭、單位、片語、顏文字……
-              不會在英文詞中間發動，所以 C++ 的 <code>std::vector</code> 照常打得出來。</div></div>
-            <div class="seg" role="group" aria-label="符號面板文字觸發" data-cfg="palette_trigger">
-              <button data-value="::">::</button><button data-value="">關閉</button>
-            </div>
-          </div>
-          <div class="row">
-            <div><div class="label" data-new="palette-key">符號面板：單按一下</div><div class="desc">單按一下就打開（再按一次關閉）；和其他鍵一起按、或按著點滑鼠，是一般快捷鍵。
-              沒有右 Ctrl 的筆電選左 Ctrl。</div></div>
-            <div class="seg" role="group" aria-label="符號面板的鍵" data-cfg="palette_hotkey">
-              <button data-value="rctrl">右 Ctrl</button><button data-value="lctrl">左 Ctrl</button><button data-value="off">關閉</button>
-            </div>
-          </div>
-          <div class="row">
-            <div><div class="label" data-new="voice-key">語音輸入：按住</div><div class="desc">按住說話、放開就打出來（要先在<a href="#voice" data-goto="voice">「語音輸入」</a>開啟）。
-              和其他鍵一起按不會錄音；選左 Ctrl 時，按著點滑鼠或轉滾輪也不會。
-              可以和符號面板用同一個鍵：短按開面板，按住滿 0.35 秒才是語音。</div></div>
-            <div class="seg" role="group" aria-label="語音輸入的鍵" data-cfg="voice_hotkey">
-              <button data-value="rctrl">右 Ctrl</button><button data-value="lctrl">左 Ctrl</button>
-            </div>
-          </div>
-          <div class="row"><div class="full"><p class="note" style="margin:0">為什麼只能選 Ctrl：<kbd>Alt</kbd> 按著的鍵 Windows 不交給輸入法，單按還會打開程式的選單列；
-            單按 <kbd>Shift</kbd> 已經是切換模式；<kbd>Caps Lock</kbd> 不管輸入法怎麼做，Windows 都會切換大寫；
-            F1–F12、Menu 鍵程式各有用途，很多筆電還要按 Fn 或根本沒有。左 Ctrl 每台鍵盤都有，單按也不會觸發任何程式功能。</p></div></div>
-          <div class="row">
-            <div><div class="label">修正模式</div><div class="desc">組字中按 <kbd>Esc</kbd> 進入、再按一次回到打字。關閉後 <kbd>Esc</kbd> 直接清除整段。</div></div>
-            <label class="switch"><input type="checkbox" data-cfg="correction_mode" aria-label="Esc 修正模式"><span></span></label>
-          </div>
-          <div class="row">
-            <div><div class="label">片語</div><div class="desc">打 <kbd>;</kbd><kbd>;</kbd> 叫出片語清單。</div></div>
-            <div class="seg" role="group" aria-label="片語觸發" data-cfg="snippet_trigger">
-              <button data-value=";;">;;</button><button data-value="">關閉</button>
             </div>
           </div>
           <div class="row">
@@ -622,9 +555,40 @@
             </div>
           </div>
           <div class="row">
-            <div><div class="label"><kbd>Ctrl</kbd>+符號打中文標點</div><div class="desc">每個鍵打什麼、要不要交給程式，在<a href="#punct" data-goto="punct">「標點與符號」</a>逐格調整。</div></div>
-            <label class="switch"><input type="checkbox" data-cfg="ctrl_punctuation" aria-label="Ctrl 標點"><span></span></label>
+            <div><div class="label">片語：打 <kbd>;</kbd><kbd>;</kbd></div><div class="desc">叫出片語清單，可以接著打關鍵字篩選。<kbd>;;</kbd> 不是任何注音，英文裡也幾乎不會出現；按 <kbd>Esc</kbd> 關掉清單時會保留打的字，真的要打 <code>;;</code> 也可以。
+              拼音、倉頡模式的 <kbd>;</kbd> 是全形標點，改從符號面板的「片語」分頁選。</div></div>
+            <div class="seg" role="group" aria-label="片語觸發" data-cfg="snippet_trigger">
+              <button data-value=";;">;;</button><button data-value="">關閉</button>
+            </div>
           </div>
+          <div class="row">
+            <div><div class="label">符號面板：打 <kbd>:</kbd><kbd>:</kbd></div><div class="desc">連打兩個冒號（<kbd>Shift</kbd>+<kbd>;</kbd> 兩下）就打開，不需要任何熱鍵。
+              不會在英文詞中間發動，所以 C++ 的 <code>std::vector</code> 照常打得出來。</div></div>
+            <div class="seg" role="group" aria-label="符號面板文字觸發" data-cfg="palette_trigger">
+              <button data-value="::">::</button><button data-value="">關閉</button>
+            </div>
+          </div>
+          <div class="row">
+            <div><div class="label" data-new="palette-key">符號面板：單按一下</div><div class="desc">單按一下就打開，再按一次關閉。只有「單獨按一下」才算：和其他鍵一起按（Ctrl+C）、或按著點滑鼠，是一般快捷鍵。
+              沒有右 Ctrl 的筆電選左 Ctrl。</div></div>
+            <div class="seg" role="group" aria-label="符號面板的鍵" data-cfg="palette_hotkey">
+              <button data-value="rctrl">右 Ctrl</button><button data-value="lctrl">左 Ctrl</button><button data-value="off">關閉</button>
+            </div>
+          </div>
+          <div class="row">
+            <div><div class="label" data-new="voice-key">語音輸入：按住</div><div class="desc">按住說話、放開就打出來（要先在<a href="#voice" data-goto="voice">「語音輸入」</a>開啟）。
+              和其他鍵一起按不會錄音；選左 Ctrl 時，按著點滑鼠或轉滾輪（Ctrl+點選、Ctrl+縮放）也不會。
+              可以和符號面板用同一個鍵：短按開面板，按住滿 0.35 秒才是語音。</div></div>
+            <div class="seg" role="group" aria-label="語音輸入的鍵" data-cfg="voice_hotkey">
+              <button data-value="rctrl">右 Ctrl</button><button data-value="lctrl">左 Ctrl</button>
+            </div>
+          </div>
+          <div class="row"><div class="full">
+            <p class="note" style="margin-top:0">為什麼只能選 Ctrl：按住 <kbd>Alt</kbd> 時按的鍵 Windows 不交給輸入法（所以沒有 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+符號 這種組合），單按 <kbd>Alt</kbd> 還會打開程式的選單列；
+              單按 <kbd>Shift</kbd> 已經是切換模式；<kbd>Caps Lock</kbd> 不管輸入法怎麼做，Windows 都會切換大寫；
+              F1–F12、Menu 鍵程式各有用途，很多筆電還要按 Fn 或根本沒有。Ctrl 每台鍵盤都有，單按也不會觸發任何程式功能。</p>
+            <p class="note" style="margin-bottom:0">其他和按鍵有關的開關在各自的頁面：<kbd>Esc</kbd> 進入修正模式在<a href="#fix" data-goto="fix">「智慧修正」</a>；<kbd>Ctrl</kbd>+符號打什麼標點在<a href="#punct" data-goto="punct">「標點與符號」</a>。</p>
+          </div></div>
         </div>
         <div class="group"><h3>全部按鍵</h3><div class="scroll"><table id="keys-table">
           <thead><tr><th>情境</th><th>按鍵</th><th>動作</th><th>狀態</th></tr></thead>
@@ -636,7 +600,7 @@
       <section class="view" id="view-voice" hidden>
         <h2>語音輸入</h2>
         <p class="lead">按住 <b data-key-of="voice_hotkey">右 Ctrl</b> 說話，放開就把文字打到游標位置，任何程式都可以用。全部在你的電腦上辨識，聲音不會上傳；只有按住時麥克風才會開啟。</p>
-        <div class="callout" id="voice-no-runtime" hidden>
+        <div class="callout" id="voice-no-runtime" style="margin-bottom:16px" hidden>
           <p style="margin-top:0">語音輸入需要另外安裝辨識元件（不需要系統管理員權限）：下載約 110 MB、占用約 350 MB；有 NVIDIA 顯示卡時另外下載約 1.3 GB 的 CUDA 元件（占用約 1.8 GB），辨識快很多。</p>
           <button class="btn primary" type="button" id="voice-install">安裝語音元件</button>
           <pre class="note" id="voice-install-log" style="white-space:pre-wrap; margin:8px 0 0"></pre>
@@ -645,14 +609,8 @@
         <div class="group">
           <h3>語音輸入 <span class="badge" id="voice-running"></span></h3>
           <div class="row">
-            <div><div class="label">使用語音輸入</div><div class="desc">開啟後會在背景待命；按住 <span data-key-of="voice_hotkey">右 Ctrl</span> 說話。和其他鍵一起按（快捷鍵）時不會錄音。</div></div>
+            <div><div class="label">使用語音輸入</div><div class="desc">開啟後會在背景待命；按住 <span data-key-of="voice_hotkey">右 Ctrl</span> 說話，放開就打出來。和其他鍵一起按（快捷鍵）時不會錄音。按住哪個鍵在<a href="#keys" data-goto="keys">「快捷鍵」</a>選。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="voice_enabled" aria-label="使用語音輸入"><span></span></label>
-          </div>
-          <div class="row">
-            <div><div class="label">按住哪個鍵說話</div><div class="desc">沒有右 Ctrl 的筆電選左 Ctrl；選左 Ctrl 時，按著點滑鼠或轉滾輪（Ctrl+點選、Ctrl+縮放）不會錄音。<a href="#keys" data-goto="keys">「快捷鍵」</a>有同一個設定。</div></div>
-            <div class="seg" role="group" aria-label="按住哪個鍵說話" data-cfg="voice_hotkey">
-              <button data-value="rctrl">右 Ctrl</button><button data-value="lctrl">左 Ctrl</button>
-            </div>
           </div>
           <div class="row">
             <div><div class="label">辨識模型</div><div class="desc">自動：有 NVIDIA 顯示卡用 Breeze-ASR-25，否則用 SenseVoice。換模型後約數秒重新載入。</div></div>
@@ -674,7 +632,7 @@
           </div>
         </div>
         <div class="group">
-          <h3>模型</h3>
+          <h3>模型下載</h3>
           <div class="row"><div class="full scroll">
             <table>
               <thead><tr><th>模型</th><th>說明</th><th style="text-align:right">大小</th><th></th></tr></thead>
@@ -714,6 +672,9 @@
             <div><div class="label">記憶大小</div><div class="desc"><span id="memory-size"></span><br>同一個詞選再多次也只占一筆（只增加次數），所以檔案隨「不同的詞」成長，一萬個詞約 1–2 MB。只用過一次、超過 4 個月沒再用的學習紀錄會自動清掉；自己加的詞和封鎖的詞不會。<br>「立即整理」另外會清掉舊版修正時湊出來、但不是詞的兩字組（像「開新」害「開心」打不出來）；已經加到分類的不動。</div></div>
             <button class="btn" type="button" id="tidy-memory">立即整理</button>
           </div>
+        </div>
+        <div class="group">
+          <h3>搬到另一台電腦</h3>
           <div class="row">
             <div><div class="label">匯出我的記憶</div><div class="desc">產生一個「我的記憶.smartime」檔案，包含設定、我的詞庫（含分類）、學習紀錄和封鎖的詞。</div></div>
             <a class="btn" id="export-link" href="#" download="我的記憶.smartime">匯出…</a>
@@ -725,6 +686,9 @@
             <label class="btn" for="import-file">匯入…</label>
             <input type="file" id="import-file" accept=".smartime,.db,.zip" hidden>
           </div>
+        </div>
+        <div class="group">
+          <h3>清除與重設</h3>
           <div class="row">
             <div><div class="label">清除學習紀錄</div><div class="desc">只清掉自動學到的，自己加的詞會保留。</div></div>
             <div id="clear-box"><button class="btn danger" type="button" id="clear-learned">清除…</button></div>
@@ -820,9 +784,13 @@
             </div>
             <button class="btn" id="restart-ime">重新啟動</button>
           </div>
+          <div class="row">
+            <div><div class="label">回報問題、提建議</div><div class="desc">附上你按了哪些鍵、預期和實際的結果；<a href="#data" data-goto="data">「資料與隱私」</a>的除錯紀錄可以幫忙重現。</div></div>
+            <a class="btn" href="https://github.com/ChouYangEn0401/shunda-ime/issues" target="_blank" rel="noopener">回報</a>
+          </div>
         </div>
         <div class="group">
-          <h3>開發者</h3>
+          <h3>專案與授權</h3>
           <div class="row">
             <div><div class="label">開發者</div><div class="desc">個人開發的開源專案；打字手感參考華碩智慧輸入法，與華碩無關。</div></div>
             <a class="btn" href="https://github.com/ChouYangEn0401" target="_blank" rel="noopener">ChouYangEn0401</a>
@@ -830,10 +798,6 @@
           <div class="row">
             <div><div class="label">專案首頁與原始碼</div><div class="desc">下載新版本、看更新紀錄。</div></div>
             <a class="btn" href="https://github.com/ChouYangEn0401/shunda-ime" target="_blank" rel="noopener">GitHub</a>
-          </div>
-          <div class="row">
-            <div><div class="label">回報問題、提建議</div><div class="desc">附上你按了哪些鍵、預期和實際的結果；「資料與隱私」的除錯紀錄可以幫忙重現。</div></div>
-            <a class="btn" href="https://github.com/ChouYangEn0401/shunda-ime/issues" target="_blank" rel="noopener">回報</a>
           </div>
           <div class="row">
             <div><div class="label">授權</div><div class="desc">程式碼 Apache License 2.0。使用的資料與元件各有授權，見下表。</div></div>

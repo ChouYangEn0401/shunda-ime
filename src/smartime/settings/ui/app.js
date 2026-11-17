@@ -48,7 +48,8 @@
     if (id === "voice") loadVoice();
     if (id === "practice") loadPractice();
     if (id === "fix") loadCorrections();
-    if (id === "snippets") { loadSnippets(); loadCustomSymbols(); loadSymbolsExtra(); }
+    if (id === "snippets") { loadSnippets(); loadCustomSymbols(); }
+    if (id === "punct") loadSymbolsExtra();
   }
   rail.forEach(b => b.addEventListener("click", () => show(b.dataset.view)));
 
@@ -1184,7 +1185,7 @@
       err.textContent = job.error ? "下載失敗：" + job.error : "";
     }
     clearTimeout(symxTimer);
-    const visible = !document.getElementById("view-snippets").hidden;
+    const visible = !document.getElementById("view-punct").hidden;
     if (job.active) symxTimer = setTimeout(loadSymbolsExtra, 800);
     else if (visible) symxTimer = setTimeout(loadSymbolsExtra, 4000);
   }
@@ -1254,16 +1255,21 @@
       const tr = document.createElement("tr");
       tr.innerHTML = `<td></td><td>${keys}</td><td></td><td><span class="badge ${cls}"></span></td>`;
       tr.children[0].textContent = ctx;
-      tr.children[2].textContent = what;
+      tr.children[2].innerHTML = what;  // our own literals above; some carry <kbd>
       tr.querySelector(".badge").textContent = label;
       tbody.appendChild(tr);
     });
     renderKeyNames();
-    document.querySelectorAll("[data-goto]").forEach(a => a.addEventListener("click", e => {
-      e.preventDefault();
-      show(a.dataset.goto);
-    }));
   }
+  // 「…」 links to another page (static ones and the ones in the table above):
+  // one listener for all, so re-rendering the table never doubles them.
+  document.addEventListener("click", e => {
+    const a = e.target.closest ? e.target.closest("[data-goto]") : null;
+    if (!a) return;
+    e.preventDefault();
+    show(a.dataset.goto);
+    window.scrollTo(0, 0);
+  });
 
   // ------------------------------------------------------------ voice
   let voiceTimer = 0;
