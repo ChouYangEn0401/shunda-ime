@@ -701,3 +701,24 @@ def test_the_same_correction_twice_becomes_my_word(user, mem_engine):
     promoted = [r for r in user.list(limit=100) if r["category"] == "程式推薦"]
     assert promoted and promoted[0]["phrase"] == rows[0]["right"]
     assert rows[0]["promoted"]
+
+
+def test_keeping_a_skipped_key_is_counted_and_twice_becomes_my_word(user, mem_engine):
+    """#5: 「你自己幫我省略但使用者又嘗試加回來的」 — recorded. The second time
+    the same key is brought back, the word goes into 我的詞庫 (程式推薦), and
+    a word there is never cut short again."""
+    for _ in range(2):
+        s = Session(mem_engine)
+        run(s, "ji3ee/4dj94{ESC}vv{HOME}llle{ENTER}")  # keep the second e
+    rows = user.corrections()
+    assert rows and rows[0]["methods"] == ["keep"] and rows[0]["count"] == 2
+    # a lone letter between Chinese is not a word: counted, never promoted
+    assert rows[0]["right"] == "e" and not rows[0]["promoted"]
+
+
+def test_moving_a_boundary_by_hand_is_counted_once(user, mem_engine):
+    s = Session(mem_engine)
+    run(s, "su3z03102845j04xk78 {ESC}hhh{S-LEFT}{S-LEFT}{S-LEFT}{S-LEFT}l{ENTER}")
+    rows = user.corrections()
+    assert len(rows) == 1 and rows[0]["methods"] == ["regroup"] and rows[0]["count"] == 1
+    assert "10" in rows[0]["right"] and "大" in rows[0]["right"]

@@ -56,6 +56,7 @@ class _Cycle:
 class CorrectionMixin:
     # ------------------------------------------------------------ state
     def _init_correction(self) -> None:
+        self._edge_from = None  # [decoding before, from key, to key] of a Shift+arrow move
         self.correcting = False
         self.layer = "text"
         self._cycle: _Cycle | None = None
@@ -165,6 +166,7 @@ class CorrectionMixin:
         moving_edge = key.shift and not key.ctrl and not key.alt and vk in (VK_LEFT, VK_RIGHT)
         if not moving_edge:
             self.edge = None  # any other key: the boundary stays where it was put
+            self._settle_edge()
         if moving_edge:
             self._move_edge(-1 if vk == VK_LEFT else +1)
             return True
@@ -305,6 +307,10 @@ class CorrectionMixin:
             return
         nxt = next((s for s in self.decoding.segments if s.start <= old < s.end), None)
         reach = max(new, nxt.end if nxt is not None else old)
+        if self._edge_from is None:
+            self._edge_from = [self.decoding, start, reach]
+        else:
+            self._edge_from[1:] = [min(self._edge_from[1], start), max(self._edge_from[2], reach)]
         self._snapshot()
         joints = set(self.joints)
         if self.edge is not None:
@@ -324,6 +330,14 @@ class CorrectionMixin:
         after = next((s for s in self.decoding.segments if s.start == new and s.kind is not Kind.DROP), None)
         right = after.text if after is not None else ""
         self._notice = f"分界：{left}｜{right} · Shift+←/→ 再移 · 其他鍵確定"
+
+    def _settle_edge(self) -> None:
+        """The boundary moved with Shift+arrows is where the user wants it:
+        one 修正紀錄 entry for the whole move (重新分組)."""
+        moved, self._edge_from = self._edge_from, None
+        if moved is not None:
+            old, a, b = moved
+            self._record_change(old, a, min(b, len(self.keys)), "regroup")
 
     # ------------------------------------------------------------ commands
     def _delete_here(self) -> None:
@@ -482,8 +496,11 @@ class CorrectionMixin:
             # lowercase "p2" was marked 略過 and could not be brought back).
             raw = "".join(k.char for k in self.keys[seg.start:seg.end])
             self._snapshot()
+            old = self.decoding
             self._apply_pin(Segment(seg.start, seg.end, raw, Kind.LITERAL, -10.0, pinned=True))
             self._notice = f"保留按鍵「{raw}」"
+            # 修正紀錄: the IME dropped it and the user wanted it (ven -> venv)
+            self._record_change(old, seg.start, seg.end, "keep")
             return
         if seg.kind is Kind.ZH:
             # only the character under the cursor; the rest of the phrase is

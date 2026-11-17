@@ -1203,6 +1203,7 @@ class Session(CorrectionMixin):
         """A 重新分組 candidate was picked: the boundary is at key ``p`` now,
         and the English word / number on its side (``pin``) stays as it is."""
         self._checkpoint()
+        old = self.decoding
         self.joints = sorted({*self.joints, p})
         lo, hi = (min(p, pin.start), max(p, pin.end)) if pin is not None else (p, p)
         self.pins = [q for q in self.pins if q.end <= lo or q.start >= hi]
@@ -1211,6 +1212,7 @@ class Session(CorrectionMixin):
         self.cand = None
         self.edge = p
         self._redecode()
+        self._record_change(old, max(0, lo - 1), min(len(self.keys), hi + 1), "regroup")
         if self.correcting:
             self.cursor = p
             self._snap_to_unit()
@@ -1651,11 +1653,50 @@ class Session(CorrectionMixin):
             return
         self._promote(wrong, right, reading, kind, n)
 
+    def _record_change(self, old, a: int, b: int, method: str) -> None:
+        """Something other than a candidate changed keys [a, b) (重新分組,
+        a skipped key kept, a retyped stretch): write the words around it,
+        before and after, into the 修正紀錄. ``old`` is the decoding before.
+        A Chinese word or one English word made PROMOTE_AT times goes into
+        我的詞庫 like any other correction; a mixed result (game你) is only
+        counted."""
+        user = self.engine.user
+        if user is None or not self.cfg.learn or practice.active():
+            return
+        skip = (Kind.SPACE, Kind.DROP, Kind.PENDING)
+        segs = [s for s in self.decoding.segments if s.kind not in skip]
+        lo, hi = a, b
+        for s in segs:
+            if s.start < hi and s.end > lo:
+                lo, hi = min(lo, s.start), max(hi, s.end)
+        right = self._text_over(lo, hi)
+        wrong = "".join(ch for s, _, ch, _ in old.units() if lo <= s < hi)
+        if not right or wrong == right:
+            return
+        here = [s for s in segs if s.start < hi and s.end > lo]
+        kinds = {s.kind for s in here}
+        reading = ""
+        if kinds == {Kind.ZH}:
+            kind = "zh"
+            units, all_segs = self.decoding.units(), self.decoding.segments
+            reading = "-".join(all_segs[si].readings[all_segs[si].bounds.index(x)]
+                               for x, _, _, si in units if lo <= x < hi)
+        elif kinds <= {Kind.EN, Kind.LITERAL} and right.isascii() and right.replace("-", "").isalnum():
+            kind = "en"
+        else:
+            kind = "mix"
+        try:
+            n = user.log_correction(wrong, right, reading, kind, method)
+        except Exception:  # noqa: BLE001 - a log must never break typing
+            return
+        if kind != "mix":
+            self._promote(wrong, right, reading, kind, n)
+
     def _promote(self, wrong: str, right: str, reading: str, kind: str, n: int) -> None:
         """The same correction made PROMOTE_AT times: into 我的詞庫 (程式推薦)."""
         user = self.engine.user
-        if n < PROMOTE_AT or (kind == "zh" and len(right) < 2):
-            return
+        if n < PROMOTE_AT or len(right) < 2 or not wrong:
+            return  # one character, or something out of nothing (a lone kept e): no context to keep
         phrase = right if kind == "zh" else right.lower()
         e = user.lookup(phrase, reading)
         if e is not None and e.source == "manual":
