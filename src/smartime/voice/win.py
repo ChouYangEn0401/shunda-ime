@@ -26,7 +26,13 @@ WM_SETFONT = 0x0030
 WM_TIMER = 0x0113
 WM_QUIT = 0x0012
 LLKHF_INJECTED = 0x10
-VK_RCONTROL = 0xA3
+VK_LCONTROL, VK_RCONTROL = 0xA2, 0xA3
+HOTKEY_VK = {"rctrl": VK_RCONTROL, "lctrl": VK_LCONTROL}  # Config.voice_hotkey -> the key held
+WH_MOUSE_LL = 14
+LLMHF_INJECTED = 0x01
+# Mouse messages that make "Ctrl held" a Ctrl+click or a Ctrl+wheel: buttons
+# going down (left, right, middle, X) and both wheels. Moving does not count.
+MOUSE_PRESSES = frozenset({0x0201, 0x0204, 0x0207, 0x020A, 0x020B, 0x020E})
 INPUT_KEYBOARD = 1
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_UNICODE = 0x0004
@@ -293,28 +299,44 @@ class Indicator:
             user32.ShowWindow(self.hwnd, SW_HIDE)
 
 
+class MSLLHOOKSTRUCT(ctypes.Structure):
+    _fields_ = [("x", wintypes.LONG), ("y", wintypes.LONG), ("mouseData", wintypes.DWORD),
+                ("flags", wintypes.DWORD), ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+
+
 class PushToTalkHook:
-    """Low-level keyboard hook for "hold right Ctrl to talk". It lives on
-    its own thread with its own message loop, so the main thread opening the
-    microphone or typing a long result never delays anyone's keyboard (a
-    slow hook lags every key on the PC, and Windows drops hooks that time
-    out). It only tracks state and posts to the main thread's message
-    window. Keys are never swallowed."""
+    """Low-level keyboard hook for "hold the key to talk" (right Ctrl by
+    default, or the left one: ``vk``). It lives on its own thread with its
+    own message loop, so the main thread opening the microphone or typing a
+    long result never delays anyone's keyboard (a slow hook lags every key
+    on the PC, and Windows drops hooks that time out). It only tracks state
+    and posts to the main thread's message window. Keys are never swallowed.
+
+    With ``watch_mouse`` (the left Ctrl: the other hand is on the mouse) a
+    click or the wheel while the key is held is Ctrl+click / Ctrl+wheel, a
+    shortcut like Ctrl+A. A mouse hook is installed only while the key is
+    held: every mouse movement would otherwise pass through Python."""
 
     PRESS, RELEASE, CANCEL = WM_APP + 1, WM_APP + 2, WM_APP + 3
     REINSTALL = WM_APP + 20  # a thread message to the hook's own thread
+    MOUSE_ON, MOUSE_OFF = WM_APP + 21, WM_APP + 22  # ditto
 
-    def __init__(self, target: MessageWindow, accept_injected: bool = False, start: bool = True):
+    def __init__(self, target: MessageWindow, accept_injected: bool = False, start: bool = True,
+                 vk: int = VK_RCONTROL, watch_mouse: bool = False):
         self.target = target
-        self.accept_injected = accept_injected  # devtools.voice_test presses right Ctrl with SendInput
+        self.accept_injected = accept_injected  # devtools.voice_test presses the key with SendInput
+        self.vk = vk
+        self.watch_mouse = watch_mouse
         self.down = False
         self.combo = False
-        # Last right-Ctrl key-down seen, keyboard auto-repeats included: while
+        # Last key-down of the key seen, keyboard auto-repeats included: while
         # the key is really held they keep coming, so a stale time means the
         # release happened somewhere the hook could not see.
         self.last_down = 0.0
         self.handle = None
+        self.mouse_handle = None
         self._proc = HOOKPROC(self._hook)
+        self._mouse_proc = HOOKPROC(self._mouse_hook)
         self._thread_id = 0
         if not start:  # tests drive on_key() directly
             return
@@ -333,14 +355,32 @@ class PushToTalkHook:
         # hook callbacks are delivered while this thread waits for messages
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
-            if msg.hwnd is None and msg.message == self.REINSTALL:
+            if not msg.hWnd and msg.message == self.REINSTALL:
                 self._reinstall_now()
+                continue
+            if not msg.hWnd and msg.message in (self.MOUSE_ON, self.MOUSE_OFF):
+                self._mouse_hook_now(msg.message == self.MOUSE_ON and self.down and not self.combo)
                 continue
             user32.TranslateMessage(ctypes.byref(msg))
             user32.DispatchMessageW(ctypes.byref(msg))
+        self._mouse_hook_now(False)
         if self.handle:
             user32.UnhookWindowsHookEx(self.handle)
             self.handle = None
+
+    def _mouse_hook_now(self, on: bool) -> None:
+        """On the hook's own thread: low-level hooks are called on the
+        thread that installed them."""
+        if on and not self.mouse_handle:
+            self.mouse_handle = user32.SetWindowsHookExW(
+                WH_MOUSE_LL, self._mouse_proc, kernel32.GetModuleHandleW(None), 0)
+        elif not on and self.mouse_handle:
+            user32.UnhookWindowsHookEx(self.mouse_handle)
+            self.mouse_handle = None
+
+    def _mouse(self, on: bool) -> None:
+        if self._thread_id and (self.watch_mouse or not on):
+            user32.PostThreadMessageW(self._thread_id, self.MOUSE_ON if on else self.MOUSE_OFF, 0, 0)
 
     def _reinstall_now(self) -> None:
         """Windows removes a low-level hook that once answered too slowly,
@@ -363,6 +403,14 @@ class PushToTalkHook:
         """Forget a press whose release went elsewhere (sleep, lock screen,
         UAC prompt), so the next press starts afresh."""
         self.down = self.combo = False
+        self._mouse(False)
+
+    def set_key(self, vk: int, watch_mouse: bool) -> None:
+        """Settings changed the key (from the service's main thread). A
+        press of the old key in progress is forgotten."""
+        if (vk, watch_mouse) != (self.vk, self.watch_mouse):
+            self.vk, self.watch_mouse = vk, watch_mouse
+            self.reset()
 
     def _hook(self, code, wparam, lparam):
         if code == 0:
@@ -372,19 +420,36 @@ class PushToTalkHook:
                 self.on_key(k.vkCode, wparam in (WM_KEYDOWN, WM_SYSKEYDOWN))
         return user32.CallNextHookEx(None, code, wparam, lparam)
 
+    def _mouse_hook(self, code, wparam, lparam):
+        if code == 0 and wparam in MOUSE_PRESSES:
+            m = ctypes.cast(lparam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
+            if not m.flags & LLMHF_INJECTED:
+                self.on_mouse()
+        return user32.CallNextHookEx(None, code, wparam, lparam)
+
     def on_key(self, vk: int, is_down: bool) -> None:
-        if vk == VK_RCONTROL:
+        if vk == self.vk:
             if is_down:
                 self.last_down = time.monotonic()
                 if not self.down:
                     self.down, self.combo = True, False
                     self.target.post(self.PRESS)
+                    self._mouse(True)
             elif self.down:
                 self.down = False
                 self.target.post(self.CANCEL if self.combo else self.RELEASE)
+                self._mouse(False)
         elif is_down and self.down and not self.combo:
-            self.combo = True  # right Ctrl + another key = a shortcut
+            self.combo = True  # the key + another key = a shortcut
             self.target.post(self.CANCEL)
+            self._mouse(False)
+
+    def on_mouse(self) -> None:
+        """A click or the wheel (only watched with ``watch_mouse``)."""
+        if self.watch_mouse and self.down and not self.combo:
+            self.combo = True  # Ctrl+click, Ctrl+wheel: a shortcut
+            self.target.post(self.CANCEL)
+            self._mouse(False)
 
     def close(self) -> None:
         if self._thread_id:

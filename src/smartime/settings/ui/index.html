@@ -392,14 +392,15 @@
               <div class="grid" id="palette-grid"></div>
             </div>
             <div style="max-width: 46ch; min-width: 0">
-              <p style="margin-top:0">單按一下<b>右邊的 <kbd>Ctrl</kbd></b> 打開面板，再按一次關閉（按住右 <kbd>Ctrl</kbd> 仍是語音輸入；<kbd>`</kbd> 保留給你框程式碼）。<kbd>Tab</kbd> 換分類、<kbd>Shift</kbd>+<kbd>Tab</kbd> 上一類、<kbd>1</kbd>–<kbd>9</kbd> 或方向鍵選。沒在打字時選的符號會直接打出來。</p>
+              <p style="margin-top:0">單按一下 <b data-key-of="palette_hotkey">右 Ctrl</b> 打開面板，再按一次關閉（也可以打 <kbd>:</kbd><kbd>:</kbd>；<kbd>`</kbd> 保留給你框程式碼）。<kbd>Tab</kbd> 換分類、<kbd>Shift</kbd>+<kbd>Tab</kbd> 上一類、<kbd>1</kbd>–<kbd>9</kbd> 或方向鍵選。沒在打字時選的符號會直接打出來。</p>
               <p class="note">希臘字母、數學符號、箭頭、單位（℃、㎡、％）都在這裡，不用記快捷鍵。常用的符號會自動排前面。</p>
             </div>
           </div></div>
           <div class="row">
-            <div><div class="label">打開符號面板的鍵</div><div class="desc">只有「單獨按一下」才算：右 Ctrl 和其他鍵一起按（右 Ctrl+C）是一般快捷鍵，按住超過 0.35 秒是語音輸入。右 Alt 在部分程式會順便打開選單列，所以預設改用右 Ctrl。</div></div>
+            <div><div class="label">打開符號面板的鍵</div><div class="desc">只有「單獨按一下」才算：和其他鍵一起按（Ctrl+C）或按著點滑鼠，是一般快捷鍵。
+              沒有右 Ctrl 的筆電選左 Ctrl。語音輸入也用同一個鍵時，按住超過 0.35 秒是語音。</div></div>
             <div class="seg" role="group" aria-label="打開符號面板的鍵" data-cfg="palette_hotkey">
-              <button data-value="rctrl">單按右 Ctrl</button><button data-value="ralt">單按右 Alt</button><button data-value="off">關閉</button>
+              <button data-value="rctrl">單按右 Ctrl</button><button data-value="lctrl">單按左 Ctrl</button><button data-value="off">關閉</button>
             </div>
           </div>
         </div>
@@ -407,7 +408,7 @@
         <div class="group">
           <h3>為什麼不是 Ctrl+Alt+符號？</h3>
           <div class="row"><div class="full">
-            <p class="callout warn" style="margin:0">Windows 不會把「按住 Alt 時按的鍵」交給輸入法，所以 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>,</kbd> 這類組合在這個輸入法收不到。<kbd>Alt</kbd>、<kbd>Ctrl</kbd> 單獨按一下則收得到，因此用「單按右 Ctrl」（或右 Alt）開符號面板。全形／半形用上面的設定或候選窗 <kbd>↓</kbd> 切換。</p>
+            <p class="callout warn" style="margin:0">Windows 不會把「按住 Alt 時按的鍵」交給輸入法，所以 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>,</kbd> 這類組合在這個輸入法收不到。<kbd>Ctrl</kbd> 單獨按一下則收得到，因此用「單按 Ctrl」（右邊或左邊，上面選）開符號面板；單按 <kbd>Alt</kbd> 會讓很多程式打開選單列，所以不用。全形／半形用上面的設定或候選窗 <kbd>↓</kbd> 切換。</p>
           </div></div>
         </div>
       </section>
@@ -529,7 +530,7 @@
         <div class="group">
           <h3>顏文字</h3>
           <div class="row"><div class="full">
-            <p style="margin-top:0">單按右 <kbd>Ctrl</kbd> 打開符號面板，<kbd>Shift</kbd>+<kbd>Tab</kbd> 就到「顏文字」分頁：依心情分組（開心、喜歡、難過、生氣、驚訝、無奈、害羞、打招呼、謝謝抱歉、加油、睡覺、動物……），最近用過的排在最前面。</p>
+            <p style="margin-top:0">單按 <b data-key-of="palette_hotkey">右 Ctrl</b>（或打 <kbd>:</kbd><kbd>:</kbd>）打開符號面板，<kbd>Shift</kbd>+<kbd>Tab</kbd> 就到「顏文字」分頁：依心情分組（開心、喜歡、難過、生氣、驚訝、無奈、害羞、打招呼、謝謝抱歉、加油、睡覺、動物……），最近用過的排在最前面。</p>
             <div class="kao-sample" id="kao-sample"></div>
           </div></div>
         </div>
@@ -585,12 +586,23 @@
             </div>
           </div>
           <div class="row">
-            <div><div class="label">符號面板：單按右 <kbd>Ctrl</kbd></div><div class="desc">單按一下就打開（再按一次關閉）；<b>按住</b>右 Ctrl 是語音輸入。
-              （以前可以選右 Alt，已經移除：Windows 不會把按著 Alt 的鍵送給輸入法，選了等於沒有熱鍵。）</div></div>
+            <div><div class="label">符號面板：單按一下</div><div class="desc">單按一下就打開（再按一次關閉）；和其他鍵一起按、或按著點滑鼠，是一般快捷鍵。
+              沒有右 Ctrl 的筆電選左 Ctrl。</div></div>
             <div class="seg" role="group" aria-label="符號面板的鍵" data-cfg="palette_hotkey">
-              <button data-value="rctrl">開啟</button><button data-value="off">關閉</button>
+              <button data-value="rctrl">右 Ctrl</button><button data-value="lctrl">左 Ctrl</button><button data-value="off">關閉</button>
             </div>
           </div>
+          <div class="row">
+            <div><div class="label">語音輸入：按住</div><div class="desc">按住說話、放開就打出來（要先在<a href="#voice" data-goto="voice">「語音輸入」</a>開啟）。
+              和其他鍵一起按不會錄音；選左 Ctrl 時，按著點滑鼠或轉滾輪也不會。
+              可以和符號面板用同一個鍵：短按開面板，按住滿 0.35 秒才是語音。</div></div>
+            <div class="seg" role="group" aria-label="語音輸入的鍵" data-cfg="voice_hotkey">
+              <button data-value="rctrl">右 Ctrl</button><button data-value="lctrl">左 Ctrl</button>
+            </div>
+          </div>
+          <div class="row"><div class="full"><p class="note" style="margin:0">為什麼只能選 Ctrl：<kbd>Alt</kbd> 按著的鍵 Windows 不交給輸入法，單按還會打開程式的選單列；
+            單按 <kbd>Shift</kbd> 已經是切換模式；<kbd>Caps Lock</kbd> 不管輸入法怎麼做，Windows 都會切換大寫；
+            F1–F12、Menu 鍵程式各有用途，很多筆電還要按 Fn 或根本沒有。左 Ctrl 每台鍵盤都有，單按也不會觸發任何程式功能。</p></div></div>
           <div class="row">
             <div><div class="label">修正模式</div><div class="desc">組字中按 <kbd>Esc</kbd> 進入、再按一次回到打字。關閉後 <kbd>Esc</kbd> 直接清除整段。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="correction_mode" aria-label="Esc 修正模式"><span></span></label>
@@ -623,7 +635,7 @@
       <!-- ============ 語音 ============ -->
       <section class="view" id="view-voice" hidden>
         <h2>語音輸入</h2>
-        <p class="lead">按住右 <kbd>Ctrl</kbd> 說話，放開就把文字打到游標位置，任何程式都可以用。全部在你的電腦上辨識，聲音不會上傳；只有按住時麥克風才會開啟。</p>
+        <p class="lead">按住 <b data-key-of="voice_hotkey">右 Ctrl</b> 說話，放開就把文字打到游標位置，任何程式都可以用。全部在你的電腦上辨識，聲音不會上傳；只有按住時麥克風才會開啟。</p>
         <div class="callout" id="voice-no-runtime" hidden>
           <p style="margin-top:0">語音輸入需要另外安裝辨識元件（不需要系統管理員權限）：下載約 110 MB、占用約 350 MB；有 NVIDIA 顯示卡時另外下載約 1.3 GB 的 CUDA 元件（占用約 1.8 GB），辨識快很多。</p>
           <button class="btn primary" type="button" id="voice-install">安裝語音元件</button>
@@ -633,8 +645,14 @@
         <div class="group">
           <h3>語音輸入 <span class="badge" id="voice-running"></span></h3>
           <div class="row">
-            <div><div class="label">使用語音輸入</div><div class="desc">開啟後會在背景待命；按住右 <kbd>Ctrl</kbd> 說話。右 Ctrl 和其他鍵一起按（快捷鍵）時不會錄音。</div></div>
+            <div><div class="label">使用語音輸入</div><div class="desc">開啟後會在背景待命；按住 <span data-key-of="voice_hotkey">右 Ctrl</span> 說話。和其他鍵一起按（快捷鍵）時不會錄音。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="voice_enabled" aria-label="使用語音輸入"><span></span></label>
+          </div>
+          <div class="row">
+            <div><div class="label">按住哪個鍵說話</div><div class="desc">沒有右 Ctrl 的筆電選左 Ctrl；選左 Ctrl 時，按著點滑鼠或轉滾輪（Ctrl+點選、Ctrl+縮放）不會錄音。<a href="#keys" data-goto="keys">「快捷鍵」</a>有同一個設定。</div></div>
+            <div class="seg" role="group" aria-label="按住哪個鍵說話" data-cfg="voice_hotkey">
+              <button data-value="rctrl">右 Ctrl</button><button data-value="lctrl">左 Ctrl</button>
+            </div>
           </div>
           <div class="row">
             <div><div class="label">辨識模型</div><div class="desc">自動：有 NVIDIA 顯示卡用 Breeze-ASR-25，否則用 SenseVoice。換模型後約數秒重新載入。</div></div>
@@ -643,7 +661,7 @@
             </div>
           </div>
           <div class="row">
-            <div><div class="label">閒置後釋放模型</div><div class="desc">模型平常一直放在記憶體裡，按下去就能辨識（Breeze-ASR-25 用顯示卡時占約 3 GB 顯示卡記憶體）。設定時間的話，閒置這麼久就釋放；下次按住右 <kbd>Ctrl</kbd> 時一邊錄音一邊載入，說得很短的話放開後要多等幾秒。</div></div>
+            <div><div class="label">閒置後釋放模型</div><div class="desc">模型平常一直放在記憶體裡，按下去就能辨識（Breeze-ASR-25 用顯示卡時占約 3 GB 顯示卡記憶體）。設定時間的話，閒置這麼久就釋放；下次按住 <span data-key-of="voice_hotkey">右 Ctrl</span> 時一邊錄音一邊載入，說得很短的話放開後要多等幾秒。</div></div>
             <select data-cfg="voice_unload_minutes" data-type="int" aria-label="閒置後釋放模型"><option value="0">不釋放</option><option value="10">10 分鐘</option><option value="30">30 分鐘</option><option value="60">1 小時</option></select>
           </div>
           <div class="row">

@@ -1,12 +1,13 @@
-"""Voice input service: hold the right Ctrl key, speak, release — the text
-is typed where the cursor is, in any application.
+"""Voice input service: hold the key (right Ctrl, or the left one: Settings),
+speak, release — the text is typed where the cursor is, in any application.
 
     python -m smartime.voice.service        (started by the IME when enabled)
 
 * Recognition is local (Breeze-ASR-25 on an NVIDIA GPU, or SenseVoice on
   the CPU); audio never leaves the computer, and the microphone is open only
   while the key is held.
-* Right Ctrl + another key is a normal shortcut: recording is cancelled.
+* The key + another key is a normal shortcut: recording is cancelled (with
+  the left Ctrl, a click or the mouse wheel too: Ctrl+click, Ctrl+wheel).
 * My dictionary's own words (friends, project terms) are passed as hints.
 * One instance per user; exits when voice input is turned off in Settings.
 """
@@ -24,7 +25,7 @@ import threading
 import time
 
 from .. import paths, restart
-from ..config import Config
+from ..config import HOTKEY_NAMES, Config
 from . import asr, text, win
 
 log = logging.getLogger("smartime.voice")
@@ -34,12 +35,12 @@ REPEAT_GAP = 2.0  # a held key auto-repeats several times a second; this long wi
 # Where a recording's text goes. Someone who talked must never lose it, and
 # it must never be typed into a window they did not dictate into.
 TYPE, SAME_WINDOW, CLIPBOARD = "type", "same-window", "clipboard"
-CLIPBOARD_NOTICE = "沒收到放開右 Ctrl 的訊號：說的話放在剪貼簿，按 Ctrl+V 貼上"
+CLIPBOARD_NOTICE = "沒收到放開{key} 的訊號：說的話放在剪貼簿，按 Ctrl+V 貼上"
 DEVICE_SETTLE_MS = 2000  # devices come and go in bursts (and late after resume): refresh once it is quiet
 
 
 def release_missed(physically_down: bool, since_last_down: float) -> bool:
-    """While recording: was right Ctrl let go somewhere the hook could not
+    """While recording: was the key let go somewhere the hook could not
     see (sleep, lock screen, UAC prompt, a hook Windows removed)? Both
     signals have to say so, so one of them misbehaving (an anti-cheat
     blocking GetAsyncKeyState, auto-repeat turned off) never cuts off
@@ -133,9 +134,9 @@ class VoiceService:
         self.recorder = recorder or Recorder()
         self.recording = False
         self.recording_since = 0.0
-        self.press_window = None  # the window that had the focus when right Ctrl went down
+        self.press_window = None  # the window that had the focus when the key went down
         self.press_error = ""  # microphone problem, shown only if the key is really held
-        self.hook_suspect = 0  # timer ticks in a row with right Ctrl held but unseen by the hook
+        self.hook_suspect = 0  # timer ticks in a row with the key held but unseen by the hook
         self.locked = False
         self.pending_notice = ""  # to show once the session is unlocked
         self.shown = 0  # counts what the indicator showed; a late hide only hides its own message
@@ -153,7 +154,7 @@ class VoiceService:
             win.WM_DEVICECHANGE: lambda w, l: self.on_device_change(w),
         })
         self.indicator = win.Indicator()
-        self.hook = win.PushToTalkHook(self.msg, accept_injected)
+        self.hook = win.PushToTalkHook(self.msg, accept_injected, **self.hotkey())
         self.status_text = ""
         win.user32.SetTimer(self.msg.hwnd, TIMER_CONFIG, 3000, None)
         threading.Thread(target=self.worker, daemon=True).start()
@@ -269,10 +270,21 @@ class VoiceService:
             return []
 
     # ------------------------------------------------------------ main thread
+    def hotkey(self) -> dict:
+        """The push-to-talk key from Settings. With the left Ctrl the other
+        hand is on the mouse, and Ctrl+click / Ctrl+wheel are everyday
+        shortcuts, so a click or the wheel cancels like any other key. The
+        right Ctrl keeps its old behaviour."""
+        which = self.config.voice_hotkey
+        return {"vk": win.HOTKEY_VK[which], "watch_mouse": which == "lctrl"}
+
+    def key_name(self) -> str:
+        return HOTKEY_NAMES[self.config.voice_hotkey]
+
     def on_press(self) -> None:
-        """Right Ctrl down. Recording starts at once (no word is cut off),
+        """The key down. Recording starts at once (no word is cut off),
         but nothing is shown until the key has been held MIN_SECONDS: a
-        quick tap of right Ctrl opens the IME's symbol panel and must not
+        quick tap of the same key may open the IME's symbol panel and must not
         flash "錄音中" or a microphone error."""
         if self.recording:
             return
@@ -314,7 +326,7 @@ class VoiceService:
             return
         s = int(time.monotonic() - self.recording_since)
         name = self.engine.name if self.engine else "模型載入中"
-        self.show(f"● 錄音中 {s // 60}:{s % 60:02d}（{name}）… 放開右 Ctrl 結束")
+        self.show(f"● 錄音中 {s // 60}:{s % 60:02d}（{name}）… 放開{self.key_name()} 結束")
 
     def on_cancel(self) -> None:
         self.cancel_recording()
@@ -324,7 +336,7 @@ class VoiceService:
         win.user32.KillTimer(self.msg.hwnd, TIMER_TICK)
 
     def cancel_recording(self, message: str = "") -> None:
-        """Close the microphone and throw the audio away: right Ctrl was
+        """Close the microphone and throw the audio away: the key was
         part of a shortcut, so nothing was being said to us."""
         self._stop_timers()
         if self.recording:
@@ -376,7 +388,7 @@ class VoiceService:
             win.type_text(value)
             return
         if win.set_clipboard(self.msg.hwnd, value):
-            self.notice(CLIPBOARD_NOTICE)
+            self.notice(CLIPBOARD_NOTICE.format(key=self.key_name()))
             return
         # the clipboard stayed busy: typing it beats losing it
         log.warning("clipboard unavailable; typing the recognized text instead")
@@ -435,7 +447,11 @@ class VoiceService:
             win.quit_message_loop()
             return
         changed = cfg.voice_engine != self.config.voice_engine
+        if cfg.voice_hotkey != self.config.voice_hotkey:
+            log.info("voice key changed to %s", cfg.voice_hotkey)
+            self.finish_recording(SAME_WINDOW)  # the old key's release will not be watched: keep what was said
         self.config = cfg
+        self.hook.set_key(**self.hotkey())
         if changed:
             log.info("engine changed to %s; reloading", cfg.voice_engine)
             self.jobs.put(RELOAD)
@@ -444,16 +460,16 @@ class VoiceService:
         """The hook only knows what it was shown. A release it never saw
         (sleep, lock screen, UAC prompt) kept the microphone open and the
         audio growing (64 KB a second) until some other key was pressed,
-        and a right Ctrl pressed first typed what had been recorded before
+        and the key pressed first typed what had been recorded before
         the computer slept. A hook Windows removed made push-to-talk
         silently dead until the service restarted.
 
         A missed release still ends in text: what someone said is never
         thrown away (「使用者最氣的就是我講一天的話，你跟我說沒錄到」)."""
-        held = win.key_down(win.VK_RCONTROL)
+        held = win.key_down(win.HOTKEY_VK[self.config.voice_hotkey])
         since = time.monotonic() - self.hook.last_down
         if self.recording and release_missed(held, since):
-            log.warning("right Ctrl is no longer held but its release was not seen; recognizing anyway")
+            log.warning("the voice key is no longer held but its release was not seen; recognizing anyway")
             self.finish_recording(SAME_WINDOW)
             self.hook.reset()
             self.hook.reinstall()
@@ -462,7 +478,7 @@ class VoiceService:
         if held and not self.hook.down and since > REPEAT_GAP:
             self.hook_suspect += 1
             if self.hook_suspect >= 2:
-                log.warning("right Ctrl is held but the keyboard hook sees nothing; installing it again")
+                log.warning("the voice key is held but the keyboard hook sees nothing; installing it again")
                 self.hook.reinstall()
                 self.hook_suspect = 0
         else:

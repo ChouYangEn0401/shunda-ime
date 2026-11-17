@@ -78,6 +78,11 @@ class KeyInput:
     caps: bool = False  # Caps Lock toggled on
     scan: int = 0
     extended: bool = False  # right-hand Alt/Ctrl, arrows, ... (PIME isExtended)
+    # The toggle bits of the mouse buttons in the application's key state:
+    # Windows flips a key's toggle bit on every press, mouse buttons
+    # included, so a value that differs between a Ctrl's key-down and its
+    # key-up means a click happened in between (Ctrl+click is not a tap).
+    buttons: int = 0
 
     @property
     def numpad(self) -> bool:

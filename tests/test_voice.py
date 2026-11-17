@@ -82,6 +82,70 @@ def test_push_to_talk_hook_press_release_and_shortcut():
     hook.on_key(0x41, True)  # right Ctrl + A: a shortcut
     hook.on_key(win.VK_RCONTROL, False)
     assert target.posted == [P, C, C]
+    target.posted.clear()
+    hook.on_key(win.VK_RCONTROL, True)
+    hook.on_mouse()  # not watched for the right Ctrl: it keeps its old behaviour
+    hook.on_key(win.VK_RCONTROL, False)
+    assert target.posted == [P, R]
+
+
+def test_push_to_talk_with_the_left_ctrl():
+    """Keyboards without a right Ctrl (GitHub issue #1). The other hand is
+    on the mouse, so Ctrl+click and Ctrl+wheel are shortcuts too."""
+    from smartime.voice import win
+
+    target = _Target()
+    hook = win.PushToTalkHook(target, start=False, **{"vk": win.HOTKEY_VK["lctrl"], "watch_mouse": True})
+    P, R, C = win.PushToTalkHook.PRESS, win.PushToTalkHook.RELEASE, win.PushToTalkHook.CANCEL
+    hook.on_key(win.VK_RCONTROL, True)  # the right one does nothing now
+    hook.on_key(win.VK_RCONTROL, False)
+    assert target.posted == []
+    hook.on_key(win.VK_LCONTROL, True)
+    hook.on_key(win.VK_LCONTROL, False)
+    assert target.posted == [P, R]
+    target.posted.clear()
+    hook.on_key(win.VK_LCONTROL, True)
+    hook.on_mouse()  # Ctrl+click
+    hook.on_mouse()
+    hook.on_key(win.VK_LCONTROL, False)
+    assert target.posted == [P, C, C]
+    target.posted.clear()
+    hook.on_mouse()  # the mouse alone: nothing
+    assert target.posted == []
+    # Settings switch back to the right Ctrl while the left one is held
+    hook.on_key(win.VK_LCONTROL, True)
+    hook.set_key(win.VK_RCONTROL, False)
+    assert not hook.down
+    hook.on_key(win.VK_LCONTROL, False)
+    assert target.posted == [P]  # the old key's release means nothing now
+
+
+def test_voice_key_name_and_hook_settings(tmp_path, monkeypatch):
+    from smartime.voice import service, win
+
+    s = _service(tmp_path, monkeypatch)
+    assert s.hotkey() == {"vk": win.VK_RCONTROL, "watch_mouse": False}
+    assert s.key_name() == "右 Ctrl"
+    s.config.voice_hotkey = "lctrl"
+    assert s.hotkey() == {"vk": win.VK_LCONTROL, "watch_mouse": True}
+    assert service.CLIPBOARD_NOTICE.format(key=s.key_name()).startswith("沒收到放開左 Ctrl 的訊號")
+
+
+def test_settings_switch_the_voice_key_without_losing_a_recording(tmp_path, monkeypatch):
+    from smartime.config import Config
+    from smartime.voice import service, win
+
+    s = _service(tmp_path, monkeypatch)
+    s.hook.last_down = __import__("time").monotonic()  # held right now
+    s.recording, s.hook.down = True, True
+    cfg = Config.load(s.config_path)
+    cfg.voice_hotkey = "lctrl"
+    cfg.save(s.config_path)
+    s.on_timer(service.TIMER_CONFIG)
+    assert (s.hook.vk, s.hook.watch_mouse) == (win.VK_LCONTROL, True)
+    assert not s.recording and s.recorder.cancelled == 0
+    audio, delivery = s.jobs.get_nowait()  # what was said is recognized, not thrown away
+    assert delivery == service.SAME_WINDOW
 
 
 def test_release_counts_as_missed_only_when_both_signals_agree():
@@ -149,6 +213,9 @@ class _Hook:
 
     def reinstall(self):
         self.reinstalled += 1
+
+    def set_key(self, vk, watch_mouse):
+        self.vk, self.watch_mouse = vk, watch_mouse
 
 
 class _Indicator:
@@ -410,3 +477,30 @@ def test_gpu_without_cuda_libraries_uses_the_cpu(monkeypatch):
 
     monkeypatch.setattr(asr.ctypes, "WinDLL", missing)
     assert not asr.cuda_available()
+
+
+def test_hook_thread_survives_its_own_thread_messages():
+    """REINSTALL (after waking, unlocking, a missed release) is a thread
+    message. The loop read msg.hwnd, but ctypes' MSG calls it hWnd: the
+    AttributeError ended the hook's thread, which took the hook with it, and
+    push-to-talk was dead until the service restarted. Installs a real
+    low-level hook for a moment; no input is sent."""
+    import sys
+    import time
+
+    if sys.platform != "win32":
+        pytest.skip("Windows only")
+    from smartime.voice import win
+
+    hook = win.PushToTalkHook(_Target())
+    try:
+        assert hook.handle
+        first = hook.handle
+        hook.reinstall()
+        deadline = time.monotonic() + 2
+        while hook.handle == first and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert hook._thread.is_alive() and hook.handle and hook.handle != first
+    finally:
+        hook.close()
+    assert not hook._thread.is_alive()

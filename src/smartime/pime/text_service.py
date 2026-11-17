@@ -110,6 +110,8 @@ def key_from_msg(msg: dict) -> KeyInput:
         # apart by which one the key state says is down (needed for the
         # "toggle with the right/left Shift" setting).
         scan = SCAN_RSHIFT if down(VK_RSHIFT) else SCAN_LSHIFT if down(VK_LSHIFT) else 0
+    # left, right, middle, X1, X2: see KeyInput.buttons
+    buttons = sum((states[b] & 0x01) << i for i, b in enumerate((0x01, 0x02, 0x04, 0x05, 0x06)))
     return KeyInput(
         vk=vk,
         char=chr(char_code) if char_code else "",
@@ -119,6 +121,7 @@ def key_from_msg(msg: dict) -> KeyInput:
         caps=(states[VK_CAPITAL] & 0x01) != 0,
         scan=scan,
         extended=bool(msg.get("isExtended", False)),
+        buttons=buttons,
     )
 
 
