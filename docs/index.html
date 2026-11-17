@@ -289,16 +289,24 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
   <!-- Version list: written by hand, updated with every version (CLAUDE.md §3).
        It ships with the page so the local copy opens offline. -->
   <details class="ver" id="ver">
-    <summary aria-label="版本：目前開發中 0.9.0-rc.1，點開看所有版本"><i class="dot"></i><b>v0.9.0-rc.1</b>開發中<span class="chev" aria-hidden="true">▼</span></summary>
+    <summary aria-label="版本：目前開發中 0.10.0-alpha.1，點開看所有版本"><i class="dot"></i><b>v0.10.0-alpha.1</b>開發中<span class="chev" aria-hidden="true">▼</span></summary>
     <div class="ver-pop">
       <h3>版本</h3>
       <p class="intro">「下載安裝檔」拿到的是最新的正式版。測試版、候選版只在開發者的電腦上建置、試用，沒有公開下載——除非下面標成「正式版」並附了下載連結。</p>
 
       <div class="ver-group">
-        <p class="eyebrow">開發中 · 0.9.0</p>
+        <p class="eyebrow">開發中 · 0.10.0</p>
+        <ul class="ver-list">
+          <li><span class="v-name">alpha.1<span class="v-date">2026-11-17</span></span>
+            <span class="v-body"><span class="st st-current">測試版・目前</span><span class="v-note">自動檢查更新：預設每週五下午查一次，有新版時工作列圖示出現紅點，右鍵第一項就能更新</span></span></li>
+        </ul>
+      </div>
+
+      <div class="ver-group">
+        <p class="eyebrow">0.9.0</p>
         <ul class="ver-list">
           <li><span class="v-name">rc.1<span class="v-date">2026-10-19</span></span>
-            <span class="v-body"><span class="st st-current">候選版・目前</span><span class="v-note">英文字被略過的字母一定救得回：venv 我們 不再變 venㄒ我們，修正模式游標停在字的任何位置按 ↓ 第一個都是整個字</span><a href="https://github.com/ChouYangEn0401/shunda-ime/releases/tag/v0.9.0-rc.1">下載</a></span></li>
+            <span class="v-body"><span class="st st-release">正式版</span><span class="v-note">英文字被略過的字母一定救得回：venv 我們 不再變 venㄒ我們，修正模式游標停在字的任何位置按 ↓ 第一個都是整個字</span><a href="https://github.com/ChouYangEn0401/shunda-ime/releases/tag/v0.9.0-rc.1">下載</a></span></li>
           <li class="alphas"><details>
             <summary><span class="st st-alpha">0.9.0 的測試版</span><span class="v-note">alpha.1 – alpha.6 · 6 個</span><span class="chev" aria-hidden="true">▼</span></summary>
             <ul class="ver-list">
@@ -588,6 +596,8 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
     <a class="btn" href="https://github.com/ChouYangEn0401/shunda-ime/blob/main/docs/install.md">完整安裝說明與疑難排解</a>
   </div>
   <p class="note">
+    更新：每週五下午會向 GitHub 查一次（時間可改、可關），有新版時工作列的輸入法圖示右上角出現紅點，
+    按右鍵選第一項就能下載安裝；不會自己偷偷裝。<br>
     移除：Windows 設定 → 應用程式 → 順打輸入法。個人資料（設定、我的詞庫、學習記憶）放在
     <code>%APPDATA%\SmartIME</code>，安裝和移除都不會動到它。
   </p>
