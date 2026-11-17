@@ -142,6 +142,25 @@ def foreground_pid() -> int:
     return pid.value
 
 
+# Programs whose text goes to a shell. A line break typed into them as a bare
+# LF reaches the shell as Ctrl+Enter, and PowerShell's PSReadLine binds that
+# to InsertLineAbove: a two-line 片語 「py -m venv .venv / .venv\Scripts\activate」
+# came out upside down (reported). CR is Enter there, so the lines run in
+# order — what pasting into a terminal does. Code.exe is here for its
+# integrated terminal; its editor (Monaco) normalizes a CR to a line break.
+TERMINAL_APPS = frozenset({
+    "windowsterminal.exe", "openconsole.exe", "conhost.exe", "powershell.exe", "pwsh.exe", "cmd.exe",
+    "code.exe", "wezterm-gui.exe", "alacritty.exe", "mintty.exe", "tabby.exe", "hyper.exe",
+})
+
+
+def line_breaks_for(app: str, text: str) -> str:
+    """``text`` with its line breaks spelled the way ``app`` takes them."""
+    if "\n" not in text or app.lower() not in TERMINAL_APPS:
+        return text
+    return text.replace("\r\n", "\n").replace("\n", "\r")
+
+
 def foreground_app() -> str:
     """e.g. "Code.exe", "msedge.exe"; "" if it cannot be determined."""
     if os.name != "nt":

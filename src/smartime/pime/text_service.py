@@ -20,7 +20,9 @@ from ..engine.keys import (
 )
 from .. import PRODUCT_NAME
 from ..engine.session import Engine, Mode, Session
-from .winapp import KEEP_APPS, foreground_app, foreground_elevated, foreground_pid, mouse_clicked, send_key_again
+from .winapp import (
+    KEEP_APPS, foreground_app, foreground_elevated, foreground_pid, line_breaks_for, mouse_clicked, send_key_again,
+)
 
 log = logging.getLogger(__name__)
 
@@ -325,7 +327,8 @@ class SmartTextService:
     def _render(self, reply: dict) -> None:
         v = self.session.view()
         if v.commit:
-            reply["commitString"] = v.commit
+            # a multi-line 片語 in a terminal: CR, not LF (winapp.TERMINAL_APPS)
+            reply["commitString"] = line_breaks_for(foreground_app(), v.commit) if "\n" in v.commit else v.commit
         reply["compositionString"] = v.composition
         self._updated_at = time.monotonic()
         if v.composition:

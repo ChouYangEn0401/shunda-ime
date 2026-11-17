@@ -493,3 +493,27 @@ def test_restart_from_the_tray_menu(engine, monkeypatch):
     reply = svc.handle({"method": "onCommand", "seqNum": 40, "id": ts.ID_RESTART})
     assert asked == [1] and reply["compositionString"] == "" and not svc.session.composing
     assert any(i.get("id") == ts.ID_RESTART for i in svc._menu())
+
+
+def test_multi_line_snippet_keeps_its_order_in_a_terminal(engine, monkeypatch):
+    """Reported: the 片語 「py -m venv .venv」+ blank line +「.venv…activate」
+    came out upside down in PowerShell. A bare LF reaches the shell as
+    Ctrl+Enter = PSReadLine's InsertLineAbove, so in terminals each line
+    break goes out as CR (Enter): the lines run in order."""
+    from smartime.pime import text_service
+    from smartime.pime.text_service import SmartTextService
+    from smartime.pime.winapp import line_breaks_for
+
+    text = "py -m venv .venv\n\n.venv/Scripts/activate"
+    assert line_breaks_for("WindowsTerminal.exe", text) == "py -m venv .venv\r\r.venv/Scripts/activate"
+    assert line_breaks_for("pwsh.exe", "a\r\nb") == "a\rb"
+    assert line_breaks_for("notepad.exe", text) == text  # everywhere else: unchanged
+    assert line_breaks_for("", text) == text
+
+    for app, want in (("WindowsTerminal.exe", "\r"), ("notepad.exe", "\n")):
+        monkeypatch.setattr(text_service, "foreground_app", lambda app=app: app)
+        svc = SmartTextService(engine, Path("icons"))
+        svc.session._commit = text
+        reply = {}
+        svc._render(reply)
+        assert reply["commitString"] == text.replace("\n", want)
