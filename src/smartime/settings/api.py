@@ -501,7 +501,14 @@ class SettingsApp:
     def _release_dict(self, release) -> dict:
         from .. import update as upd
 
+        cfg = Config.load(self.config_path)
+        now = time.time()
+        due = upd.due(now, release, cfg.update_weekday, cfg.update_hour)
         return {
+            # 「下次檢查」: the next scheduled moment, or 0 = 「下一次打字時」 (already due)
+            "nextCheck": 0 if due else upd.next_slot(now, cfg.update_weekday, cfg.update_hour),
+            "scheduled": cfg.update_check,
+            "testBuild": upd.wants_prereleases(),
             "current": __version__,
             "latest": release.version,
             "newer": release.newer,

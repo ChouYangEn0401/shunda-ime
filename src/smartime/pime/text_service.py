@@ -144,6 +144,7 @@ class SmartTextService:
         self._message = ""
         self._showing_candidates = False
         self._mode_shown: Mode | None = None
+        self._dot_shown = ""  # the newer version the tray icon's red dot announces ("" = no dot)
         self._icon_epoch = SmartTextService._icons_cleared
         self._icon_variant = 0  # which spelling of the icon path was sent last
         self._composing = False  # a composition existed after our previous reply
@@ -504,6 +505,10 @@ class SmartTextService:
             here = next((c[2] for c in (CHOICES[i] for i in ids) if c[1] == now), "")
             items.append({"text": f"{title}（{here}）" if here else title, "submenu": sub})
         items.append({})
+        dot = self._update_available()
+        if dot:
+            # the red dot on the icon brought the user here: acting on it comes first
+            items[:0] = [{"text": f"● 有新版本 {dot}，按這裡更新…", "id": ID_UPDATE}, {}]
         items += [{"text": "標點與符號…", "id": ID_SETTINGS_PUNCT},
                   {"text": "我的詞庫…", "id": ID_SETTINGS_DICT},
                   {"text": "按鍵說明…", "id": ID_SETTINGS_KEYS},
@@ -544,20 +549,38 @@ class SmartTextService:
         except Exception:
             log.exception("cannot open the settings window")
 
+    def _update_available(self) -> str:
+        """The newer release waiting to be installed ("" = none, or the
+        user turned the update check off)."""
+        if not self.engine.config.update_check:
+            return ""
+        try:
+            from .. import update
+
+            return update.available()
+        except Exception:
+            log.exception("cannot read the update state")
+            return ""
+
     def _update_mode_icon(self, reply: dict, force: bool = False, add: bool = False) -> None:
         mode = self.session.mode
-        if not force and mode is self._mode_shown:
+        dot = self._update_available()
+        if not force and mode is self._mode_shown and dot == self._dot_shown:
             return
         self._mode_shown = mode
+        self._dot_shown = dot
         if not self.is_windows8_above:
             return
         name = MODE_ICONS[mode]
+        if dot:
+            name = name.replace(".ico", "-new.ico")  # the same icon with a red dot (tools/make_icons.py)
         # same file, different spelling: makes PIME load a fresh handle (see _icons_cleared)
         icon = os.path.join(str(self.icon_dir), ".", name) if self._icon_variant else str(self.icon_dir / name)
         button = {
             "id": "windows-mode-icon",
             "icon": icon,
-            "tooltip": f"{PRODUCT_NAME}：{self.session.mode_label()}（Shift 切換模式，右鍵選模式）",
+            "tooltip": f"{PRODUCT_NAME}：{self.session.mode_label()}（Shift 切換模式，右鍵選模式）"
+                       + (f"。有新版本 {dot}，按右鍵更新" if dot else ""),
             "commandId": ID_MODE_ICON,
             "enable": self.keyboard_open,
         }

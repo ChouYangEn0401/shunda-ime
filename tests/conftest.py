@@ -15,6 +15,13 @@ def isolated_user_dir(tmp_path, monkeypatch):
     # and never open real panel windows on the desktop, or type into it
     monkeypatch.setenv("SMARTIME_NO_PANEL", "1")
     monkeypatch.setenv("SMARTIME_NO_SENDINPUT", "1")
+    # and never go online on a schedule (update.start_background)
+    monkeypatch.setenv("SMARTIME_NO_UPDATE_THREAD", "1")
+    # the tray icon's update dot reads update.json at most every few seconds;
+    # a test must not see the previous test's answer
+    from smartime import update
+
+    monkeypatch.setattr(update, "_seen", {"mtime": -1.0, "looked": 0.0, "version": ""})
 
 
 @pytest.fixture(scope="session")

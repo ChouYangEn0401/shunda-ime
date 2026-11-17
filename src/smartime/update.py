@@ -10,11 +10,18 @@ So the check is the smallest thing that can work:
 * one HTTPS GET to the public GitHub Releases API, no account, no token,
   no identifier beyond the User-Agent below (which names the product and
   version so a maintainer can see what is in the field);
-* at most once a day, and only when ``Config.update_check`` says so;
+* on a schedule the user picks (default: once a week, Friday afternoon —
+  ``due``), and only when ``Config.update_check`` says so. The backend runs
+  the schedule in a background thread (``start_background``); a check that
+  failed (offline) is retried an hour later, not a week later;
 * against ``releases/latest``, which GitHub defines as the newest release
   *not* marked as a pre-release — so an alpha build never offers itself to
-  anybody, and somebody running one is still told when the real release
-  lands (see ``version_tuple``);
+  somebody running a release, and somebody running one is still told when
+  the real release lands (see ``version_tuple``). Somebody already running
+  a test build (``0.10.0-alpha.1``) asked for test builds, so they are told
+  about newer ones too (``wants_prereleases``);
+* when there is something newer, the tray icon gets a red dot
+  (``available``) and its menu's first entry says so;
 * it never installs anything by itself. It reports, the user decides
   (``download`` fetches the installer and ``run_installer`` starts it, with
   the usual elevation prompt).
@@ -28,10 +35,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import time
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from . import PRODUCT_NAME, __version__
@@ -41,11 +50,18 @@ log = logging.getLogger(__name__)
 
 REPO = "ChouYangEn0401/shunda-ime"
 API = f"https://api.github.com/repos/{REPO}/releases/latest"
+API_LIST = f"https://api.github.com/repos/{REPO}/releases?per_page=20"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases"
 USER_AGENT = f"ShundaIME/{__version__} (+https://github.com/{REPO})"
 TIMEOUT = 8.0
-EVERY = 24 * 3600  # seconds between automatic checks
+EVERY = 24 * 3600  # check(force=False): how long a cached answer counts as fresh
+RETRY = 3600  # a scheduled check that failed (offline) is tried again after this
 CACHE_NAME = "update.json"
+# Default schedule (Config.update_weekday / update_hour): Friday, 14:00 local.
+DEFAULT_WEEKDAY = 4  # Monday = 0 … Sunday = 6; -1 = every day
+DEFAULT_HOUR = 14
+POLL = 600  # seconds between the background thread's looks at the schedule
+FIRST_LOOK = 90  # …and the first one, so starting to type never waits on it
 
 
 @dataclass
@@ -108,6 +124,61 @@ def _store(release: Release) -> Release:
     return release
 
 
+def wants_prereleases(version: str | None = None) -> bool:
+    """A test build (``0.10.0-alpha.1``) is told about newer test builds;
+    a release only about newer releases."""
+    return "-" in (__version__ if version is None else version).strip()
+
+
+def pick_release(releases: list) -> dict | None:
+    """The newest entry of GitHub's release list (drafts skipped), by
+    version rather than by date: a 0.9.1 patch published after 0.10.0 must
+    not be offered to somebody on 0.10.0."""
+    best = None
+    for data in releases:
+        if not isinstance(data, dict) or data.get("draft"):
+            continue
+        if best is None or version_tuple(str(data.get("tag_name", ""))) > version_tuple(str(best.get("tag_name", ""))):
+            best = data
+    return best
+
+
+def last_slot(now: float, weekday: int = DEFAULT_WEEKDAY, hour: int = DEFAULT_HOUR) -> float:
+    """The latest scheduled moment at or before ``now`` (local time):
+    ``weekday`` at ``hour``:00, or every day at ``hour`` when weekday is -1."""
+    d = datetime.fromtimestamp(now)
+    slot = d.replace(hour=max(0, min(23, hour)), minute=0, second=0, microsecond=0)
+    if weekday >= 0:
+        slot -= timedelta(days=(slot.weekday() - weekday) % 7)
+    if slot > d:
+        slot -= timedelta(days=7 if weekday >= 0 else 1)
+    return slot.timestamp()
+
+
+def next_slot(now: float, weekday: int = DEFAULT_WEEKDAY, hour: int = DEFAULT_HOUR) -> float:
+    """The first scheduled moment after ``now``."""
+    return last_slot(now + (7 if weekday >= 0 else 1) * 86400, weekday, hour)
+
+
+def due(now: float, release: Release, weekday: int = DEFAULT_WEEKDAY, hour: int = DEFAULT_HOUR) -> bool:
+    """Should the scheduled check run now? Yes when the last check is older
+    than the latest scheduled moment — so a computer that was off on Friday
+    afternoon checks the next time it is used — or when the last check
+    failed and an hour has passed."""
+    if release.error and now - release.checked >= RETRY:
+        return True
+    return release.checked < last_slot(now, weekday, hour)
+
+
+def _get_json(url: str):
+    req = urllib.request.Request(url, headers={
+        "User-Agent": USER_AGENT,
+        "Accept": "application/vnd.github+json",
+    })
+    with urllib.request.urlopen(req, timeout=TIMEOUT) as r:  # noqa: S310 - fixed https URL
+        return json.loads(r.read().decode("utf-8"))
+
+
 def check(force: bool = True) -> Release:
     """Ask GitHub for the latest release. ``force=False`` answers from the
     cache while it is fresh, so starting the backend never waits on a
@@ -117,12 +188,12 @@ def check(force: bool = True) -> Release:
         return old
     release = Release(checked=time.time())
     try:
-        req = urllib.request.Request(API, headers={
-            "User-Agent": USER_AGENT,
-            "Accept": "application/vnd.github+json",
-        })
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:  # noqa: S310 - fixed https URL
-            data = json.loads(r.read().decode("utf-8"))
+        if wants_prereleases():
+            data = pick_release(_get_json(API_LIST)) or {}
+        else:
+            data = _get_json(API)
+        if not isinstance(data, dict):
+            raise ValueError("unexpected answer from GitHub")
     except (urllib.error.URLError, TimeoutError, ValueError, OSError) as e:
         # offline is the normal case for this product, not a failure
         release.error = str(e)
@@ -166,3 +237,69 @@ def run_installer(path: Path) -> None:
     """Start the downloaded installer. It asks for administrator rights
     itself; we never install anything without the user seeing that."""
     os.startfile(str(path))  # noqa: S606 - a file this module just downloaded
+
+
+# ------------------------------------------------------------ background
+# The backend (the process that draws the tray icon) runs the schedule. The
+# settings page may also check, in its own process; both write update.json,
+# so ``available`` reads that file (at most every few seconds) rather than
+# keeping its own answer.
+_seen = {"mtime": -1.0, "looked": 0.0, "version": ""}
+LOOK_EVERY = 5.0  # seconds; ``available`` is called on every key
+
+
+def available(now: float | None = None) -> str:
+    """The newer version waiting to be installed, or "" — what puts the dot
+    on the tray icon. Cheap: one stat() every few seconds."""
+    now = time.time() if now is None else now
+    if now - _seen["looked"] < LOOK_EVERY:
+        return _seen["version"]
+    _seen["looked"] = now
+    try:
+        mtime = cache_path().stat().st_mtime
+    except OSError:
+        mtime = 0.0
+    if mtime != _seen["mtime"]:
+        _seen["mtime"] = mtime
+        release = cached()
+        _seen["version"] = release.version if release.newer else ""
+    return _seen["version"]
+
+
+def run_schedule_once(config, now: float | None = None) -> bool:
+    """One look at the schedule; True when a check was made."""
+    if not getattr(config, "update_check", False):
+        return False
+    now = time.time() if now is None else now
+    if not due(now, cached(), getattr(config, "update_weekday", DEFAULT_WEEKDAY),
+               getattr(config, "update_hour", DEFAULT_HOUR)):
+        return False
+    release = check(force=True)
+    log.info("scheduled update check: latest %s%s", release.version or "?",
+             f" (error: {release.error})" if release.error else "")
+    _seen["looked"] = 0.0  # let the tray icon see the answer at once
+    return True
+
+
+_thread: threading.Thread | None = None
+
+
+def start_background(get_config) -> None:
+    """Run the schedule in a daemon thread for as long as the backend lives.
+    ``get_config`` returns the current Config (it changes when the settings
+    page saves)."""
+    global _thread
+    if _thread is not None or os.environ.get("SMARTIME_NO_UPDATE_THREAD"):
+        return
+
+    def loop() -> None:
+        time.sleep(FIRST_LOOK)
+        while True:
+            try:
+                run_schedule_once(get_config())
+            except Exception:  # noqa: BLE001 - never take the backend down
+                log.exception("scheduled update check failed")
+            time.sleep(POLL)
+
+    _thread = threading.Thread(target=loop, name="update-schedule", daemon=True)
+    _thread.start()

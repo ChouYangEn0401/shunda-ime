@@ -133,11 +133,14 @@ class Config:
     default_category: str = "人工加入"  # where Ctrl+D puts a new word
 
     # Voice input (hold right Ctrl, speak, release)
-    # Ask GitHub once a day whether there is a newer release. One plain
+    # Ask GitHub on a schedule whether there is a newer release. One plain
     # HTTPS GET to a public API, no account and no identifier beyond a
     # User-Agent naming the product; nothing is ever installed without the
     # user starting it. Turn it off and the input method never goes online.
+    # A newer release puts a red dot on the tray icon.
     update_check: bool = True
+    update_weekday: int = 4  # Monday = 0 … Sunday = 6; -1 = every day (default Friday)
+    update_hour: int = 14  # local hour of the scheduled check (default 14:00)
 
     voice_enabled: bool = False  # off until a model is downloaded and the user turns it on
     voice_engine: str = "auto"  # "auto" | "breeze" (GPU) | "sensevoice" (CPU)
@@ -240,6 +243,9 @@ class Config:
         self.candidate_font_size = max(10, min(32, self.candidate_font_size))
         self.max_buffer_chars = max(10, min(80, self.max_buffer_chars))
         self.suggestion_count = max(1, min(9, self.suggestion_count))
+        if not -1 <= self.update_weekday <= 6:
+            self.update_weekday = 4
+        self.update_hour = max(0, min(23, self.update_hour))
         if not self.default_category.strip():
             self.default_category = "人工加入"
 

@@ -107,5 +107,8 @@ def main(icon_dir: Path) -> None:
         log.exception("failed to load engine")
         raise
     log.info("lexicon %s", engine.lexicon.meta)
+    from .. import update
+
+    update.start_background(lambda: engine.config)  # weekly check; dot on the tray icon
     serve(sys.stdin.buffer, sys.stdout.buffer, engine, icon_dir)
     log.info("stdin closed; backend exiting")

@@ -721,11 +721,30 @@
           </div>
           <div class="row">
             <div>
-              <div class="label">每天自動檢查一次</div>
-              <div class="desc">只對 GitHub 發一個公開的 HTTPS 查詢，不帶帳號、不帶任何可以認出你的識別碼，
-                也不會自己安裝任何東西——找到新版本只會在這裡告訴你。關掉以後輸入法完全不連網。</div>
+              <div class="label">自動檢查更新</div>
+              <div class="desc">找到新版本時，工作列上的輸入法圖示會多一個<b style="color:#EF4444">紅點</b>，
+                按右鍵選第一項就能更新。只對 GitHub 發一個公開的 HTTPS 查詢，不帶帳號、不帶任何可以認出你的識別碼，
+                也不會自己安裝任何東西。關掉以後輸入法完全不連網。</div>
             </div>
             <label class="switch"><input type="checkbox" data-cfg="update_check"><span></span></label>
+          </div>
+          <div class="row">
+            <div>
+              <div class="label">什麼時候檢查</div>
+              <div class="desc">那個時間電腦沒開也沒關係，下一次打字時會補查；沒網路會一小時後再試。
+                <span id="update-next"></span></div>
+            </div>
+            <span>
+              <select data-cfg="update_weekday" data-type="int" aria-label="檢查更新的日子">
+                <option value="-1">每天</option><option value="0">每週一</option><option value="1">每週二</option>
+                <option value="2">每週三</option><option value="3">每週四</option><option value="4">每週五</option>
+                <option value="5">每週六</option><option value="6">每週日</option>
+              </select>
+              <select data-cfg="update_hour" data-type="int" aria-label="檢查更新的時間">
+                <option value="9">早上 9 點</option><option value="12">中午 12 點</option><option value="14">下午 2 點</option>
+                <option value="17">下午 5 點</option><option value="20">晚上 8 點</option>
+              </select>
+            </span>
           </div>
         </div>
         <div class="group">

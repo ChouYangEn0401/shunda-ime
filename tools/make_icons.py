@@ -36,11 +36,32 @@ def render(text: str, bg: str, fg: str, size: int = 256) -> Image.Image:
     return img
 
 
+DOT = "#EF4444"  # 有新版本: a red dot in the top-right corner of the tray icon
+
+
+def with_dot(img: Image.Image) -> Image.Image:
+    """The same icon with an update dot (white ring so it reads on any colour)."""
+    img = img.copy()
+    d = ImageDraw.Draw(img)
+    size = img.width
+    r = size * 0.19
+    cx, cy = size - r - size * 0.01, r + size * 0.01
+    ring = size * 0.06
+    d.ellipse([cx - r - ring, cy - r - ring, cx + r + ring, cy + r + ring], fill="#FFFFFF")
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=DOT)
+    return img
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for name, (text, bg, fg) in ICONS.items():
-        render(text, bg, fg).save(OUT / name, sizes=[(s, s) for s in SIZES])
+        img = render(text, bg, fg)
+        img.save(OUT / name, sizes=[(s, s) for s in SIZES])
         print("wrote", OUT / name)
+        if name != "ime.ico":  # tray (mode) icons only: text_service swaps in *-new.ico
+            dotted = OUT / name.replace(".ico", "-new.ico")
+            with_dot(img).save(dotted, sizes=[(s, s) for s in SIZES])
+            print("wrote", dotted)
 
 
 if __name__ == "__main__":

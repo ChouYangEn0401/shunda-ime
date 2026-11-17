@@ -241,6 +241,17 @@
   視窗關掉 75 秒後自行結束（下載模型、安裝元件期間不結束）。
 - 介面（`ui/`）與設計稿 `docs/design/settings-mockup.html` 一致；設定存檔後輸入法下一個按鍵就生效（`Engine.refresh()`）。
 
+### 5.1 檢查更新（`src/smartime/update.py`）
+
+- 兩個行程都會查：設定頁的「檢查更新」按鈕，和後端的排程執行緒（`update.start_background`，
+  十分鐘看一次 `due()`：上次查的時間早於最近一個排程時刻〔預設週五 14:00，`update_weekday`／`update_hour`〕就查；
+  上次失敗則一小時後重查）。結果都寫進 `%APPDATA%\SmartIME\update.json`。
+- 工作列圖示的紅點：`text_service._update_mode_icon` 每次重畫時問 `update.available()`（最多每 5 秒 stat 一次
+  `update.json`），有比自己新的版本就把 `auto.ico` 換成 `auto-new.ico`（`tools/make_icons.py` 產生），
+  右鍵選單最前面加「● 有新版本」。設定頁關掉自動檢查就不顯示。
+- 頻道：版號有 `-`（測試版）讀整個 `releases` 清單取版號最大的；正式版只讀 `releases/latest`
+  （GitHub 定義為最新的非 pre-release）。不自動安裝：下載到 %TEMP% 後啟動安裝檔，由它要管理員權限。
+
 ## 6. 安裝檔（`installer/`、`tools/build_installer.py`）
 
 - `.venv\Scripts\python tools\build_installer.py` → `dist\ShundaIME-Setup-<版本>.exe`（Inno Setup 6；預設找 `build/tools/InnoSetup6/ISCC.exe`）。

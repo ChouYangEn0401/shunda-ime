@@ -1504,9 +1504,20 @@
   // ------------------------------------------------------------ updates
   function fmtSize(n) { return n ? (n / 1048576).toFixed(0) + " MB" : ""; }
 
+  const WEEKDAYS = "一二三四五六日";
+  function renderNextCheck(u) {
+    const el = document.getElementById("update-next");
+    if (!el) return;
+    if (!u.scheduled) { el.textContent = ""; return; }
+    if (!u.nextCheck) { el.textContent = "下一次：開始打字後幾分鐘內。"; return; }
+    const d = new Date(u.nextCheck * 1000);
+    el.textContent = `下一次：${d.getMonth() + 1}/${d.getDate()}（週${WEEKDAYS[(d.getDay() + 6) % 7]}）${d.getHours()}:00 以後第一次打字時。`;
+  }
+
   function renderUpdate(u) {
     const status = document.getElementById("update-status");
     const install = document.getElementById("update-install");
+    renderNextCheck(u);
     install.hidden = !(u.newer && u.canInstall);
     if (u.job && u.job.active) {
       const pct = u.job.total ? Math.round(100 * u.job.done / u.job.total) : 0;
@@ -1524,7 +1535,9 @@
     } else if (u.ahead) {
       // "已經是最新版本（GitHub 上也是 0.6.0）" while running 0.8.0-alpha.6
       // read as a contradiction (reported). Say which way round it is.
-      status.textContent = `你用的 ${u.current} 比 GitHub 上最新的正式版 ${u.latest} 還新（測試版）；有更新的正式版時這裡會通知。`;
+      status.textContent = u.testBuild
+        ? `你用的測試版 ${u.current} 比 GitHub 上最新的 ${u.latest} 還新；有更新的版本（含測試版）時圖示會出現紅點。`
+        : `你用的 ${u.current} 比 GitHub 上最新的正式版 ${u.latest} 還新；有更新的正式版時圖示會出現紅點。`;
     } else {
       status.textContent = `已經是最新版本（${u.latest}）。`;
     }
