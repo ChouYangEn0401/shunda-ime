@@ -291,6 +291,23 @@
           </div>
         </div>
 
+        <div class="group">
+          <h3>修正紀錄 <span class="note" style="letter-spacing:0" id="corr-count"></span></h3>
+          <div class="row"><div class="full">
+            <p class="note" style="margin-top:0">你在畫面上改過的字：原本是什麼、改成什麼、怎麼改的、改過幾次。
+              同一個修正做到第 2 次，就代表上次學的沒記牢——改成的那個詞會自動加進「我的詞庫」的「程式推薦」分類（標 ✓），
+              以後排在同音詞前面；不想要就到「我的詞庫」刪掉。</p>
+            <div class="dict-table corr-table" id="corr-scroll">
+              <table>
+                <thead><tr><th>原本</th><th></th><th>改成</th><th>怎麼改的</th><th>次數</th><th>最近</th></tr></thead>
+                <tbody id="corr-body"></tbody>
+              </table>
+            </div>
+            <p class="note" style="margin-bottom:0"><button class="btn small" type="button" id="corr-clear">清除紀錄</button>
+              只清掉這張表，不動已經學到的詞。</p>
+          </div></div>
+        </div>
+
         <div class="group" id="group-correction">
           <h3>修正模式（類似 Vim） <span class="badge plan" id="badge-correction">即將推出</span></h3>
           <div class="row"><div class="full">

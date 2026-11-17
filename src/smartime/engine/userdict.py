@@ -38,6 +38,9 @@ ORIGINS = ("pick", "fix", "tab")
 # before it has been sorted into anything. 常用詞 is then a real category the
 # user assigns, not the bucket everything lands in.
 DEFAULT_CATEGORIES = ("人工加入", "常用詞", "朋友", "專案術語", "常用英文")
+# Where a correction made PROMOTE_AT times lands (created when first needed).
+PROMOTED_CATEGORY = "程式推薦"
+PROMOTE_AT = 2
 
 # Learned words used only once and not again for this long are forgotten
 # (tidy): one-off picks should not pile up forever. Words the user added and
@@ -140,6 +143,17 @@ class UserDict:
                 text TEXT NOT NULL UNIQUE,
                 sort INTEGER NOT NULL DEFAULT 0,
                 created REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS corrections (
+                id INTEGER PRIMARY KEY,
+                old_text TEXT NOT NULL,
+                new_text TEXT NOT NULL,
+                reading TEXT NOT NULL DEFAULT '',
+                kind TEXT NOT NULL DEFAULT 'zh',
+                method TEXT NOT NULL,
+                count INTEGER NOT NULL DEFAULT 0,
+                first REAL NOT NULL,
+                last REAL NOT NULL,
+                UNIQUE (old_text, new_text, reading, method));
             """
         )
         if c.execute("SELECT value FROM meta WHERE key='schema'").fetchone() is None:
@@ -277,6 +291,41 @@ class UserDict:
         self._load()
 
     # ------------------------------------------------------------ management (settings app)
+    # ------------------------------------------------------------ corrections
+    # 修正紀錄: what the user changed on screen, into what, and how — the
+    # 「X --(method)--> Y」 table the user asked for. A correction made
+    # again and again means learning did not stick; at PROMOTE_AT the result
+    # goes into 我的詞庫 under 程式推薦 (visible, deletable on the settings page).
+    def log_correction(self, wrong: str, right: str, reading: str = "", kind: str = "zh",
+                       method: str = "pick") -> int:
+        """Count one correction; returns how often ``wrong`` -> ``right``
+        (same reading) has been made, by any method."""
+        if not right or wrong == right:
+            return 0
+        now = time.time()
+        self._con.execute(
+            "INSERT INTO corrections (old_text, new_text, reading, kind, method, count, first, last) "
+            "VALUES (?, ?, ?, ?, ?, 1, ?, ?) "
+            "ON CONFLICT (old_text, new_text, reading, method) DO UPDATE SET count = count + 1, last = excluded.last",
+            (wrong, right, reading, kind, method, now, now))
+        return self._con.execute("SELECT sum(count) FROM corrections WHERE old_text=? AND new_text=? AND reading=?",
+                                 (wrong, right, reading)).fetchone()[0] or 0
+
+    def corrections(self, limit: int = 500) -> list[dict]:
+        """The 修正紀錄 table, most frequent first (methods of one change merged)."""
+        rows = self._con.execute(
+            "SELECT old_text, new_text, reading, kind, group_concat(method), sum(count) AS n, max(last) AS l "
+            "FROM corrections GROUP BY old_text, new_text, reading ORDER BY n DESC, l DESC LIMIT ?", (limit,)).fetchall()
+        mine = {(e.phrase, e.reading) for by in self.zh.values() for e in by.values() if e.source == "manual"}
+        mine |= {(w, "") for w, e in self.en.items() if e.source == "manual"}
+        return [{"wrong": w, "right": r, "reading": rd, "kind": k, "methods": sorted(set(m.split(","))),
+                 "count": n, "last": last, "promoted": (r if k == "zh" else r.lower(), rd) in mine}
+                for w, r, rd, k, m, n, last in rows]
+
+    def clear_corrections(self) -> int:
+        cur = self._con.execute("DELETE FROM corrections")
+        return cur.rowcount
+
     def categories(self) -> list[dict]:
         rows = self._con.execute(
             "SELECT c.id, c.name, c.sort, (SELECT count(*) FROM entries e WHERE e.category_id = c.id AND e.blocked = 0) "

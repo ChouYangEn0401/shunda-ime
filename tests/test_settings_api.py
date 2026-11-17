@@ -398,3 +398,17 @@ def test_edit_an_entry_word_and_reading(server):
     assert call(server, "PATCH", f"/api/entries/{c['id']}", {"phrase": "pnpm"})[0] == 200
     assert any(r["phrase"] == "pnpm" and r["kind"] == "en" for r in server.app.user.list(limit=100))
     assert call(server, "PATCH", f"/api/entries/{a['id']}", {"phrase": "  "})[0] == 400
+
+
+def test_corrections_table_and_clear(server):
+    u = server.app.user
+    u.log_correction("每一洲", "每一週", "ㄇㄟˇ-ㄧ-ㄓㄡ", "zh", "pick")
+    u.log_correction("每一洲", "每一週", "ㄇㄟˇ-ㄧ-ㄓㄡ", "zh", "cycle")
+    status, rows = call(server, "GET", "/api/corrections")
+    assert status == 200 and rows[0]["count"] == 2 and rows[0]["methods"] == ["cycle", "pick"]
+    # 清除學習紀錄 clears the table too: it holds what was typed
+    status, r = call(server, "POST", "/api/clear-learned")
+    assert status == 200 and r["corrections"] == 2
+    assert call(server, "GET", "/api/corrections")[1] == []
+    u.log_correction("a", "b", "", "en", "keep")
+    assert call(server, "POST", "/api/corrections/clear")[1]["removed"] == 1

@@ -436,7 +436,15 @@ class SettingsApp:
         return dict(self.symbols_extra_job)
 
     def clear_learned(self) -> dict:
-        return {"removed": self.user.clear_learned()}
+        # the 修正紀錄 is learned memory too (it holds what was typed)
+        return {"removed": self.user.clear_learned(), "corrections": self.user.clear_corrections()}
+
+    def corrections(self) -> list[dict]:
+        """修正紀錄: X -> Y, how, how often (智慧修正 page)."""
+        return self.user.corrections()
+
+    def clear_corrections(self) -> dict:
+        return {"removed": self.user.clear_corrections()}
 
     def tidy_memory(self) -> dict:
         pairs = self.user.forget_invented_pairs(self.lexicon.in_system)
@@ -700,6 +708,8 @@ class _Handler(BaseHTTPRequestHandler):
             ("GET", "/api/symbols-extra"): app.symbols_extra_state,
             ("POST", "/api/symbols-extra/download"): app.download_symbols_extra,
             ("POST", "/api/clear-learned"): app.clear_learned,
+            ("GET", "/api/corrections"): app.corrections,
+            ("POST", "/api/corrections/clear"): app.clear_corrections,
             ("POST", "/api/memory/tidy"): app.tidy_memory,
             ("POST", "/api/open-folder"): app.open_folder,
             ("POST", "/api/debug-log"): lambda: app.set_debug_log(bool(self._json_body().get("on"))),

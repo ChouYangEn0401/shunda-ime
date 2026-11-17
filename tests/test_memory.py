@@ -670,3 +670,34 @@ def test_a_word_i_added_beats_a_common_homophone(user, mem_session):
     run(mem_session, "w96j0 ")
     assert mem_session.view().composition == "臺灣"
     assert mem_session.engine.lexicon.phrases("ㄊㄞˊ-ㄨㄢ")[0][0] == "臺灣"
+
+
+def test_a_fix_that_needed_its_neighbour_is_learned_with_it(user, mem_session):
+    """Reported: 每一週 → 每一洲; picking 一週 learned only 一週, so the next
+    每一週 still came out 美一週 (每 alone loses to 美). The neighbour that
+    had to be held is learned with the choice: next time it is right."""
+    run(mem_session, "ao3u 5. {DOWN}1")  # 1. 一週
+    assert mem_session.view().composition == "每一週"
+    run(mem_session, "{ENTER}")
+    assert user.lookup("每一週", "ㄇㄟˇ-ㄧ-ㄓㄡ") is not None
+    _, v = run(mem_session, "ao3u 5. ")
+    assert v.composition == "每一週"
+
+
+def test_the_same_correction_twice_becomes_my_word(user, mem_engine):
+    """修正紀錄: every correction is counted (X -> Y, how); made twice, the
+    result goes into 我的詞庫 under 程式推薦, where the user can see it."""
+    for _ in range(2):
+        s = Session(mem_engine)
+        _, v = run(s, "ao3u 5. {ESC}")
+        assert v.composition == "每一洲"
+        run(s, "{DOWN}3{ENTER}")  # correction mode: 洲 -> 週 (3rd candidate)
+        # learning that did not stick (tidied, or outweighed): the next time
+        # the same sentence comes out wrong again and is fixed again
+        user.clear_learned()
+        mem_engine.lexicon.invalidate()
+    rows = user.corrections()
+    assert rows and rows[0]["right"].endswith("週") and rows[0]["count"] >= 2
+    promoted = [r for r in user.list(limit=100) if r["category"] == "程式推薦"]
+    assert promoted and promoted[0]["phrase"] == rows[0]["right"]
+    assert rows[0]["promoted"]

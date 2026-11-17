@@ -243,6 +243,10 @@ tr.blocked td { color: var(--muted); }
 .snip-table tbody tr.editing td { height: auto; padding: 10px 12px; white-space: normal; overflow: visible; background: color-mix(in srgb, var(--accent-soft) 30%, transparent); }
 .snip-bulk { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; padding: 6px 10px; border: 1px solid var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent-soft) 45%, transparent); font-size: 14px; }
 .snip-bulk input[type="text"] { width: 130px; padding: 2px 8px; font-size: 13px; }
+.corr-table { height: auto; max-height: 360px; }
+.corr-table th:nth-child(1) { width: 24%; } .corr-table th:nth-child(2) { width: 5%; } .corr-table th:nth-child(3) { width: 24%; }
+.corr-table th:nth-child(4) { width: 23%; } .corr-table th:nth-child(5) { width: 9%; } .corr-table th:nth-child(6) { width: 15%; }
+.corr-table td.muted-word { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent); }
 .dict-table input.inline-edit { width: 100%; padding: 2px 8px; font-size: 14px; }
 .snip-bulk.asking { border-color: var(--warn); background: var(--warn-soft); }
 .kao-sample { display: flex; flex-wrap: wrap; gap: 8px; }

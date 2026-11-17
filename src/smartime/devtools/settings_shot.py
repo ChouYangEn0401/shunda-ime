@@ -33,6 +33,13 @@ def sample_data(app) -> None:
     u.add("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ", "zh", "朋友")
     u.add("順打輸入法", "ㄕㄨㄣˋ-ㄉㄚˇ-ㄕㄨ-ㄖㄨˋ-ㄈㄚˇ", "zh", "專案術語")
     u.block("鬥號", "ㄉㄡˋ-ㄏㄠˋ")
+    # 修正紀錄 (智慧修正 page): one made twice, so it shows as promoted
+    for wrong, right, reading, method in [("每一洲", "每一週", "ㄇㄟˇ-ㄧ-ㄓㄡ", "pick"),
+                                          ("每一洲", "每一週", "ㄇㄟˇ-ㄧ-ㄓㄡ", "cycle"),
+                                          ("厚選", "候選", "ㄏㄡˋ-ㄒㄩㄢˇ", "pick"),
+                                          ("ven", "venv", "", "keep")]:
+        u.log_correction(wrong, right, reading, "en" if not reading else "zh", method)
+    u.add("每一週", "ㄇㄟˇ-ㄧ-ㄓㄡ", "zh", "程式推薦")
     u.add_snippet("範例市範例區示範路 100 號\n（請寄到這裡，謝謝）", "我的地址", "addr", "地址")
     u.add_snippet("感謝您的來信！我們已經收到，會在兩個工作天內回覆您。", "", "thanks", "客服")
     # enough to show how the list holds up when it gets long (分類, usage,

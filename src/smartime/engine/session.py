@@ -35,7 +35,7 @@ from .keys import (
 )
 from .layouts import Layout
 from .lexicon import Lexicon
-from .userdict import UserDict
+from .userdict import PROMOTE_AT, PROMOTED_CATEGORY, UserDict
 from .correction import CorrectionMixin
 from .panel import (
     CandidatePanel, DecodePanel, HintPanel, SmartPanel, candidate_panel, decode_panel, smart_panel,
@@ -1567,16 +1567,102 @@ class Session(CorrectionMixin):
             # A choice changes its own span and nothing else. Reported: in
             # 每一洲 picking 一週 gave 美一週 (每 alone loses to 美), and fixing
             # 每 first then 週 broke 每 again — 「把我剛剛改正確的又改壞」.
-            self._hold_outside(pin.start, pin.end, old)
+            held = self._hold_outside(pin.start, pin.end, old)
             self._learn_choice(pin, replaced)
+            self._learn_correction(pin, replaced, held, "pick")
             self.cursor = pin.start
             self._snap_to_unit()
             return
         if self.cursor < len(self.keys):
             self.cursor = pin.end
         self._redecode()
-        self._hold_outside(pin.start, pin.end, old)  # (see above)
+        held = self._hold_outside(pin.start, pin.end, old)  # (see above)
         self._learn_choice(pin, replaced)
+        self._learn_correction(pin, replaced, held, "pick")
+
+    # ------------------------------------------------- learning from corrections
+    def _learn_correction(self, pin: Segment, replaced: str, held: list, method: str) -> None:
+        """``replaced`` on screen was changed into ``pin`` (by ``method``).
+
+        Two things are kept. If the decoder wanted to change a neighbour
+        and it had to be held in place, the choice only works next to that
+        neighbour: picking 一週 in 每一洲 held 每, and learning just 一週
+        made the next 每一週 come out 美一週 again. The neighbours and the
+        choice are learned as one phrase (每一週). And the change goes into
+        the 修正紀錄 (UserDict.log_correction); made PROMOTE_AT times, the
+        phrase is put into 我的詞庫 under 程式推薦 — learning that did not
+        stick becomes a word the user can see and delete."""
+        if not replaced or replaced == pin.text:
+            return
+        unit = self._binding(pin, held)
+        if unit is not None:
+            self._learn(unit, origin="fix")
+        elif pin.kind is Kind.ZH and len(pin.readings) == 1:
+            unit = next(iter(self._correction_contexts(pin)), None)
+        self._record_correction(unit or pin, pin, replaced, method)
+
+    def _binding(self, pin: Segment, held: list) -> Segment | None:
+        """The held Chinese neighbours (up to two on each side) and ``pin``
+        as one segment, or None when nothing next to it was held."""
+        if pin.kind is not Kind.ZH:
+            return None
+        spans = [(p.start, p.end) for p in held if p.kind is Kind.ZH]
+        if not spans:
+            return None
+        units, segs = self.decoding.units(), self.decoding.segments
+
+        def zh(i):
+            return 0 <= i < len(units) and segs[units[i][3]].kind is Kind.ZH
+
+        def was_held(i):
+            return zh(i) and any(s <= units[i][0] and units[i][1] <= e for s, e in spans)
+
+        first = next((i for i, u in enumerate(units) if u[0] == pin.start), None)
+        last = next((i for i, u in enumerate(units) if u[1] == pin.end), None)
+        if first is None or last is None or not all(zh(i) for i in range(first, last + 1)):
+            return None
+        lo, hi = first, last
+        while first - lo < 2 and was_held(lo - 1):
+            lo -= 1
+        while hi - last < 2 and was_held(hi + 1):
+            hi += 1
+        if (lo, hi) == (first, last):
+            return None
+        picked = units[lo:hi + 1]
+        readings = tuple(segs[si].readings[segs[si].bounds.index(a)] for a, _, _, si in picked)
+        bounds = (picked[0][0],) + tuple(b for _, b, _, _ in picked)
+        return Segment(picked[0][0], picked[-1][1], "".join(ch for _, _, ch, _ in picked), Kind.ZH, 0.0,
+                       readings, bounds, pinned=True)
+
+    def _record_correction(self, unit: Segment, pin: Segment, replaced: str, method: str) -> None:
+        """Write ``unit`` (which contains ``pin``) into the 修正紀錄 — before:
+        the same text with ``replaced`` where ``pin`` is now."""
+        user = self.engine.user
+        if user is None or not self.cfg.learn or practice.active() or unit.kind not in (Kind.ZH, Kind.EN):
+            return
+        right = self._text_over(unit.start, unit.end)
+        before = self._text_over(unit.start, pin.start)
+        wrong = before + replaced + right[len(before) + len(pin.text):]
+        kind = "zh" if unit.kind is Kind.ZH else "en"
+        reading = "-".join(unit.readings) if kind == "zh" else ""
+        try:
+            n = user.log_correction(wrong, right, reading, kind, method)
+        except Exception:  # noqa: BLE001 - a log must never break typing
+            return
+        self._promote(wrong, right, reading, kind, n)
+
+    def _promote(self, wrong: str, right: str, reading: str, kind: str, n: int) -> None:
+        """The same correction made PROMOTE_AT times: into 我的詞庫 (程式推薦)."""
+        user = self.engine.user
+        if n < PROMOTE_AT or (kind == "zh" and len(right) < 2):
+            return
+        phrase = right if kind == "zh" else right.lower()
+        e = user.lookup(phrase, reading)
+        if e is not None and e.source == "manual":
+            return
+        user.add(phrase, reading, kind, PROMOTED_CATEGORY)
+        self.engine.lexicon.invalidate()
+        self._notice = f"「{wrong}」改成「{right}」第 {n} 次了，加進我的詞庫「{PROMOTED_CATEGORY}」· 設定頁可刪"
 
     def _text_over(self, a: int, b: int) -> str:
         """The characters on screen for the keys [a, b)."""
@@ -1696,7 +1782,7 @@ class Session(CorrectionMixin):
                                pinned=True))
         real = [s for s in out if self.engine.lexicon.in_system(s.text, "-".join(s.readings))]
         if real:
-            return real[:1]
+            return [self._whole_words(real[0])]
         if len(out) == 2:
             # Neither pair is a word. Learning both invented two: in the
             # user's own dictionary 228 of 242 correction pairs were not
@@ -1706,7 +1792,35 @@ class Session(CorrectionMixin):
             run = self._correction_run(pin)
             if run is not None:
                 return [run]
-        return out
+        return [self._whole_words(c) for c in out]
+
+    def _whole_words(self, ctx: Segment, longest: int = 4) -> Segment:
+        """``ctx`` grown to the edges of the words it cuts into.
+
+        Reported: 每一洲 with 洲 fixed to 週 learned the pair 一週 (a real
+        word), and the next 每一週 came out 美一週 — the pair took 一 away
+        from 每一, a word the user had seen and kept. Learned as 每一週, the
+        sentence comes back the way it was fixed. Only Chinese words, and
+        not past ``longest`` characters (then the pair is kept as it was)."""
+        units, segs = self.decoding.units(), self.decoding.segments
+        idx = [i for i, u in enumerate(units) if ctx.start <= u[0] and u[1] <= ctx.end]
+        if not idx:
+            return ctx
+        lo, hi = idx[0], idx[-1]
+        left, right = segs[units[lo][3]], segs[units[hi][3]]
+        while lo > 0 and left.kind is Kind.ZH and units[lo - 1][3] == units[lo][3]:
+            lo -= 1
+        while hi + 1 < len(units) and right.kind is Kind.ZH and units[hi + 1][3] == units[hi][3]:
+            hi += 1
+        if (lo, hi) == (idx[0], idx[-1]) or hi - lo + 1 > longest:
+            return ctx
+        picked = units[lo:hi + 1]
+        if any(segs[si].kind is not Kind.ZH for *_, si in picked):
+            return ctx
+        readings = tuple(segs[si].readings[segs[si].bounds.index(a)] for a, _, _, si in picked)
+        bounds = (picked[0][0],) + tuple(b for _, b, _, _ in picked)
+        return Segment(picked[0][0], picked[-1][1], "".join(ch for _, _, ch, _ in picked), Kind.ZH, 0.0,
+                       readings, bounds, pinned=True)
 
     def _forget_candidate(self, c: Candidate) -> None:
         user = self.engine.user

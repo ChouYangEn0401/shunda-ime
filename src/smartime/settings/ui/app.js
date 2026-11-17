@@ -47,6 +47,7 @@
     if (id === "dict") loadEntries();
     if (id === "voice") loadVoice();
     if (id === "practice") loadPractice();
+    if (id === "fix") loadCorrections();
     if (id === "snippets") { loadSnippets(); loadCustomSymbols(); loadSymbolsExtra(); }
   }
   rail.forEach(b => b.addEventListener("click", () => show(b.dataset.view)));
@@ -1537,6 +1538,44 @@
       renderDebug();
       toast(state.debugLog.on ? "已開啟除錯紀錄（輸入法已重新啟動）" : "已關閉除錯紀錄（輸入法已重新啟動）");
     } catch (err) { toast(err.message, true); }
+  });
+
+  // ------------------------------------------------------------ 修正紀錄
+  const METHODS = { pick: "選字", cycle: "j k 換字", regroup: "重新分組", keep: "救回略過的鍵", retype: "刪掉重打" };
+  async function loadCorrections() {
+    const body = document.getElementById("corr-body");
+    if (!body) return;
+    let rows = [];
+    try { rows = await api("GET", "/api/corrections"); } catch (e) { toast(e.message, true); return; }
+    document.getElementById("corr-count").textContent = rows.length ? `${rows.length} 種` : "";
+    body.replaceChildren();
+    if (!rows.length) {
+      const td = document.createElement("td"); td.colSpan = 6; td.className = "empty";
+      td.textContent = "還沒有紀錄。在候選窗或修正模式改過字以後，這裡會列出來。";
+      const tr = document.createElement("tr"); tr.appendChild(td); body.appendChild(tr);
+      return;
+    }
+    rows.forEach(r => {
+      const tr = document.createElement("tr");
+      const cells = [r.wrong, "→", r.right + (r.promoted ? " ✓" : ""),
+                     r.methods.map(m => METHODS[m] || m).join("、"), String(r.count), ago(r.last)];
+      cells.forEach((text, i) => {
+        const td = document.createElement("td"); td.textContent = text;
+        if (i === 0) td.className = "word muted-word";
+        if (i === 2) { td.className = "word"; if (r.promoted) td.title = "已加進我的詞庫「程式推薦」"; }
+        if (i === 4) td.className = "num";
+        if (i === 5) td.className = "when";
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+  }
+  document.getElementById("corr-clear").addEventListener("click", async () => {
+    try {
+      const r = await api("POST", "/api/corrections/clear");
+      toast(`清除了 ${r.removed} 筆修正紀錄`);
+      loadCorrections();
+    } catch (e) { toast(e.message, true); }
   });
 
   // ------------------------------------------------------------ updates

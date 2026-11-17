@@ -50,6 +50,7 @@ class _Cycle:
     index: int
     original: Segment | None  # what was there before cycling
     original_text: str = ""  # the character(s) on screen before cycling
+    held: list = None  # neighbours the last step had to hold in place (see _hold_outside)
 
 
 class CorrectionMixin:
@@ -606,10 +607,10 @@ class CorrectionMixin:
                 break
         pin, old = c.items[c.index].pin, self.decoding
         self._apply_pin(pin)
-        self._hold_outside(pin.start, pin.end, old)
+        self._cycle.held = self._hold_outside(pin.start, pin.end, old)
         self._cycle.start = self.cursor
 
-    def _hold_outside(self, a: int, b: int, old, chinese_only: bool = False) -> None:
+    def _hold_outside(self, a: int, b: int, old, chinese_only: bool = False) -> list:
         """j/k change what is under the cursor and nothing else. Decoding
         again with the new character can re-read a neighbour (cycling 打 →
         大 → 達 flipped 記 and 計 next to it); put what changed back as it
@@ -617,7 +618,10 @@ class CorrectionMixin:
         keeps every pin, the flag is only the panel's underline).
 
         ``chinese_only``: hold Chinese characters only — punctuation ends an
-        English word, and fixing that word (teh → the) is meant to happen."""
+        English word, and fixing that word (teh → the) is meant to happen.
+
+        Returns what had to be held: the neighbours the decoder wanted to
+        change (the caller learns them together with the choice)."""
         def keep(seg) -> bool:
             return seg.kind is Kind.ZH if chinese_only else seg.kind not in (Kind.DROP, Kind.PENDING)
 
@@ -627,17 +631,20 @@ class CorrectionMixin:
 
         want = outside(old)
         if outside(self.decoding) == want:
-            return
+            return []
         parts = [p for seg in old.segments if keep(seg) for p in _outside(seg, a, b)]
+        all_held: list = []
         for only_changed in (True, False):
             now = {(s.start, s.end, s.text, s.kind) for s in self.decoding.segments}
             held = [p for p in parts
                     if not (only_changed and (p.start, p.end, p.text, p.kind) in now)
                     and all(q.end <= p.start or q.start >= p.end for q in self.pins)]
+            all_held += held
             self.pins = sorted(self.pins + held, key=lambda p: p.start)
             self._redecode()
             if outside(self.decoding) == want:
-                return
+                break
+        return all_held
 
     def _finish_cycle(self) -> None:
         """The cursor leaves a cycled character: learn the final choice."""
@@ -649,6 +656,7 @@ class CorrectionMixin:
         if pin is None or c.items[c.index].text == c.original_text:
             return  # back where it started: nothing to learn
         self._learn_choice(pin, c.original_text)
+        self._learn_correction(pin, c.original_text, c.held or [], "cycle")
 
     # ------------------------------------------------------------ rendering
     # The composition always holds the real (Chinese) text; the 注音 and 按鍵
