@@ -725,7 +725,7 @@
           <h3>版本與更新</h3>
           <div class="row" id="update-row">
             <div>
-              <div class="label">目前版本 <span data-text="version"></span></div>
+              <div class="label" data-new="update-quiet">目前版本 <span data-text="version"></span></div>
               <div class="desc" id="update-status">尚未檢查。</div>
             </div>
             <span>
@@ -763,8 +763,9 @@
           <div class="row" data-new="update-auto-install">
             <div>
               <div class="label">找到新版本時自動下載並開始安裝</div>
-              <div class="desc">關閉（預設）：只亮紅點，等你按「下載並安裝」。開啟：查到就在背景下載，下載完直接打開安裝程式——
-                Windows 還是會跳出系統管理員權限確認，你按「是」才會裝；按「否」這一版就不會再自動跳（紅點還在）。</div>
+              <div class="desc">關閉（預設）：只亮紅點，等你按「下載並安裝」。開啟：知道有新版本就在背景下載（網路斷了會自己再試），
+                下載完直接安靜安裝——Windows 會跳出系統管理員權限確認，按「是」才會裝，只會看到一個進度條；
+                按「否」這一版就不會再自動跳（紅點還在，「下載並安裝」隨時可以按）。</div>
             </div>
             <label class="switch"><input type="checkbox" data-cfg="update_auto_install"><span></span></label>
           </div>

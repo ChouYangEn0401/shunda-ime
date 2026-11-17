@@ -233,37 +233,89 @@ def check(force: bool = True) -> Release:
     return _store(release)
 
 
-def download(release: Release, progress=None) -> Path:
-    """Fetch the installer into %TEMP% and return where it landed."""
+DOWNLOAD_TRIES = 5
+INSTALL_ARGS = ["/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-"]
+AUTO_RETRY = 600  # seconds between automatic download attempts after a failure
+
+
+def download(release: Release, progress=None, tries: int = DOWNLOAD_TRIES) -> Path:
+    """Fetch the installer into %TEMP% and return where it landed.
+
+    Into ``<name>.part`` first, renamed only when the whole file is there
+    (Content-Length): a dropped connection left a 2.8 MB "setup.exe" of
+    20 MB behind (found on the user's machine), and that must never be run.
+    A failed attempt is tried again a few times — the network that just
+    answered the update check is usually back a moment later — and carries
+    on from the bytes it already has (HTTP Range): on the user's connection
+    one download took a read timeout and a DNS failure before it finished."""
     if not release.asset_url:
         raise ValueError("this release has no installer to download")
     target = Path(os.environ.get("TEMP", ".")) / (release.asset_name or f"{PRODUCT_NAME}-setup.exe")
-    req = urllib.request.Request(release.asset_url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=TIMEOUT * 4) as r:  # noqa: S310 - github release asset
-        total = int(r.headers.get("Content-Length") or release.size or 0)
-        done = 0
-        with open(target, "wb") as f:
-            while chunk := r.read(256 * 1024):
-                f.write(chunk)
-                done += len(chunk)
-                if progress is not None:
-                    progress(done, total)
-    return target
+    if release.size and target.exists() and target.stat().st_size == release.size:
+        return target  # already here from an earlier attempt
+    part = target.with_name(target.name + ".part")
+    try:
+        part.unlink()  # a .part from another run may belong to another file
+    except OSError:
+        pass
+    last: Exception | None = None
+    for attempt in range(max(1, tries)):
+        try:
+            have = part.stat().st_size if part.exists() else 0
+            headers = {"User-Agent": USER_AGENT}
+            if have:
+                headers["Range"] = f"bytes={have}-"
+            req = urllib.request.Request(release.asset_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=TIMEOUT * 4) as r:  # noqa: S310 - github release asset
+                resumed = have and getattr(r, "status", 200) == 206
+                if not resumed:
+                    have = 0  # the server sent the whole file again
+                total = int(r.headers.get("Content-Length") or 0) + have or release.size or 0
+                done = have
+                with open(part, "ab" if resumed else "wb") as f:
+                    while chunk := r.read(256 * 1024):
+                        f.write(chunk)
+                        done += len(chunk)
+                        if progress is not None:
+                            progress(done, total)
+            if total and done != total:
+                raise OSError(f"下載不完整（{done}／{total} bytes）")
+            os.replace(part, target)
+            return target
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as e:
+            last = e
+            log.warning("installer download attempt %d failed: %s", attempt + 1, e)
+            if attempt + 1 < tries:
+                time.sleep(3 * (attempt + 1))
+    try:
+        part.unlink()
+    except OSError:
+        pass
+    raise last if last is not None else OSError("download failed")
 
 
-def run_installer(path: Path) -> None:
-    """Start the downloaded installer. It asks for administrator rights
-    itself; we never install anything without the user seeing that.
+def run_installer(path: Path, quiet: bool = True) -> None:
+    """Start the downloaded installer: quietly (``/SILENT`` — a progress
+    bar, no wizard pages to click through; the user asked for 「-quiet 安裝」).
+    Windows still asks for administrator rights first (the Inno Setup loader
+    runs as the user and elevates itself), so nothing installs unseen.
 
-    Started by Explorer, not as our child: the installer stops PIMELauncher
-    (and with it this backend), and a process we started could go down
-    with us halfway through the upgrade."""
+    Detached and, where Windows allows it, out of our job: the installer
+    stops PIMELauncher and with it this backend (or the settings page), and
+    must not go down with us halfway through the upgrade."""
     import subprocess
 
-    try:
-        subprocess.Popen(["explorer.exe", str(path)], close_fds=True)  # noqa: S603,S607
-    except OSError:
-        os.startfile(str(path))  # noqa: S606 - a file this module just downloaded
+    args = [str(path), *(INSTALL_ARGS if quiet else [])]
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    breakaway = getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0)
+    for extra in (breakaway, 0):
+        try:
+            subprocess.Popen(args, close_fds=True, creationflags=flags | extra,  # noqa: S603 - our own download
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
+        except OSError:
+            continue  # a job that forbids breakaway: try without
+    os.startfile(str(path))  # noqa: S606 - last resort: the normal wizard
 
 
 def skip(version: str) -> Release:
@@ -317,9 +369,27 @@ def run_schedule_once(config, now: float | None = None) -> bool:
     log.info("scheduled update check: latest %s%s", release.version or "?",
              f" (error: {release.error})" if release.error else "")
     _seen["looked"] = 0.0  # let the tray icon see the answer at once
-    if getattr(config, "update_auto_install", False):
-        auto_install(release)
     return True
+
+
+_auto = {"tried": 0.0}
+
+
+def auto_install_once(config, now: float | None = None) -> bool:
+    """Every look at the schedule, not only right after a check: the
+    switch may be turned on while a newer version is already known, and a
+    download that failed (reported: DNS gone for a moment, then nothing for
+    an hour) is tried again after AUTO_RETRY."""
+    if not (getattr(config, "update_check", False) and getattr(config, "update_auto_install", False)):
+        return False
+    now = time.time() if now is None else now
+    if now - _auto["tried"] < AUTO_RETRY:
+        return False
+    release = cached()
+    if not (release.wanted and release.asset_url) or release.started == release.version:
+        return False
+    _auto["tried"] = now
+    return auto_install(release)
 
 
 def auto_install(release: Release) -> bool:
@@ -356,7 +426,9 @@ def start_background(get_config) -> None:
         time.sleep(FIRST_LOOK)
         while True:
             try:
-                run_schedule_once(get_config())
+                config = get_config()
+                run_schedule_once(config)
+                auto_install_once(config)
             except Exception:  # noqa: BLE001 - never take the backend down
                 log.exception("scheduled update check failed")
             time.sleep(POLL)

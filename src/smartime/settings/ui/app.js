@@ -1532,7 +1532,7 @@
       const f = whatsnew.find(x => x.id === el.dataset.new);
       const fresh = !!f && (!f.seen || seenThisVisit.has(f.id));
       el.classList.toggle("is-new", fresh);
-      const label = el.querySelector(".label, h3");
+      const label = el.matches(".label, h3") ? el : el.querySelector(".label, h3");
       let tag = label && label.querySelector(".new-tag");
       if (fresh && label && !tag) {
         tag = document.createElement("button"); tag.type = "button"; tag.className = "new-tag"; tag.textContent = "新";
@@ -1657,7 +1657,10 @@
       return;
     }
     if (u.job && u.job.error) { status.textContent = "下載失敗：" + u.job.error; return; }
-    if (u.job && u.job.path) { status.textContent = "安裝檔已下載，請在安裝視窗繼續。"; return; }
+    if (u.job && u.job.path) {
+      status.textContent = "下載好了，正在安裝：Windows 會先問系統管理員權限，按「是」就會安靜地裝好（只有一個進度條），輸入法會暫停幾秒再回來。";
+      return;
+    }
     if (u.error && !u.latest) { status.textContent = "這次連不上 GitHub（離線也沒關係，輸入法照常用）。"; return; }
     if (!u.latest) { status.textContent = "尚未檢查。"; return; }
     if (u.newer && u.skipped) {

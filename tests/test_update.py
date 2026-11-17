@@ -215,16 +215,86 @@ def test_auto_install_opens_the_installer_once_per_version(monkeypatch, tmp_path
     assert len(opened) == 1
 
 
-def test_scheduled_check_auto_installs_only_when_asked(monkeypatch):
+def test_auto_install_runs_whenever_a_newer_version_is_known(monkeypatch):
+    """Reported: the switch was on, the download hit a DNS hiccup, and then
+    nothing happened. It is tried on every look (not only right after a
+    check) and again AUTO_RETRY later after a failure."""
     calls = []
-    monkeypatch.setattr(upd, "check", lambda force=True: upd.Release(version="99.0.0", asset_url="u",
-                                                                    checked=time.time()))
-    monkeypatch.setattr(upd, "auto_install", lambda r: calls.append(r.version))
-    upd.run_schedule_once(Config())
+    monkeypatch.setattr(upd, "_auto", {"tried": 0.0})
+    monkeypatch.setattr(upd, "auto_install", lambda r: calls.append(r.version) or False)
+    _write_cache("99.0.0")
+    upd._store(upd.Release(version="99.0.0", asset_url="u", checked=time.time()))
+    assert not upd.auto_install_once(Config(), now=1000.0)  # switch off
     assert calls == []
-    upd._store(upd.Release())  # due again
-    upd.run_schedule_once(Config(update_auto_install=True))
+    on = Config(update_auto_install=True)
+    upd.auto_install_once(on, now=1000.0)
     assert calls == ["99.0.0"]
+    upd.auto_install_once(on, now=1000.0 + upd.AUTO_RETRY - 1)  # too soon after a failure
+    assert calls == ["99.0.0"]
+    upd.auto_install_once(on, now=1000.0 + upd.AUTO_RETRY)
+    assert calls == ["99.0.0", "99.0.0"]
+
+
+class Chunks:
+    def __init__(self, data, length, status=200):
+        self.data, self.headers, self.status = [data], {"Content-Length": str(length)}, status
+
+    def read(self, n):
+        return self.data.pop() if self.data else b""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_a_cut_off_download_is_retried_and_never_left_as_the_exe(monkeypatch, tmp_path):
+    """Found on the user's machine: a 2.8 MB "setup.exe" of 20 MB."""
+    monkeypatch.setenv("TEMP", str(tmp_path))
+    monkeypatch.setattr(upd.time, "sleep", lambda s: None)
+    answers = [Chunks(b"x" * 10, 100), Chunks(b"y" * 100, 100)]
+    monkeypatch.setattr(upd.urllib.request, "urlopen", lambda req, timeout=0: answers.pop(0))
+    r = upd.Release(version="99.0.0", asset_url="https://x/s.exe", asset_name="s.exe")
+    path = upd.download(r)
+    assert path.read_bytes() == b"y" * 100 and not (tmp_path / "s.exe.part").exists()
+
+    answers[:] = [Chunks(b"z" * 5, 100) for _ in range(upd.DOWNLOAD_TRIES)]
+    (tmp_path / "s.exe").unlink()
+    with pytest.raises(OSError):
+        upd.download(r)
+    assert not (tmp_path / "s.exe").exists() and not (tmp_path / "s.exe.part").exists()
+
+
+def test_a_retry_carries_on_from_the_bytes_it_has(monkeypatch, tmp_path):
+    monkeypatch.setenv("TEMP", str(tmp_path))
+    monkeypatch.setattr(upd.time, "sleep", lambda s: None)
+    asked = []
+
+    def urlopen(req, timeout=0):
+        asked.append(req.headers.get("Range"))
+        if len(asked) == 1:
+            return Chunks(b"a" * 40, 100)  # cut off after 40 of 100
+        return Chunks(b"b" * 60, 60, status=206)  # the rest
+
+    monkeypatch.setattr(upd.urllib.request, "urlopen", urlopen)
+    path = upd.download(upd.Release(version="99.0.0", asset_url="https://x/s.exe", asset_name="s.exe"))
+    assert asked == [None, "bytes=40-"]
+    assert path.read_bytes() == b"a" * 40 + b"b" * 60
+
+
+def test_the_installer_runs_quietly(monkeypatch, tmp_path):
+    seen = []
+
+    class FakePopen:
+        def __init__(self, args, **kw):
+            seen.append(args)
+
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "Popen", FakePopen)
+    upd.run_installer(tmp_path / "setup.exe")
+    assert seen[0][0].endswith("setup.exe") and "/SILENT" in seen[0] and "/SUPPRESSMSGBOXES" in seen[0]
 
 
 def test_a_release_without_an_installer_is_said(monkeypatch):

@@ -250,8 +250,11 @@
   `update.json`），有比自己新的版本就把 `auto.ico` 換成 `auto-new.ico`（`tools/make_icons.py` 產生），
   右鍵選單最前面加「● 有新版本」。設定頁關掉自動檢查就不顯示。
 - 頻道：版號有 `-`（測試版）讀整個 `releases` 清單取版號最大的；正式版只讀 `releases/latest`
-  （GitHub 定義為最新的非 pre-release）。下載到 %TEMP% 後由 `explorer.exe` 啟動安裝檔（不能是後端的子行程：
-  安裝會停掉 PIME），由它要管理員權限。`update_auto_install`（預設關）：排程查到就下載並打開，每版只一次（`Release.started`）。
+  （GitHub 定義為最新的非 pre-release）。下載到 %TEMP%：先寫 `.part`、大小對了才改名、失敗重試並用 HTTP Range 接著下載。
+  安裝檔以 `/SILENT /SUPPRESSMSGBOXES /NORESTART` 啟動（Inno 的 loader 是 asInvoker，會自己要管理員權限），
+  DETACHED＋CREATE_BREAKAWAY_FROM_JOB（不行就不帶）：安裝會停掉 PIME，不能跟著後端／設定頁一起被收掉。
+  `update_auto_install`（預設關）：背景執行緒每分鐘 `auto_install_once`——知道有新版本就試，失敗 `AUTO_RETRY`（10 分鐘）後再試，
+  成功打開安裝程式後每版只一次（`Release.started`）。
 - 版號排序（`version_tuple`）：`0.10.0-alpha.1 < 0.10.0-alpha.1.1 < 0.10.0-alpha.2 < 0.10.0`（hotfix 多一層號碼）。
 
 ### 5.2 紅點：這一版的新功能（`src/smartime/whatsnew.py`）

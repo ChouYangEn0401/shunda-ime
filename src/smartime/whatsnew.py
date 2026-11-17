@@ -44,13 +44,16 @@ class Feature:
 
 # Newest first. Only features — never words, phrases or symbol data.
 FEATURES: tuple[Feature, ...] = (
+    Feature("update-quiet", "0.10.0-alpha.1.4", "about", "更新改成安靜安裝",
+            "按「下載並安裝」（或自動安裝）後，只會跳出 Windows 的權限確認和一個進度條，不用再一頁一頁按下一步。"
+            "網路不穩時下載會自己重試、接著下載。"),
     Feature("update-skip", "0.10.0-alpha.1.3", "about", "略過這個版本",
             "不想裝這一版：按「略過這個版本」，紅點就不亮了，有更新的版本才會再提醒。"),
     Feature("whatsnew-dots", "0.10.0-alpha.1.2", "about", "紅點告訴你哪裡有新東西",
             "更新之後，工作列圖示、設定頁左邊有新功能的那一頁、那一列都會標紅點。"
             "按「看看」帶你過去，看過的收進下面的更新紀錄。新的單字、片語不會亮紅點。"),
     Feature("update-auto-install", "0.10.0-alpha.1.1", "about", "找到新版本自動下載並開始安裝",
-            "打開以後，查到新版本就在背景下載、直接打開安裝程式；Windows 的權限確認按「是」才會裝。"),
+            "打開以後，知道有新版本就在背景下載、直接安靜安裝；Windows 的權限確認按「是」才會裝。"),
     Feature("update-time", "0.10.0-alpha.1.1", "about", "檢查更新的時間設到分鐘",
             "「什麼時候檢查」可以選每天或星期幾、幾點幾分。"),
     Feature("update-check", "0.10.0-alpha.1", "about", "自動檢查更新",
