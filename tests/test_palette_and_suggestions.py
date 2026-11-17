@@ -68,6 +68,56 @@ def test_right_ctrl_tap_vs_shortcut_vs_hold(session):
     assert session.cand is not None and session.cand.palette == 0
 
 
+def test_left_ctrl_can_be_the_panel_key(session):
+    """Some laptops have no right Ctrl (GitHub issue #1): the left one can
+    open the panel instead, and then the right one no longer does."""
+    _, v = run(session, "{LCTRL}")
+    assert v.candidates is None  # default: right Ctrl only
+    session.cfg.palette_hotkey = "lctrl"
+    _, v = run(session, "{RCTRL}")
+    assert v.candidates is None
+    _, v = run(session, "ji3{LCTRL}{TAB}{TAB}1")
+    assert v.composition == "我α"
+
+
+def test_ctrl_click_is_not_a_tap(session):
+    """With the left Ctrl the hand on the mouse Ctrl+clicks all the time;
+    a click in between flips a mouse button's toggle bit (KeyInput.buttons)."""
+    from smartime.engine.keys import VK_CONTROL, KeyInput
+
+    session.cfg.palette_hotkey = "lctrl"
+    session.filter_key_down(KeyInput(vk=VK_CONTROL, ctrl=True, buttons=0b00))
+    up = KeyInput(vk=VK_CONTROL, buttons=0b01)  # the left button went down once in between
+    assert not session.filter_key_up(up)
+    assert session.cand is None
+    # the toggle bits stay where they are now: the next lone tap works
+    session.filter_key_down(KeyInput(vk=VK_CONTROL, ctrl=True, buttons=0b01))
+    assert session.filter_key_up(up)
+
+
+def test_hotkey_settings_are_validated():
+    from smartime.config import Config
+
+    assert Config().palette_hotkey == "rctrl" and Config().voice_hotkey == "rctrl"
+    cfg = Config.from_dict({"palette_hotkey": "lctrl", "voice_hotkey": "lctrl"})
+    assert (cfg.palette_hotkey, cfg.voice_hotkey) == ("lctrl", "lctrl")
+    cfg = Config.from_dict({"palette_hotkey": "capslock", "voice_hotkey": "off"})
+    assert (cfg.palette_hotkey, cfg.voice_hotkey) == ("rctrl", "rctrl")
+    # an old config file without voice_hotkey keeps right Ctrl
+    assert Config.from_dict({"voice_enabled": True}).voice_hotkey == "rctrl"
+
+
+def test_pime_key_state_carries_the_mouse_buttons():
+    from smartime.pime.text_service import key_from_msg
+
+    states = [0] * 256
+    states[0x01] = 0x01  # left button: toggled once
+    states[0x04] = 0x01  # middle
+    key = key_from_msg({"keyCode": 0x11, "keyStates": states})
+    assert key.buttons == 0b101
+    assert key_from_msg({"keyCode": 0x11}).buttons == 0
+
+
 def test_backtick_is_left_alone(session):
     # the user fences code with `
     _, v = run(session, "`")

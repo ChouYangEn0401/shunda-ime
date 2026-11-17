@@ -3,8 +3,8 @@
 Key script syntax: plain characters are typed as-is (``ji3`` = ㄨㄛˇ); named
 keys go in braces: {BS} {DEL} {ENTER} {ESC} {TAB} {LEFT} {RIGHT} {UP} {DOWN}
 {HOME} {END} {NUM1}..{NUM9} (numeric keypad, NumLock on) {KP1}..{KP9} (the
-same keys with NumLock off) {SHIFT} (a lone Shift tap), {RCTRL} / {RALT} (a lone right-Ctrl /
-right-Alt tap: the symbol panel),
+same keys with NumLock off) {SHIFT} (a lone Shift tap), {RCTRL} / {LCTRL} / {RALT} (a lone
+right-Ctrl / left-Ctrl / right-Alt tap: the symbol panel, whichever key is set),
 {SPACE}, {S-TAB} (Shift+Tab), {S-LEFT}/{S-RIGHT} etc. ({PGUP} {PGDN} too).
 Ctrl combinations: {C-,} {C-d}; Ctrl+Shift: {CS-/}; Ctrl+Alt: {CA-,}.
 
@@ -68,7 +68,7 @@ def parse(script: str) -> Iterator[str | int | KeyInput]:
         elif name:
             if name == "SHIFT":
                 yield VK_SHIFT
-            elif name in ("RALT", "RCTRL"):
+            elif name in ("RALT", "RCTRL", "LCTRL"):
                 yield "{" + name + "}"
             elif name == "SPACE":
                 yield " "
@@ -89,14 +89,15 @@ def press(session: Session, item: str | int | KeyInput) -> tuple[bool, View]:
     if isinstance(item, KeyInput):
         handled = session.filter_key_down(item) and session.key_down(item)
         return handled, session.view()
-    if item in ("{RALT}", "{RCTRL}"):
+    if item in ("{RALT}", "{RCTRL}", "{LCTRL}"):
         vk = VK_MENU if item == "{RALT}" else VK_CONTROL
-        down = KeyInput(vk=vk, alt=vk == VK_MENU, ctrl=vk == VK_CONTROL, extended=True)
+        ext = item != "{LCTRL}"
+        down = KeyInput(vk=vk, alt=vk == VK_MENU, ctrl=vk == VK_CONTROL, extended=ext)
         session.filter_key_down(down)
-        up = KeyInput(vk=vk, extended=True)
+        up = KeyInput(vk=vk, extended=ext)
         handled = session.filter_key_up(up) and session.key_up(up)
         if handled is False and session.cand is not None:
-            handled = True  # (right Ctrl's key-up goes on to the app, but the panel opened)
+            handled = True  # (Ctrl's key-up goes on to the app, but the panel opened)
         return handled, session.view()
     if item == VK_SHIFT:
         down = KeyInput(vk=VK_SHIFT, shift=True, scan=SCAN_RSHIFT)

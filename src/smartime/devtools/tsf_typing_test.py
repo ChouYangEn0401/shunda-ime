@@ -59,7 +59,7 @@ PM_REMOVE = 1
 
 NAMED_VK = {"ENTER": VK_RETURN, "BS": 0x08, "TAB": 0x09, "ESC": 0x1B, "LEFT": 0x25, "UP": 0x26,
             "RIGHT": 0x27, "DOWN": 0x28, "RSHIFT": 0xA1, "HOME": 0x24, "END": 0x23, "DEL": 0x2E,
-            "RALT": 0xA5, "RCTRL": 0xA3}
+            "RALT": 0xA5, "RCTRL": 0xA3, "LCTRL": 0xA2}
 # The dedicated navigation block (arrows, Home/End, PageUp/PageDown,
 # Insert/Delete) is an "extended" key on real hardware — Windows tells it
 # apart from the numeric keypad's own nav keys (NumLock off) exactly that
@@ -254,7 +254,7 @@ PATIENCE = 30  # times a case is retried after the user touched the computer
 def release_modifiers() -> None:
     """A stop between a modifier's down and up would leave it held for the
     user: send the key-ups (harmless if they are already up)."""
-    for vk in (VK_SHIFT, VK_CONTROL, VK_MENU, 0xA1, 0xA3, 0xA5):
+    for vk in (VK_SHIFT, VK_CONTROL, VK_MENU, 0xA1, 0xA2, 0xA3, 0xA5):
         inp = INPUT(type=INPUT_KEYBOARD)
         flags = KEYEVENTF_KEYUP | (KEYEVENTF_EXTENDEDKEY if vk in (0xA3, 0xA5) else 0)
         inp.u.ki = KEYBDINPUT(wVk=vk, wScan=user32.MapVirtualKeyW(vk, 0), dwFlags=flags, dwExtraInfo=INJECTED_TAG)
@@ -378,7 +378,7 @@ def type_script(tap, script: str) -> None:
                 tap(0x09, True, False)
             else:
                 tap(NAMED_VK[name], False, False)
-                if name in ("RSHIFT", "RALT", "RCTRL"):
+                if name in ("RSHIFT", "RALT", "RCTRL", "LCTRL"):
                     pump(0.1)
             i += len(name) + 2
             continue

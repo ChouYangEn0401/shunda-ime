@@ -19,6 +19,17 @@ TOGGLE_SHIFT_CHOICES = ("left", "right", "both", "none")
 MODE_CHOICES = ("auto", "chinese", "english", "pinyin", "cangjie")
 SCHEME_CHOICES = ("zhuyin", "pinyin", "cangjie")
 DROP_CHOICES = ("off", "conservative", "standard")
+# The keys the symbol panel (a lone tap) and voice input (hold) can use, with
+# the names the settings page and the voice indicator show. Only the two Ctrl
+# keys: both reach an input method and a low-level hook alike, a lone Ctrl
+# does nothing in Windows or in applications, and every keyboard has a left
+# one (some laptops have no right Ctrl — GitHub issue #1). Rejected: Alt
+# (keys pressed with Alt never reach an input method, and a lone Alt opens
+# menu bars), Shift (a lone tap already switches modes), Caps Lock (Windows
+# toggles it whatever the input method does, and it types capitals here),
+# F-keys / Menu / ScrollLock / Pause (applications use them, and many
+# laptops need Fn or have none).
+HOTKEY_NAMES = {"rctrl": "右 Ctrl", "lctrl": "左 Ctrl"}
 # Values written by older versions.
 _MODE_ALIASES = {"mixed": "auto"}
 
@@ -70,12 +81,12 @@ class Config:
     # Ctrl / Ctrl+Shift cells changed by the user: "C+," / "CS+/" -> text
     # ("" = leave that combination to the app).
     punct_overrides: dict = field(default_factory=dict)
-    # Symbol panel: "rctrl" = a lone tap of the right Ctrl key (default; holding
-    # it is voice input), "ralt" = a lone tap of the right Alt key (some apps
-    # also open their menu bar on it), or "off". ` is left alone (users fence
-    # code with it). Ctrl+Alt+key is impossible: Windows does not pass keys
-    # pressed with Alt to input methods.
-    palette_hotkey: str = "rctrl"  # "rctrl" | "off"; "ralt" is migrated away
+    # Symbol panel: a lone tap of "rctrl" (the right Ctrl key, default; holding
+    # it is voice input), "lctrl" (the left one, for keyboards without a right
+    # Ctrl), or "off". ` is left alone (users fence code with it).
+    # Ctrl+Alt+key is impossible: Windows does not pass keys pressed with Alt
+    # to input methods; the old "ralt" choice is migrated to "rctrl".
+    palette_hotkey: str = "rctrl"  # "rctrl" | "lctrl" | "off"
     # 片語: typing this opens the list of saved texts (then a keyword filters
     # it). Never valid zhuyin, very rare in English; "" turns it off.
     snippet_trigger: str = ";;"
@@ -132,7 +143,6 @@ class Config:
     learn_notice: bool = True  # say so the first time a word is learned
     default_category: str = "人工加入"  # where Ctrl+D puts a new word
 
-    # Voice input (hold right Ctrl, speak, release)
     # Ask GitHub on a schedule whether there is a newer release. One plain
     # HTTPS GET to a public API, no account and no identifier beyond a
     # User-Agent naming the product; nothing is ever installed without the
@@ -142,7 +152,11 @@ class Config:
     update_weekday: int = 4  # Monday = 0 … Sunday = 6; -1 = every day (default Friday)
     update_hour: int = 14  # local hour of the scheduled check (default 14:00)
 
+    # Voice input (hold the key, speak, release)
     voice_enabled: bool = False  # off until a model is downloaded and the user turns it on
+    # The key held to talk: "rctrl" (default) | "lctrl". It may be the
+    # symbol panel's key too: a tap opens the panel, a hold is voice.
+    voice_hotkey: str = "rctrl"
     voice_engine: str = "auto"  # "auto" | "breeze" (GPU) | "sensevoice" (CPU)
     voice_hotwords: bool = True  # my dictionary's own words help recognition
     voice_traditional: bool = True  # convert to Taiwan Traditional Chinese
@@ -206,8 +220,6 @@ class Config:
         wanted = {m.strip() for m in self.mode_cycle.split(",")}
         cycle = [m for m in MODE_CHOICES if m in wanted]
         self.mode_cycle = ",".join(cycle or ["auto", "chinese", "english"])
-        if self.palette_hotkey not in ("rctrl", "ralt", "off"):
-            self.palette_hotkey = "rctrl"
         if self.layout not in ("dachen", "eten"):
             self.layout = "dachen"
         if self.voice_engine not in ("auto", "breeze", "sensevoice"):
@@ -225,8 +237,10 @@ class Config:
             # had chosen it were left with no way to open the symbol panel
             # at all (reported: 「我自己 right-control 都沒有跳出來???」).
             self.palette_hotkey = "rctrl"
-        if self.palette_hotkey not in ("rctrl", "off"):
+        if self.palette_hotkey not in (*HOTKEY_NAMES, "off"):
             self.palette_hotkey = "rctrl"
+        if self.voice_hotkey not in HOTKEY_NAMES:
+            self.voice_hotkey = "rctrl"
         if self.candidate_expand not in ("grow", "page"):
             self.candidate_expand = "grow"
         if self.newline_enter not in ("off", "shift", "ctrl", "right-shift"):

@@ -47,8 +47,9 @@ VK_D = 0x44
 VK_Y = 0x59
 VK_Z = 0x5A
 SHIFT_TAP_SECONDS = 0.5
-# A right-Ctrl tap must stay shorter than voice input's shortest hold (0.35 s),
-# so the two never both happen.
+# A tap of the symbol-panel key must stay shorter than voice input's shortest
+# hold (0.35 s, voice.service.MIN_SECONDS), so the two never both happen when
+# they share a key.
 CTRL_TAP_SECONDS = 0.3
 SELECTION_DIGITS = "123456789"
 RETYPE_WINDOW = 60.0  # seconds: Backspace and the same keys again within this is "not that one"
@@ -357,6 +358,7 @@ class Session(CorrectionMixin):
         self._text_here = ""  # everything this composition has put on screen so far
         self._shift_down_at: float | None = None
         self._palette_down_at: float | None = None  # the symbol-panel key went down (alone) at
+        self._palette_buttons = 0  # KeyInput.buttons then: a click while it is held = Ctrl+click
         self._shift_scan = 0
         # Undo inside the composition (Ctrl+Z / Ctrl+Y, and u in correction
         # mode): (keys, pins, cursor, joints) before each edit.
@@ -453,6 +455,7 @@ class Session(CorrectionMixin):
             if self._is_palette_key(key):
                 if self._palette_down_at is None:
                     self._palette_down_at = time.monotonic()
+                    self._palette_buttons = key.buttons
             else:
                 self._palette_down_at = None
         return self._wants(key)
@@ -512,9 +515,7 @@ class Session(CorrectionMixin):
         if self._is_palette_tap(key):
             self._palette_down_at = None
             self.toggle_palette()
-            # Alt's key-up is taken (or the app would open its menu bar);
-            # Ctrl's goes on, so the app sees Ctrl released
-            return self.cfg.palette_hotkey != "rctrl"
+            return False  # Ctrl's key-up goes on, so the app sees Ctrl released
         if not self._is_shift_tap(key):
             return False
         self._shift_down_at = None
@@ -2355,15 +2356,23 @@ class Session(CorrectionMixin):
         return False
 
     def _is_palette_key(self, key: KeyInput) -> bool:
-        return self.cfg.palette_hotkey == "rctrl" and key.vk == VK_CONTROL and key.extended
+        """The right Ctrl (default) or the left one: PIME tells them apart
+        only by ``isExtended``."""
+        if key.vk != VK_CONTROL:
+            return False
+        which = self.cfg.palette_hotkey
+        return (which == "rctrl" and key.extended) or (which == "lctrl" and not key.extended)
 
     def _is_palette_tap(self, key: KeyInput) -> bool:
-        """A lone tap of the symbol-panel key: right Ctrl (default) or
-        right Alt. (Keys pressed *with* Alt never reach an input method in
-        Windows/PIME, so Ctrl+Alt+, cannot work.) Right Ctrl held longer is
-        voice input; right Alt makes some apps open their menu bar, which is
-        why right Ctrl is the default (user feedback #8)."""
+        """A lone tap of the symbol-panel key. (Keys pressed *with* Alt never
+        reach an input method in Windows/PIME, so Ctrl+Alt+, cannot work, and
+        right Alt opened menu bars: user feedback #8.) The same key held
+        longer may be voice input. A mouse click while it was down makes it
+        Ctrl+click, not a tap — with the left Ctrl, the hand on the mouse
+        does that all the time."""
         if self._palette_down_at is None or not self._is_palette_key(key):
+            return False
+        if key.buttons != self._palette_buttons:
             return False
         return time.monotonic() - self._palette_down_at <= CTRL_TAP_SECONDS
 
