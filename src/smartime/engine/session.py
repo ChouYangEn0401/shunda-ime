@@ -1543,6 +1543,7 @@ class Session(CorrectionMixin):
             return
         pin = c.pin
         replaced = self._text_over(pin.start, pin.end)
+        old = self.decoding
         self._checkpoint()
         self.pins = [p for p in self.pins if p.end <= pin.start or p.start >= pin.end]
         self.pins.append(pin)
@@ -1550,6 +1551,10 @@ class Session(CorrectionMixin):
         self.cand = None
         if self.correcting:
             self._redecode()
+            # A choice changes its own span and nothing else. Reported: in
+            # 每一洲 picking 一週 gave 美一週 (每 alone loses to 美), and fixing
+            # 每 first then 週 broke 每 again — 「把我剛剛改正確的又改壞」.
+            self._hold_outside(pin.start, pin.end, old)
             self._learn_choice(pin, replaced)
             self.cursor = pin.start
             self._snap_to_unit()
@@ -1557,6 +1562,7 @@ class Session(CorrectionMixin):
         if self.cursor < len(self.keys):
             self.cursor = pin.end
         self._redecode()
+        self._hold_outside(pin.start, pin.end, old)  # (see above)
         self._learn_choice(pin, replaced)
 
     def _text_over(self, a: int, b: int) -> str:

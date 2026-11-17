@@ -349,3 +349,21 @@ def test_typing_into_the_middle_makes_characters_of_its_own(session):
 def test_esc_while_retyping_gives_back_the_old_character_after_a_half_typed_one(session):
     _, v = run(session, "2u u vu84{ESC}hhr2u0{ESC}")
     assert v.correcting and v.composition == "低一下"
+
+
+# ---------------------------------------------------------------- a fix stays fixed
+def test_picking_a_word_does_not_change_the_text_outside_it(session):
+    """Reported (0.9.0): 每一週 decodes 每一洲; picking 一週 for the last two
+    characters gave 美一週 — 每 on its own loses to 美, so fixing one half
+    broke the other. A choice changes its own span and nothing else."""
+    run(session, "ao3u 5. ")
+    assert text(session) == "每一洲"
+    run(session, "{DOWN}1")  # 1. 一週
+    assert text(session) == "每一週"
+
+
+def test_fixing_the_front_then_the_back_keeps_the_front(session):
+    run(session, "ao3u 5. {ESC}{LEFT}{LEFT}{DOWN}1")  # 1. 每一
+    assert text(session) == "每一洲"
+    run(session, "{RIGHT}{RIGHT}{DOWN}3")  # 3. 週
+    assert text(session) == "每一週"
