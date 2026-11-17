@@ -709,7 +709,7 @@ class Session(CorrectionMixin):
         if punct is not None:
             # Inserted as a key whose character *is* the punctuation, so it
             # flows through the decoder (and clause punctuation commits).
-            self._insert(Key(punct))
+            self._insert(Key(punct), hold_before=True)
             return True
         if key.ctrl and vk == VK_D:
             self._add_composition_to_dict()
@@ -754,7 +754,10 @@ class Session(CorrectionMixin):
             else:
                 self.commit_all()
         elif key.printable:
-            self._insert(Key(key.char, key.numpad))
+            # Shift+key punctuation (! ? : …) closes the sentence like Ctrl+，
+            # does; unshifted , . / ; - are zhuyin keys and must stay free.
+            closes = key.shift and len(key.char) == 1 and not key.char.isalnum() and key.char != " "
+            self._insert(Key(key.char, key.numpad), hold_before=closes)
         else:
             return False
         return True
@@ -801,8 +804,11 @@ class Session(CorrectionMixin):
         self._typing_run = False
 
     # ============================================================ editing
-    def _insert(self, k: Key) -> None:
+    def _insert(self, k: Key, hold_before: bool = False) -> None:
+        """``hold_before``: the key ends what came before it (punctuation):
+        keep that text exactly as it was on screen."""
         self._checkpoint(typing=True)
+        old = self.decoding
         pos = self.cursor
         middle = pos < len(self.keys)
         continuing = self._run_end == pos
@@ -825,6 +831,13 @@ class Session(CorrectionMixin):
         self._run_end = pos + 1 if (continuing or middle or self._retype_at is not None) else None
         self.cursor = pos + 1
         self._redecode()
+        if hold_before and not middle and not self.correcting:
+            # Reported: 「剛剛都看對了，結果因為標點符號他立刻更換，反而改錯」.
+            # The mark closes the sentence, and decoding a closed end may
+            # read the words before it differently — in the instant it is
+            # sent, with no chance to see it. What was read is what is sent.
+            # (An unfinished syllable is not held: it was never shown as text.)
+            self._hold_outside(pos, pos + 1, old, chinese_only=True)
         here = next((s for s in self.decoding.segments if s.start <= pos < s.end), None)
         # a finished syllable, a space or punctuation ends this undo step
         self._typing_run = not (k.char == " " or not k.char.isalnum() or (here is not None and here.kind is Kind.ZH))

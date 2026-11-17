@@ -367,3 +367,36 @@ def test_fixing_the_front_then_the_back_keeps_the_front(session):
     assert text(session) == "每一洲"
     run(session, "{RIGHT}{RIGHT}{DOWN}3")  # 3. 週
     assert text(session) == "每一週"
+
+
+def test_punctuation_sends_what_was_on_screen(session, monkeypatch):
+    """Reported: 「剛剛都看對了，但按下，的那一剎那，他還有可能在改變」. The
+    mark closes the sentence and a closed end may be read differently; that
+    must not change the text the user already read. Forced here: a decoder
+    that changes its mind about the first word as soon as a mark follows,
+    unless something holds that word in place."""
+    from dataclasses import replace
+
+    from smartime.engine.decoder import Kind
+
+    decoder = session.engine.decoder
+    real = decoder.decode
+
+    def fickle(keys, pins=(), *a, **kw):
+        dec = real(keys, pins, *a, **kw)
+        held = any(p.start == 0 for p in pins)
+        if keys and keys[-1].char == "，" and not held and dec.segments and dec.segments[0].kind is Kind.ZH:
+            first = dec.segments[0]
+            dec = replace(dec, segments=type(dec.segments)([replace(first, text="錯" * len(first.text)), *dec.segments[1:]]))
+        return dec
+
+    monkeypatch.setattr(decoder, "decode", fickle)
+    run(session, "ji3ap6")
+    assert text(session) == "我們"
+    out, view = run(session, "{C-,}")
+    assert out + view.composition == "我們，"
+
+
+def test_punctuation_still_finishes_a_half_typed_syllable(session):
+    out, view = run(session, "ji3u {C-,}")  # 我 + ㄧ (tone typed, shown as keys a moment)
+    assert "u" not in out + view.composition

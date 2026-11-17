@@ -609,20 +609,26 @@ class CorrectionMixin:
         self._hold_outside(pin.start, pin.end, old)
         self._cycle.start = self.cursor
 
-    def _hold_outside(self, a: int, b: int, old) -> None:
+    def _hold_outside(self, a: int, b: int, old, chinese_only: bool = False) -> None:
         """j/k change what is under the cursor and nothing else. Decoding
         again with the new character can re-read a neighbour (cycling 打 →
         大 → 達 flipped 記 and 計 next to it); put what changed back as it
         was. Held in place, not marked as chosen (pinned=False: the decoder
-        keeps every pin, the flag is only the panel's underline)."""
+        keeps every pin, the flag is only the panel's underline).
+
+        ``chinese_only``: hold Chinese characters only — punctuation ends an
+        English word, and fixing that word (teh → the) is meant to happen."""
+        def keep(seg) -> bool:
+            return seg.kind is Kind.ZH if chinese_only else seg.kind not in (Kind.DROP, Kind.PENDING)
+
         def outside(dec):
-            return [(s, e, ch) for s, e, ch, _ in dec.units() if e <= a or s >= b]
+            return [(s, e, ch) for s, e, ch, i in dec.units()
+                    if (e <= a or s >= b) and (not chinese_only or dec.segments[i].kind is Kind.ZH)]
 
         want = outside(old)
         if outside(self.decoding) == want:
             return
-        parts = [p for seg in old.segments if seg.kind not in (Kind.DROP, Kind.PENDING)
-                 for p in _outside(seg, a, b)]
+        parts = [p for seg in old.segments if keep(seg) for p in _outside(seg, a, b)]
         for only_changed in (True, False):
             now = {(s.start, s.end, s.text, s.kind) for s in self.decoding.segments}
             held = [p for p in parts
