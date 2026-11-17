@@ -57,10 +57,15 @@ TIMEOUT = 8.0
 EVERY = 24 * 3600  # check(force=False): how long a cached answer counts as fresh
 RETRY = 3600  # a scheduled check that failed (offline) is tried again after this
 CACHE_NAME = "update.json"
-# Default schedule (Config.update_weekday / update_hour): Friday, 14:00 local.
+# Default schedule (Config.update_weekday / update_hour / update_minute):
+# Friday, 14:00 local. Any minute of the day can be set.
 DEFAULT_WEEKDAY = 4  # Monday = 0 … Sunday = 6; -1 = every day
 DEFAULT_HOUR = 14
-POLL = 600  # seconds between the background thread's looks at the schedule
+# Seconds between the background thread's looks at the schedule. A look is
+# one stat of a JSON file, so once a minute costs nothing — and a check set
+# for 15:30 happens at 15:30, not up to ten minutes later (the user set a
+# time a minute ahead to watch it happen).
+POLL = 60
 FIRST_LOOK = 90  # …and the first one, so starting to type never waits on it
 
 
@@ -75,6 +80,7 @@ class Release:
     published: str = ""
     checked: float = 0.0  # when we last asked (epoch seconds)
     error: str = ""  # why the last check failed, for the settings page
+    started: str = ""  # the version whose installer was opened automatically (once per version)
 
     @property
     def newer(self) -> bool:
@@ -100,8 +106,13 @@ def version_tuple(v: str) -> tuple:
     if not pre:
         return (*nums, 9, 0)  # a release is newer than every pre-release of it
     kind, _, n = pre.partition(".")
-    digits = "".join(c for c in n if c.isdigit())
-    return (*nums, PRE_RANK.get(kind.rstrip("0123456789").lower(), 0), int(digits) if digits else 0)
+    # a hotfix of a test build has one more number: alpha.1 < alpha.1.1 < alpha.2
+    # (reading "1.1" as the digits 11 put it after alpha.2)
+    parts = []
+    for part in n.split(".") if n else []:
+        digits = "".join(c for c in part if c.isdigit())
+        parts.append(int(digits) if digits else 0)
+    return (*nums, PRE_RANK.get(kind.rstrip("0123456789").lower(), 0), *(parts or [0]))
 
 
 def cache_path() -> Path:
@@ -143,11 +154,11 @@ def pick_release(releases: list) -> dict | None:
     return best
 
 
-def last_slot(now: float, weekday: int = DEFAULT_WEEKDAY, hour: int = DEFAULT_HOUR) -> float:
+def last_slot(now: float, weekday: int = DEFAULT_WEEKDAY, hour: int = DEFAULT_HOUR, minute: int = 0) -> float:
     """The latest scheduled moment at or before ``now`` (local time):
-    ``weekday`` at ``hour``:00, or every day at ``hour`` when weekday is -1."""
+    ``weekday`` at ``hour``:``minute``, or every day then when weekday is -1."""
     d = datetime.fromtimestamp(now)
-    slot = d.replace(hour=max(0, min(23, hour)), minute=0, second=0, microsecond=0)
+    slot = d.replace(hour=max(0, min(23, hour)), minute=max(0, min(59, minute)), second=0, microsecond=0)
     if weekday >= 0:
         slot -= timedelta(days=(slot.weekday() - weekday) % 7)
     if slot > d:
@@ -155,19 +166,20 @@ def last_slot(now: float, weekday: int = DEFAULT_WEEKDAY, hour: int = DEFAULT_HO
     return slot.timestamp()
 
 
-def next_slot(now: float, weekday: int = DEFAULT_WEEKDAY, hour: int = DEFAULT_HOUR) -> float:
+def next_slot(now: float, weekday: int = DEFAULT_WEEKDAY, hour: int = DEFAULT_HOUR, minute: int = 0) -> float:
     """The first scheduled moment after ``now``."""
-    return last_slot(now + (7 if weekday >= 0 else 1) * 86400, weekday, hour)
+    return last_slot(now + (7 if weekday >= 0 else 1) * 86400, weekday, hour, minute)
 
 
-def due(now: float, release: Release, weekday: int = DEFAULT_WEEKDAY, hour: int = DEFAULT_HOUR) -> bool:
+def due(now: float, release: Release, weekday: int = DEFAULT_WEEKDAY, hour: int = DEFAULT_HOUR,
+        minute: int = 0) -> bool:
     """Should the scheduled check run now? Yes when the last check is older
     than the latest scheduled moment — so a computer that was off on Friday
     afternoon checks the next time it is used — or when the last check
     failed and an hour has passed."""
     if release.error and now - release.checked >= RETRY:
         return True
-    return release.checked < last_slot(now, weekday, hour)
+    return release.checked < last_slot(now, weekday, hour, minute)
 
 
 def _get_json(url: str):
@@ -186,7 +198,7 @@ def check(force: bool = True) -> Release:
     old = cached()
     if not force and old.checked and time.time() - old.checked < EVERY:
         return old
-    release = Release(checked=time.time())
+    release = Release(checked=time.time(), started=old.started)
     try:
         if wants_prereleases():
             data = pick_release(_get_json(API_LIST)) or {}
@@ -235,8 +247,17 @@ def download(release: Release, progress=None) -> Path:
 
 def run_installer(path: Path) -> None:
     """Start the downloaded installer. It asks for administrator rights
-    itself; we never install anything without the user seeing that."""
-    os.startfile(str(path))  # noqa: S606 - a file this module just downloaded
+    itself; we never install anything without the user seeing that.
+
+    Started by Explorer, not as our child: the installer stops PIMELauncher
+    (and with it this backend), and a process we started could go down
+    with us halfway through the upgrade."""
+    import subprocess
+
+    try:
+        subprocess.Popen(["explorer.exe", str(path)], close_fds=True)  # noqa: S603,S607
+    except OSError:
+        os.startfile(str(path))  # noqa: S606 - a file this module just downloaded
 
 
 # ------------------------------------------------------------ background
@@ -266,18 +287,43 @@ def available(now: float | None = None) -> str:
     return _seen["version"]
 
 
+def schedule_of(config) -> tuple[int, int, int]:
+    return (getattr(config, "update_weekday", DEFAULT_WEEKDAY), getattr(config, "update_hour", DEFAULT_HOUR),
+            getattr(config, "update_minute", 0))
+
+
 def run_schedule_once(config, now: float | None = None) -> bool:
     """One look at the schedule; True when a check was made."""
     if not getattr(config, "update_check", False):
         return False
     now = time.time() if now is None else now
-    if not due(now, cached(), getattr(config, "update_weekday", DEFAULT_WEEKDAY),
-               getattr(config, "update_hour", DEFAULT_HOUR)):
+    if not due(now, cached(), *schedule_of(config)):
         return False
     release = check(force=True)
     log.info("scheduled update check: latest %s%s", release.version or "?",
              f" (error: {release.error})" if release.error else "")
     _seen["looked"] = 0.0  # let the tray icon see the answer at once
+    if getattr(config, "update_auto_install", False):
+        auto_install(release)
+    return True
+
+
+def auto_install(release: Release) -> bool:
+    """「找到新版本時自動下載並開始安裝」: download the installer and open
+    it — once per version, so cancelling the elevation prompt does not bring
+    it back every minute (the red dot and the menu stay). Windows still asks
+    for administrator rights; nothing installs without the user saying yes."""
+    if not (release.newer and release.asset_url) or release.started == release.version:
+        return False
+    try:
+        path = download(release)
+    except Exception:  # noqa: BLE001 - offline / GitHub hiccup: the dot is still there
+        log.exception("automatic update download failed")
+        return False
+    release.started = release.version
+    _store(release)
+    log.info("opening the installer of %s automatically: %s", release.version, path)
+    run_installer(path)
     return True
 
 

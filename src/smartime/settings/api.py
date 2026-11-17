@@ -503,10 +503,11 @@ class SettingsApp:
 
         cfg = Config.load(self.config_path)
         now = time.time()
-        due = upd.due(now, release, cfg.update_weekday, cfg.update_hour)
+        when = upd.schedule_of(cfg)
+        due = upd.due(now, release, *when)
         return {
-            # 「下次檢查」: the next scheduled moment, or 0 = 「下一次打字時」 (already due)
-            "nextCheck": 0 if due else upd.next_slot(now, cfg.update_weekday, cfg.update_hour),
+            # 「下次檢查」: the next scheduled moment, or 0 = within a minute (already due)
+            "nextCheck": 0 if due else upd.next_slot(now, *when),
             "scheduled": cfg.update_check,
             "testBuild": upd.wants_prereleases(),
             "current": __version__,

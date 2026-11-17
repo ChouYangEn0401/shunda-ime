@@ -141,6 +141,10 @@ class Config:
     update_check: bool = True
     update_weekday: int = 4  # Monday = 0 … Sunday = 6; -1 = every day (default Friday)
     update_hour: int = 14  # local hour of the scheduled check (default 14:00)
+    update_minute: int = 0  # …and minute: any time of day can be set
+    # Found a newer version: download it and open its installer right away
+    # (Windows still asks for administrator rights). Off: only the red dot.
+    update_auto_install: bool = False
 
     voice_enabled: bool = False  # off until a model is downloaded and the user turns it on
     voice_engine: str = "auto"  # "auto" | "breeze" (GPU) | "sensevoice" (CPU)
@@ -246,6 +250,7 @@ class Config:
         if not -1 <= self.update_weekday <= 6:
             self.update_weekday = 4
         self.update_hour = max(0, min(23, self.update_hour))
+        self.update_minute = max(0, min(59, self.update_minute))
         if not self.default_category.strip():
             self.default_category = "人工加入"
 

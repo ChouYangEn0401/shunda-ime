@@ -139,7 +139,7 @@ section.view > .lead { color: var(--muted); margin: 0 0 18px; max-width: 65ch; }
 #keys-table td:first-child, #keys-table th:first-child { white-space: nowrap; color: var(--muted); }
 .mode-card small { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 
-select, input[type="text"], input[type="number"], input[type="search"] { font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; min-width: 0; }
+select, input[type="text"], input[type="number"], input[type="search"], input[type="time"] { font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; min-width: 0; }
 input[type="range"] { accent-color: var(--accent); width: 160px; max-width: 100%; }
 .btn { all: unset; cursor: pointer; padding: 6px 14px; border-radius: 7px; border: 1px solid var(--line); font-size: 14px; white-space: nowrap; text-align: center; }
 .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }

@@ -1509,16 +1509,44 @@
     const el = document.getElementById("update-next");
     if (!el) return;
     if (!u.scheduled) { el.textContent = ""; return; }
-    if (!u.nextCheck) { el.textContent = "下一次：開始打字後幾分鐘內。"; return; }
+    if (!u.nextCheck) { el.textContent = "下一次：一分鐘內（輸入法有在用時）。"; return; }
     const d = new Date(u.nextCheck * 1000);
-    el.textContent = `下一次：${d.getMonth() + 1}/${d.getDate()}（週${WEEKDAYS[(d.getDay() + 6) % 7]}）${d.getHours()}:00 以後第一次打字時。`;
+    const hm = `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+    el.textContent = `下一次：${d.getMonth() + 1}/${d.getDate()}（週${WEEKDAYS[(d.getDay() + 6) % 7]}）${hm}，那時輸入法有在用就查，沒在用就等下一次打字。`;
   }
+
+  // the time of day: one <input type=time> for update_hour + update_minute
+  // (it was a list of five hours — reported: 「你時間幹嘛寫死」)
+  const updateTime = document.getElementById("update-time");
+  function showUpdateTime() {
+    if (!updateTime || config.update_hour === undefined) return;
+    updateTime.value = `${String(config.update_hour).padStart(2, "0")}:${String(config.update_minute || 0).padStart(2, "0")}`;
+  }
+  if (updateTime) {
+    updateTime.addEventListener("change", () => {
+      const [h, m] = (updateTime.value || "14:00").split(":").map(x => parseInt(x, 10) || 0);
+      save({ update_hour: h, update_minute: m });
+    });
+  }
+  // the 「下一次」 line follows the schedule as soon as it is changed (it
+  // kept showing the old day and hour until the page was opened again)
+  ["update_check", "update_weekday"].forEach(k => {
+    const el = document.querySelector(`[data-cfg="${k}"]`);
+    if (el) el.addEventListener("change", () => setTimeout(loadUpdate, 700));
+  });
+  if (updateTime) updateTime.addEventListener("change", () => setTimeout(loadUpdate, 700));
 
   function renderUpdate(u) {
     const status = document.getElementById("update-status");
     const install = document.getElementById("update-install");
+    const page = document.getElementById("update-page");
     renderNextCheck(u);
+    showUpdateTime();
     install.hidden = !(u.newer && u.canInstall);
+    // a release with no installer attached: say so and link to it, instead
+    // of a status that says 「有新版本」 and no button at all (reported)
+    page.hidden = !(u.newer && !u.canInstall);
+    if (u.url) page.href = u.url;
     if (u.job && u.job.active) {
       const pct = u.job.total ? Math.round(100 * u.job.done / u.job.total) : 0;
       status.textContent = `下載中… ${pct}%（${fmtSize(u.job.total)}）`;
@@ -1530,8 +1558,10 @@
     if (u.job && u.job.path) { status.textContent = "安裝檔已下載，請在安裝視窗繼續。"; return; }
     if (u.error && !u.latest) { status.textContent = "這次連不上 GitHub（離線也沒關係，輸入法照常用）。"; return; }
     if (!u.latest) { status.textContent = "尚未檢查。"; return; }
-    if (u.newer) {
-      status.textContent = `有新版本 ${u.latest}${u.size ? "（" + fmtSize(u.size) + "）" : ""}。`;
+    if (u.newer && !u.canInstall) {
+      status.textContent = `有新版本 ${u.latest}，但 GitHub 上這一版沒有附安裝檔（.exe），沒辦法自動下載；可以到 GitHub 頁面看看。`;
+    } else if (u.newer) {
+      status.textContent = `有新版本 ${u.latest}${u.size ? "（" + fmtSize(u.size) + "）" : ""}，按「下載並安裝」。`;
     } else if (u.ahead) {
       // "已經是最新版本（GitHub 上也是 0.6.0）" while running 0.8.0-alpha.6
       // read as a contradiction (reported). Say which way round it is.

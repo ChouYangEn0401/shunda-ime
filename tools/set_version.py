@@ -24,7 +24,9 @@ ROOT = Path(__file__).resolve().parents[1]
 # SemVer, with an optional pre-release: 0.8.0, 0.8.0-alpha.3, 0.8.0-rc.1.
 # Test builds on the way to a release are tagged like that, and the real
 # release is the plain number — see CONTRIBUTING.md §6.
-VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?$")
+# A hotfix of a test build adds a number: 0.10.0-alpha.1.1 (after alpha.1,
+# before alpha.2).
+VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+(?:\.\d+)?)?$")
 PEP440 = {"alpha": "a", "beta": "b", "rc": "rc"}
 
 
@@ -35,7 +37,9 @@ def pep440(version: str) -> str:
     if not pre:
         return base
     kind, _, n = pre.partition(".")
-    return f"{base}{PEP440[kind]}{n}"
+    n, _, fix = n.partition(".")
+    # PEP 440 has no a1.1; a1.post1 sorts the same way (after a1, before a2)
+    return f"{base}{PEP440[kind]}{n}" + (f".post{fix}" if fix else "")
 
 # (file, pattern with one group around the version, how to write it back)
 COPIES = [

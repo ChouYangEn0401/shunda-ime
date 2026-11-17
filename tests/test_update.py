@@ -183,3 +183,57 @@ def test_every_mode_icon_has_a_dotted_twin():
 def test_next_slot_is_always_in_the_future(weekday):
     now = time.time()
     assert now < upd.next_slot(now, weekday, 14) <= now + 7 * 86400 + 3600
+
+
+def test_a_hotfix_of_a_test_build_sorts_between():
+    v = upd.version_tuple
+    assert v("0.10.0-alpha.1") < v("0.10.0-alpha.1.1") < v("0.10.0-alpha.2") < v("0.10.0")
+
+
+def test_the_schedule_takes_any_minute():
+    """Reported: the hour was a list of five (「你時間幹嘛寫死」), so a check
+    could not be set a minute ahead to watch it happen."""
+    assert upd.last_slot(ts(2026, 11, 20, 15, 31), 4, 15, 30) == ts(2026, 11, 20, 15, 30)
+    assert upd.last_slot(ts(2026, 11, 20, 15, 29), 4, 15, 30) == ts(2026, 11, 13, 15, 30)
+    assert upd.next_slot(ts(2026, 11, 18, 9, 0), -1, 9, 5) == ts(2026, 11, 18, 9, 5)
+    checked = upd.Release(version="1", checked=ts(2026, 11, 20, 15, 0))
+    assert not upd.due(ts(2026, 11, 20, 15, 29), checked, 4, 15, 30)
+    assert upd.due(ts(2026, 11, 20, 15, 30), checked, 4, 15, 30)
+    assert Config.from_dict({"update_minute": 75}).update_minute == 59
+    assert upd.POLL <= 60  # a time set a minute ahead happens about then
+
+
+def test_auto_install_opens_the_installer_once_per_version(monkeypatch, tmp_path):
+    opened = []
+    monkeypatch.setattr(upd, "download", lambda r, progress=None: tmp_path / "setup.exe")
+    monkeypatch.setattr(upd, "run_installer", lambda p: opened.append(p))
+    r = upd.Release(version="99.0.0", asset_url="https://x/setup.exe", checked=time.time())
+    assert upd.auto_install(r) and len(opened) == 1
+    assert upd.cached().started == "99.0.0"
+    assert not upd.auto_install(upd.cached())  # cancelled UAC: not again every minute
+    assert not upd.auto_install(upd.Release(version="99.0.1"))  # no installer attached
+    assert len(opened) == 1
+
+
+def test_scheduled_check_auto_installs_only_when_asked(monkeypatch):
+    calls = []
+    monkeypatch.setattr(upd, "check", lambda force=True: upd.Release(version="99.0.0", asset_url="u",
+                                                                    checked=time.time()))
+    monkeypatch.setattr(upd, "auto_install", lambda r: calls.append(r.version))
+    upd.run_schedule_once(Config())
+    assert calls == []
+    upd._store(upd.Release())  # due again
+    upd.run_schedule_once(Config(update_auto_install=True))
+    assert calls == ["99.0.0"]
+
+
+def test_a_release_without_an_installer_is_said(monkeypatch):
+    """Reported: 「有新版本 0.10.0-alpha.2」 and no button — the GitHub release
+    had no .exe attached. The page needs to know to say so."""
+    from smartime.settings.api import SettingsApp
+
+    app = SettingsApp()
+    monkeypatch.setattr(upd, "cached", lambda: upd.Release(version="99.0.0", url="https://x/r"))
+    state = app.update_state()
+    assert state["newer"] and not state["canInstall"] and state["url"] == "https://x/r"
+    app.close()
