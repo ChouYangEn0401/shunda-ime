@@ -374,3 +374,27 @@ def test_practice_progress_is_in_the_export_and_merges_on_import(server):
     call(server, "POST", "/api/practice/done", {"id": "swap"})
     r = call(server, "POST", "/api/import?settings=0", raw=blob)[1]
     assert r["practice"] == 1 and practice.done() == ["swap", "hello"]
+
+
+def test_edit_an_entry_word_and_reading(server):
+    """設定頁「編輯」: words can be fixed on the page, not only added with Ctrl+D."""
+    _, a = call(server, "POST", "/api/entries", {"phrase": "陳怡君", "category": "朋友"})
+    _, b = call(server, "POST", "/api/entries", {"phrase": "每一週", "category": "常用詞"})
+    # the word itself: a new reading is made for it, the category stays
+    status, _ = call(server, "PATCH", f"/api/entries/{a['id']}", {"phrase": "陳宜君", "reading": ""})
+    assert status == 200
+    rows = {r["phrase"]: r for r in server.app.user.list(limit=100)}
+    assert "陳怡君" not in rows and rows["陳宜君"]["category"] == "朋友"
+    assert len(rows["陳宜君"]["reading"].split("-")) == 3
+    # only the reading
+    status, _ = call(server, "PATCH", f"/api/entries/{b['id']}", {"phrase": "每一週", "reading": "ㄇㄟˇ ㄧˊ ㄓㄡ"})
+    assert status == 200
+    assert {r["phrase"]: r["reading"] for r in server.app.user.list(limit=100)}["每一週"] == "ㄇㄟˇ-ㄧˊ-ㄓㄡ"
+    # renaming onto a word that is already there says so
+    status, err = call(server, "PATCH", f"/api/entries/{b['id']}", {"phrase": "陳宜君", "reading": ""})
+    assert status == 400 and "已經有" in err["error"]
+    # English
+    _, c = call(server, "POST", "/api/entries", {"phrase": "venv"})
+    assert call(server, "PATCH", f"/api/entries/{c['id']}", {"phrase": "pnpm"})[0] == 200
+    assert any(r["phrase"] == "pnpm" and r["kind"] == "en" for r in server.app.user.list(limit=100))
+    assert call(server, "PATCH", f"/api/entries/{a['id']}", {"phrase": "  "})[0] == 400

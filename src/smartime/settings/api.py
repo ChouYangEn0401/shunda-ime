@@ -289,12 +289,29 @@ class SettingsApp:
             kwargs["category"] = str(body["category"])
         if "blocked" in body:
             kwargs["blocked"] = bool(body["blocked"])
-        if "reading" in body:
+        if "reading" in body or "phrase" in body:
             row = [r for r in self.user.list(limit=100000) if r["id"] == entry_id]
             if not row:
                 raise ApiError(404, "找不到這個詞")
-            kwargs["reading"] = self._normalize_reading(row[0]["phrase"], str(body["reading"]))
-        self.user.update(entry_id, **kwargs)
+            phrase = str(body.get("phrase", row[0]["phrase"])).strip()
+            if not phrase:
+                raise ApiError(400, "詞不能是空的")
+            if "phrase" in body and phrase != row[0]["phrase"]:
+                # 「編輯」 on the settings page: the word itself changes
+                if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 .'+#-]*", phrase):
+                    kwargs.update(phrase=phrase.lower(), reading="", kind="en")
+                else:
+                    # a new word: a reading typed for the old one rarely fits it
+                    typed = str(body.get("reading", ""))
+                    fits = len("-".join(typed.replace("　", " ").split()).split("-")) == len(phrase)
+                    kwargs.update(phrase=phrase, kind="zh",
+                                  reading=self._normalize_reading(phrase, typed if fits else ""))
+            elif row[0]["kind"] != "en":
+                kwargs["reading"] = self._normalize_reading(phrase, str(body.get("reading", "")))
+        try:
+            self.user.update(entry_id, **kwargs)
+        except ValueError as e:
+            raise ApiError(400, "詞庫裡已經有這個詞了") from e
         return {"ok": True}
 
     def delete_entry(self, entry_id: int) -> dict:

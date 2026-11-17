@@ -680,10 +680,48 @@
       btn.className = "btn small danger"; btn.textContent = "刪除";
       btn.addEventListener("click", () => rowChange(r,
         () => api("DELETE", `/api/entries/${r.id}`), `已刪除「${r.phrase}」`));
+      // 「編輯」: fix the word or its reading right here (reported: adding
+      // and changing words should not need Ctrl+D while typing)
+      const edit = document.createElement("button"); edit.type = "button";
+      edit.className = "btn small"; edit.textContent = "編輯";
+      edit.addEventListener("click", () => editEntryRow(r, tdWord, tdRead, tdAct));
+      tdAct.appendChild(edit);
     }
     tdAct.appendChild(btn);
     tr.append(tdWord, tdRead, tdMid, tdN, tdWhen, tdAct);
     return tr;
+  }
+
+  function editEntryRow(r, tdWord, tdRead, tdAct) {
+    const saved = [tdWord, tdRead, tdAct].map(td => [...td.childNodes]);
+    const word = document.createElement("input"); word.type = "text"; word.value = r.phrase;
+    word.className = "inline-edit"; word.setAttribute("aria-label", "詞");
+    const reading = document.createElement("input"); reading.type = "text";
+    reading.className = "inline-edit"; reading.setAttribute("aria-label", "注音");
+    reading.value = r.kind === "en" ? "" : (r.readingDisplay || "");
+    reading.placeholder = r.kind === "en" ? "英文不用注音" : "留空會自動產生";
+    reading.disabled = r.kind === "en";
+    const ok = document.createElement("button"); ok.type = "button"; ok.className = "btn small primary"; ok.textContent = "儲存";
+    const cancel = document.createElement("button"); cancel.type = "button"; cancel.className = "btn small"; cancel.textContent = "取消";
+    tdWord.replaceChildren(word); tdRead.replaceChildren(reading); tdAct.replaceChildren(ok, cancel);
+    const restore = () => [tdWord, tdRead, tdAct].forEach((td, i) => td.replaceChildren(...saved[i]));
+    const save = async () => {
+      const phrase = word.value.trim();
+      if (!phrase) { toast("詞不能是空的", true); word.focus(); return; }
+      try {
+        await api("PATCH", `/api/entries/${r.id}`, { phrase, reading: reading.value });
+        toast(phrase === r.phrase ? `已更新「${phrase}」的注音` : `「${r.phrase}」改成「${phrase}」`);
+        loadEntries();
+        scheduleCounts();
+      } catch (e) { toast(e.message, true); }
+    };
+    ok.addEventListener("click", save);
+    cancel.addEventListener("click", restore);
+    [word, reading].forEach(el => el.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); save(); }
+      if (e.key === "Escape") { e.preventDefault(); restore(); }
+    }));
+    word.focus(); word.select();
   }
 
   let searchTimer = 0;

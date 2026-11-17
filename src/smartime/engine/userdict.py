@@ -324,7 +324,19 @@ class UserDict:
         return self._con.execute("SELECT id FROM entries WHERE phrase=? AND reading=?", (phrase, reading)).fetchone()[0]
 
     def update(self, entry_id: int, *, category: str | None = None, reading: str | None = None,
-               blocked: bool | None = None) -> None:
+               blocked: bool | None = None, phrase: str | None = None, kind: str | None = None) -> None:
+        """``phrase`` (with its ``reading`` and ``kind``): the settings page's
+        「編輯」 — the word itself was wrong. That is a word the user wrote,
+        so it counts as theirs (source 'manual'). Raises ValueError when the
+        same word with the same reading is already there."""
+        if phrase is not None:
+            try:
+                self._con.execute(
+                    "UPDATE entries SET phrase=?, reading=?, kind=coalesce(?, kind), source='manual' WHERE id=?",
+                    (phrase, reading if reading is not None else "", kind, entry_id))
+            except sqlite3.IntegrityError as e:
+                raise ValueError("duplicate") from e
+            reading = None
         if category is not None:
             self._con.execute("UPDATE entries SET category_id=?, source='manual' WHERE id=?",
                               (self._category_id(category), entry_id))
