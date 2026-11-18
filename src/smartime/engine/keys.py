@@ -29,6 +29,11 @@ VK_NUMPAD9 = 0x69
 VK_DIVIDE = 0x6F
 VK_NUMLOCK = 0x90
 VK_PACKET = 0xE7  # a Unicode character sent by a program (voice input, paste tools)
+# Voice input presses this (F24, on no real keyboard) before it types: the
+# IME commits whatever it is composing, so the text lands after it, not in
+# front of a 。 still waiting to be swapped (reported: 「語音就會貼在。後面…
+# 再按。就出現在語音插入的文字前面」). Nobody else is composing: it passes.
+VK_COMMIT = 0x87
 VK_OEM_1 = 0xBA  # ;
 VK_OEM_COMMA = 0xBC
 VK_OEM_MINUS = 0xBD

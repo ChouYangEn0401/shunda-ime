@@ -31,7 +31,7 @@ from .keys import (
     MODIFIER_VKS, SCAN_LSHIFT, SCAN_RSHIFT, VK_BACK, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE,
     VK_HOME, VK_LEFT, VK_NEXT, VK_NUMPAD0, VK_NUMPAD9, VK_OEM_1, VK_OEM_2, VK_OEM_4, VK_OEM_6,
     VK_OEM_7, VK_OEM_COMMA, VK_OEM_MINUS, VK_OEM_PERIOD, VK_PRIOR, VK_RETURN, VK_RIGHT, VK_SHIFT,
-    VK_SPACE, VK_TAB, VK_UP, VK_MENU, VK_PACKET, VK_CONTROL, KeyInput,
+    VK_SPACE, VK_TAB, VK_UP, VK_MENU, VK_PACKET, VK_CONTROL, VK_COMMIT, KeyInput,
 )
 from .layouts import Layout
 from .lexicon import Lexicon
@@ -463,6 +463,9 @@ class Session(CorrectionMixin):
     def key_down(self, key: KeyInput) -> bool:
         if not self._wants(key):
             return False
+        if key.vk == VK_COMMIT:
+            self.commit_all()  # voice input is about to type (keys.VK_COMMIT)
+            return True
         if self.cand is not None:
             if self._candidate_key(key):
                 return True
@@ -634,6 +637,8 @@ class Session(CorrectionMixin):
             # text typed by a program (our voice input, password managers):
             # already final, never zhuyin. Only taken to commit first.
             return self.composing
+        if key.vk == VK_COMMIT:
+            return self.composing or self.cand is not None
         if self.cand is not None:
             return True
         if self._ctrl_punct(key) is not None:

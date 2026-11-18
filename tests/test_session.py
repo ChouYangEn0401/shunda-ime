@@ -281,6 +281,22 @@ def test_text_typed_by_programs_passes_through(session):
     assert v.commit == "我" and v.composition == ""
 
 
+def test_voice_commit_key_commits_an_open_punctuation_mark(session):
+    """「語音就會貼在。後面…再按。就出現在語音插入的文字前面，變兩個。。」:
+    voice input presses VK_COMMIT before typing; a 。 still open for
+    swapping is committed in that key's own event."""
+    from smartime.engine.keys import VK_COMMIT, KeyInput
+
+    commit = KeyInput(vk=VK_COMMIT)
+    assert not session.filter_key_down(commit)  # nothing composing: the app gets it
+    run(session, "ji3{C-.}")
+    assert session.view().composition == "。"
+    assert session.filter_key_down(commit)
+    assert session.key_down(commit) is True  # eaten: F24 never reaches the app
+    v = session.view()
+    assert v.commit == "。" and v.composition == "" and not session.composing
+
+
 def test_keys_for_the_app_commit_the_composition_first(session):
     # Regression (#5): Ctrl+V while text was still composing pasted into the
     # middle of the composition / left odd formatting. Every key we do not

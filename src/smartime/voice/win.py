@@ -10,7 +10,9 @@ import threading
 import time
 from ctypes import wintypes
 
-from ..engine.keys import INJECTED_TAG
+from ..engine.keys import INJECTED_TAG, VK_COMMIT
+
+COMMIT_PAUSE = 0.08  # seconds between the commit key and the text (type_text)
 
 log = logging.getLogger(__name__)
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -145,7 +147,19 @@ def single_instance(name: str) -> bool:
 
 def type_text(text: str) -> None:
     """Type Unicode text into the focused window (KEYEVENTF_UNICODE, one
-    UTF-16 code unit per event; surrogate pairs are two events)."""
+    UTF-16 code unit per event; surrogate pairs are two events).
+
+    First F24 (engine.keys.VK_COMMIT), alone: our IME commits what it is
+    composing (a 。 still open for swapping, say) in its own key event, so
+    the text lands after it instead of in front of the composition. The
+    pause lets that commit finish before the text arrives."""
+    commit = []
+    for flags in (0, KEYEVENTF_KEYUP):
+        inp = INPUT(type=INPUT_KEYBOARD)
+        inp.u.ki = KEYBDINPUT(wVk=VK_COMMIT, wScan=0, dwFlags=flags, dwExtraInfo=INJECTED_TAG)
+        commit.append(inp)
+    user32.SendInput(2, (INPUT * 2)(*commit), ctypes.sizeof(INPUT))
+    time.sleep(COMMIT_PAUSE)
     data = text.encode("utf-16-le")
     units = [int.from_bytes(data[i:i + 2], "little") for i in range(0, len(data), 2)]
     events = []
