@@ -1329,15 +1329,15 @@
     const more = "suggestion_count" in config ? D : S;
     const rows = [
       ["打字", "<kbd>␣</kbd> <kbd>6</kbd> <kbd>3</kbd> <kbd>4</kbd> <kbd>7</kbd>", "聲調鍵（一 ˊ ˇ ˋ ˙），把注音轉成中文", D],
-      ["打字", "<kbd>Enter</kbd>", "送出整段", D],
+      ["打字", "<kbd>Enter</kbd> 或 <kbd>Shift</kbd>+<kbd>Enter</kbd>", "送出整段（看到字對了就送出，後面再打什麼都動不到它）", D],
       ["打字", "<kbd>Backspace</kbd>", "刪掉游標前看得到的一個字（還沒打聲調時刪一個鍵），連同緊貼著它被略過的雜鍵；其他字不變", D],
       ["打字", "<kbd>Ctrl</kbd>+<kbd>Z</kbd> <kbd>Ctrl</kbd>+<kbd>Y</kbd>", "組字中復原／重做（打字以一個字為一步）；沒在組字時交給程式", D],
       ["打字", "<kbd>Ctrl</kbd>+<kbd>V</kbd> 等其他快捷鍵、點滑鼠", "組字中：先把字送出，再交給程式（貼上不會插進組字中間）", D],
-      ["打字", "<kbd>Tab</kbd>", "帶入接續建議", D],
+      ["打字", "<kbd>Tab</kbd>", "帶入第一個建議：橘色快速詞、紫色你打過的詞排在藍色詞庫建議前面；<kbd>Ctrl</kbd>+數字帶入其他的", D],
       ["打字", "<kbd>Shift</kbd>+<kbd>Tab</kbd>", "打開完整接續清單；提示列上的 2 3 4 就是這裡的編號", more],
       ["打字", "<kbd>Ctrl</kbd>+<kbd>2</kbd> … <kbd>Ctrl</kbd>+<kbd>9</kbd>", "直接帶入提示列上第 2…9 個接續建議（組字中單按數字是注音，所以要加 Ctrl）", D],
       ["打字", "<kbd>;</kbd><kbd>;</kbd>（＋關鍵字）", "叫出片語，先預覽，Enter 打出", D],
-      ["打字", "<kbd>Ctrl</kbd>+<kbd>D</kbd>", "把游標前的中文、或游標前的英文字加入我的詞庫。英文照你打的加（venv 被讀成 ven、wrold 被改成 world 時按一下，就照原樣顯示，以後也不再改）", D],
+      ["打字", "<kbd>Ctrl</kbd>+<kbd>D</kbd>", "把游標前的中文、或游標前的英文字加入我的詞庫。英文照你打的加（venv 被讀成 ven、wrold 被改成 world 時按一下，就照原樣顯示，以後也不再改）。底線算字的一部分：m_index、m_ 這種變數名稱整個加", D],
       ["選字", "<kbd>↓</kbd> <kbd>↑</kbd>", "打開候選窗（游標前／後的字），選取停在目前的字", D],
       ["選字", "<kbd>1</kbd>–<kbd>9</kbd>", "直接選候選（上排或數字鍵盤，NumLock 開不開都可以）", D],
       ["選字", "<kbd>Tab</kbd> <kbd>Shift</kbd>+<kbd>Tab</kbd>", "只看某一組：我的詞庫、學過、詞庫、原始按鍵…", D],
@@ -1362,7 +1362,7 @@
       ["標點", '<a href="#punct" data-goto="punct">見「標點與符號」</a>', "單按／Shift 打鍵帽上的符號，Ctrl／Ctrl+Shift 打中文標點", D],
       ["符號", '<kbd>:</kbd><kbd>:</kbd> 或單按 <kbd data-key-of="palette_hotkey">右 Ctrl</kbd>', "符號面板：常用標點、錄音暫存（剛剛用語音說的話）、括號引號、希臘字母、數學、箭頭、單位、片語、顏文字、我的符號、emoji（<kbd>Tab</kbd> 下一頁、<kbd>Shift</kbd>+<kbd>Tab</kbd> 上一頁）。每一頁操作都一樣：↓ 同一欄往下、→ 下一欄、數字選這一欄", pal],
       ["符號", "<kbd>:</kbd><kbd>:</kbd><kbd>:</kbd>（面板開著時再打一個 <kbd>:</kbd> 也一樣）", "直接跳到「emoji」分頁，打關鍵字（star、heart、星座……）即時篩選", D],
-      ["符號", "「常用」分頁的 <kbd>⏎</kbd>", "送出目前的字，再打一個換行（Shift+Enter 傳不過去時用）", D],
+      ["符號", "「常用標點」分頁的 <kbd>⏎</kbd>", "送出目前的字，再打一個換行（Shift+Enter 傳不過去時用）", D],
       ["語音", '按住 <kbd data-key-of="voice_hotkey">右 Ctrl</kbd>', "說話，放開後打到游標位置（和其他鍵一起按＝一般快捷鍵，不錄音；用哪個鍵在上面選）", D],
     ];
     const tbody = document.querySelector("#keys-table tbody");

@@ -41,7 +41,7 @@
 | `correction.py` | Vim 式修正模式（`CorrectionMixin`，混入 Session） |
 | `panel.py` | 面板的資料模型（平台無關）：解碼面板 `DecodePanel`（每字一欄：按鍵／注音／國字）、候選面板 `CandidatePanel` |
 | `punct.py` | 符號鍵四層（單按／Shift／Ctrl／Ctrl+Shift）：風格、Ctrl 預設與逐格覆寫、設定頁對照表 |
-| `symbols.py` | 符號面板的分類、片語／顏文字分頁與最近使用（`recent-symbols.json`） |
+| `symbols.py` | 符號面板的分類、錄音暫存／片語／顏文字分頁與最近使用（`recent-symbols.json`）；`TABS` 的順序和 `CATEGORIES` 不同（錄音暫存排第二），用 `CATEGORY_INDEX` 查 |
 | `kaomoji.py` | 顏文字（依心情分組） |
 | `keys.py` | 與平台無關的按鍵事件（數值沿用 Windows VK code；`extended` 區分左右 Alt／Ctrl） |
 
@@ -139,12 +139,23 @@
   單按 Shift 是切換模式；Caps Lock 不管輸入法吃不吃，系統都會切換大寫；F 鍵、Menu、ScrollLock 程式有用途，筆電常要按 Fn 或沒有。
   **PIME 不會把「按住 Alt 時的其他按鍵」交給輸入法**（只收到 Alt 本身），所以不能用 `Ctrl+Alt+,` 之類的組合鍵。
 - `VK_PACKET`（其他程式用 SendInput 的 Unicode 模式送出的字，例如語音輸入、密碼管理器）一律放行，不進解碼器。
+- `VK_COMMIT`（F24，`keys.py`）：語音輸入送字**之前**單獨按一次。組字中（或候選窗開著）就 `commit_all()` 並吃掉它；
+  沒在組字就放給程式（F24 什麼都不做）。原本靠第一個 `VK_PACKET` 觸發送出，但那個字元會被收下、再由 `hand_back`
+  重送一次，這時語音其他的字已經排在佇列裡，順序就亂了（「。。」）。
 
 ### 2.3 我的詞庫與學習（`userdict.py`）
 
 - 一個 SQLite 檔 `%APPDATA%\SmartIME\user.db`（WAL）：`entries(phrase, reading, kind, category, source, count, blocked, origin …)`，
-  `UNIQUE(phrase, reading)`；`snippets`（片語）。schema 2（`origin`）、schema 3（`snippets.category`，設定頁整理片語用，
-  不影響 `;;` 清單）由舊檔自動升級。
+  `UNIQUE(phrase, reading)`；`snippets`（片語）；`quick_words`（快速詞：觸發字、自己的文字或 `snippet_id`）。
+  schema 2（`origin`）、schema 3（`snippets.category`，設定頁整理片語用，不影響 `;;` 清單）、schema 4（`quick_words`）
+  由舊檔自動升級。
+- **接續建議與快速詞**（`Session._update_suggestion`）：`Suggestion.kind` 是 quick（快速詞，`Lexicon.quick` 快取）、
+  mine（`user.lookup` 有：加過或學過）、system。順序 quick → mine → system，Tab 拿第一個、Ctrl+N 第 N 個；
+  提示列（`ui/panels.py` 的 `_hint_rows`）有任何非 system 就分兩行（上：quick＋mine，下：system），編號跨行接續。
+  英文觸發字比對最後幾個**按鍵**且要在字的開頭（`_word_ends_at`），中文觸發字比對畫面上最後幾個字；接受時刪掉觸發字的鍵、
+  送出前面的字、再送出文字（`_accept_quick`）。練習場借一個示範快速詞（`practice.DEMO_QUICK`），只在練習框有焦點時存在。
+- **含底線的英文字**：`Lexicon.identifiers`（我的詞庫裡含 `_` 的英文字，依第一個字母）讓解碼器整個比對，
+  因為一般英文 token 會在 `_` 切開；Ctrl+D 往前找字時底線也算字（`_typed_letter`）。
 - **只從明確的選擇學習**：候選窗選字、Tab 接受、單字選出新詞、修正模式最後停下的字。解碼器猜的、使用者沒動的字不學，
   所以猜錯不會自我強化（使用者對 Windows 輸入法的主要抱怨）。
 - **修正記成詞**（`Session._learn_choice`）：在中文句子裡只換掉一個字＝修正，`origin=fix`。左／右鄰字組成的兩字詞
@@ -361,7 +372,10 @@
   （狀態 `unloaded`）；下次按下語音鍵就排進「載入」，一邊錄一邊載，辨識排在載入之後。
 - 後處理（`text.py`）：OpenCC **s2tw**（只換字形；s2twp 會把使用者說的「文件」換成「檔案」）、去掉中文字間空白、
   SenseVoice 的全大寫英文改回小寫但保留縮寫（API、MVP）、接回被拆開的縮寫（`MV P` → MVP）、我的詞庫裡的英文拼法優先。
-- 輸出：`SendInput` 的 `KEYEVENTF_UNICODE`（App 收到 `VK_PACKET`，本輸入法一律放行）。提示框是
+- 輸出：先按一次 `VK_COMMIT`（F24）讓輸入法送出手上的組字、停 80 毫秒，再 `SendInput` 的 `KEYEVENTF_UNICODE`
+  （App 收到 `VK_PACKET`，本輸入法一律放行）。
+- 錄音暫存（`voice/recent.py`）：每個結果另存 `%APPDATA%\SmartIME\voice_recent.json`（最多 30 筆，`voice_keep_minutes`
+  過期），符號面板第二頁「錄音暫存」讀它。後端（`pime/server.py`）每次啟動就刪掉這個檔：說過的話不跨重新啟動。提示框是
   `WS_EX_NOACTIVATE` 的小視窗，不搶焦點，文字才會打進原本的視窗。
 - 隱私：只在按住時開麥克風；紀錄檔（`logs\voice.log`）只記音檔秒數、耗時與字數，不記內容。
 - 驗證：`python -m smartime.devtools.voice_test [--engine breeze|sensevoice] [--key lctrl]`：以錄好的音檔代替麥克風，
