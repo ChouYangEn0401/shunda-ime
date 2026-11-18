@@ -27,6 +27,9 @@ KIND_LABEL = {
 }
 
 
+CHIP_DIVIDER = "|"  # in CandidatePanel.chips: a thin line, not a tab
+
+
 @dataclass
 class Column:
     keys: str  # the keys behind it, as typed (space shown as ␣)
@@ -158,7 +161,9 @@ def candidate_panel(session) -> CandidatePanel | None:
         panel.preview = cand.current.preview
     if cand.palette is not None:
         panel.palette = True
-        panel.chips = list(TABS)
+        # 常用標點 and 錄音暫存 are what the Ctrl tap is mostly for: a divider
+        # after them (CHIP_DIVIDER, drawn as a thin line) sets them apart
+        panel.chips = TABS[:2] + [CHIP_DIVIDER] + TABS[2:]
         panel.chip = tab
         panel.title = f"符號 · {tab}"
     elif cand.snippet_at is not None:

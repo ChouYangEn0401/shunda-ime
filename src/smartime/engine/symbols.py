@@ -22,7 +22,7 @@ NEWLINE_SYMBOL = "⏎"
 # and moves the same way (reported: the grid tabs and the list tabs felt
 # like two different products in one box).
 CATEGORIES: list[tuple[str, tuple[tuple[str, str], ...]]] = [
-    ("常用", (("常用", "，。、；：？！…—「」『』（）《》〈〉【】“”～⏎"),)),
+    ("常用標點", (("常用", "，。、；：？！…—「」『』（）《》〈〉【】“”～⏎"),)),
     ("括號引號", (("引號", "「」『』“”‘’〝〞﹁﹂﹃﹄"), ("括號", "（）《》〈〉【】〔〕｛｝［］"))),
     ("希臘字母", (("小寫", "αβγδεζηθικλμνξοπρστυφχψω"), ("大寫", "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ"))),
     ("數學", (("運算", "＋－×÷±√∑∏∫∂∆∇∞"), ("比較", "＝≠≈≒≤≥＜＞"), ("集合邏輯", "∈∉⊂⊃∩∪∴∵∀∃"),
@@ -40,8 +40,13 @@ RECENT_KAOMOJI = 12
 # The searchable catalogue. Called 搜尋符號 at first; renamed because that
 # described the mechanism, not the thing — people look for "emoji".
 EMOJI_TAB = "emoji"
-LIST_TABS = ("片語", "顏文字", "我的符號", EMOJI_TAB)
-TABS = [name for name, _ in CATEGORIES] + list(LIST_TABS)
+# What voice input recognized lately (voice/recent.py). Second, right after
+# 常用標點: the panel opens with a tap of the same Ctrl that is held to talk,
+# so a result typed into the wrong window is one Tab away.
+VOICE_TAB = "錄音暫存"
+LIST_TABS = (VOICE_TAB, "片語", "顏文字", "我的符號", EMOJI_TAB)
+TABS = [CATEGORIES[0][0], VOICE_TAB] + [name for name, _ in CATEGORIES[1:]] + list(LIST_TABS[1:])
+CATEGORY_INDEX = {name: i for i, (name, _) in enumerate(CATEGORIES)}  # tab name -> CATEGORIES index
 
 # ------------------------------------------------------------- emoji
 # A bigger, keyword-searchable catalogue — stars, hearts, checkmarks,

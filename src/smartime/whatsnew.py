@@ -44,6 +44,9 @@ class Feature:
 
 # Newest first. Only features — never words, phrases or symbol data.
 FEATURES: tuple[Feature, ...] = (
+    Feature("voice-recent", "0.10.1", "voice", "錄音暫存：語音的字不會再弄丟",
+            "每次辨識的結果都留在符號面板的「錄音暫存」分頁（單按 Ctrl 再按 Tab）。"
+            "切視窗太快、字沒打進去，從那裡再打一次就好；留多久在這裡設定。"),
     Feature("palette-key", "0.10.0-beta.1", "keys", "符號面板可以改用左 Ctrl",
             "沒有右 Ctrl 的筆電：在「快捷鍵」把符號面板改成左 Ctrl（單按一下）。"),
     Feature("voice-key", "0.10.0-beta.1", "keys", "語音輸入可以改按住左 Ctrl",

@@ -5,7 +5,7 @@ import pytest
 
 from smartime.devtools.simulate import run
 from smartime.engine.panel import candidate_panel
-from smartime.engine.symbols import TABS
+from smartime.engine.symbols import TABS, VOICE_TAB
 from smartime.engine.session import Session
 
 
@@ -178,7 +178,7 @@ def test_every_symbol_panel_tab_moves_the_same_way(session):
 
 
 def test_symbol_categories_are_grouped_lists(session):
-    run(session, "ji3{RCTRL}{TAB}{TAB}")  # 希臘字母
+    run(session, "ji3{RCTRL}{TAB}{TAB}{TAB}")  # 希臘字母
     cand = session.cand
     assert cand.columns > 1  # several columns straight away
     assert [c.group for c in cand.shown[:1]] == ["小寫"] and cand.shown[-1].group == "大寫"
@@ -191,7 +191,7 @@ def test_symbol_categories_are_grouped_lists(session):
 
 
 def test_recently_used_symbols_get_their_own_group_in_common(session):
-    run(session, "ji3{RCTRL}{TAB}{TAB}2")  # β, from 希臘字母
+    run(session, "ji3{RCTRL}{TAB}{TAB}{TAB}2")  # β, from 希臘字母
     run(session, "{RCTRL}")
     first = session.cand.shown[0]
     assert (first.text, first.group) == ("β", "最近")
@@ -235,6 +235,8 @@ def test_small_symbol_categories_spread_over_several_columns(session):
     from smartime.engine.session import palette_rows
 
     for tab in TABS[:TABS.index("片語")]:
+        if tab == VOICE_TAB:
+            continue  # a list of what was said, like 片語
         s = Session(session.engine)
         run(s, "ji3{RCTRL}")
         for _ in range(TABS.index(tab)):

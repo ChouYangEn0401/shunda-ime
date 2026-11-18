@@ -165,6 +165,7 @@ class Config:
     voice_hotwords: bool = True  # my dictionary's own words help recognition
     voice_traditional: bool = True  # convert to Taiwan Traditional Chinese
     voice_unload_minutes: int = 0  # release the model after this long idle; 0 = keep it loaded
+    voice_keep_minutes: int = 30  # 錄音暫存 in the symbol panel; 0 = until the IME restarts
 
     # Assistance
     spelling_hint: bool = True  # show zhuyin of the unfinished syllable
@@ -230,6 +231,8 @@ class Config:
             self.voice_engine = "auto"
         if not isinstance(self.voice_unload_minutes, int) or not 0 <= self.voice_unload_minutes <= 1440:
             self.voice_unload_minutes = 0
+        if self.voice_keep_minutes not in (5, 15, 30, 60, 180, 0):
+            self.voice_keep_minutes = 30
         if self.drop_stray_keys not in DROP_CHOICES:
             self.drop_stray_keys = "standard"
         if len(self.snippet_trigger) > 4 or self.snippet_trigger.strip() != self.snippet_trigger:

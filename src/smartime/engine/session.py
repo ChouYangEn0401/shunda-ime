@@ -41,7 +41,7 @@ from .panel import (
     CandidatePanel, DecodePanel, HintPanel, SmartPanel, candidate_panel, decode_panel, smart_panel,
 )
 from .punct import ctrl_output
-from .symbols import EMOJI_TAB, LIST_TABS, NEWLINE_SYMBOL, TABS, SymbolPanel
+from .symbols import CATEGORY_INDEX, EMOJI_TAB, LIST_TABS, NEWLINE_SYMBOL, TABS, VOICE_TAB, SymbolPanel
 
 VK_D = 0x44
 VK_Y = 0x59
@@ -100,7 +100,7 @@ def palette_columns(tab: str) -> int:
     """Columns a symbol-panel tab opens with: as many as fill the panel's
     fixed width. Single symbols make narrow columns, faces wide ones, and a
     片語 line takes the whole width."""
-    if tab == "片語":
+    if tab in ("片語", VOICE_TAB):
         return 1
     if tab in ("顏文字", "我的符號"):
         return 2
@@ -1625,7 +1625,7 @@ class Session(CorrectionMixin):
             return
         if c.pin is None and not c.symbol and c.suggestion is None:
             return  # a placeholder row (「還沒有片語」)
-        if c.symbol and (len(c.symbol) > 1 or c.snippet_id is not None):
+        if c.symbol and (len(c.symbol) > 1 or c.snippet_id is not None or c.group == VOICE_TAB):
             self._type_text(c)
             return
         if c.symbol:
@@ -2413,8 +2413,10 @@ class Session(CorrectionMixin):
             items = self._my_symbol_items()
         elif name == EMOJI_TAB:
             items = self._emoji_items("")
+        elif name == VOICE_TAB:
+            items = self._voice_items()
         else:
-            _, groups = self.engine.symbols.groups(index)
+            _, groups = self.engine.symbols.groups(CATEGORY_INDEX[name])
             items = [Candidate(sym, None, symbol=sym, group=label) for label, syms in groups for sym in syms]
             # the category name rides on the first row for PIME's own plain
             # list (panel off, or nothing composed: no message window then);
@@ -2422,7 +2424,7 @@ class Session(CorrectionMixin):
             items[0].annotation = f"{name} · Tab 換分類"
         self.cand = self._new_list(items, title=f"符號 {tabs} · Tab 換分類", palette=index)
         self.cand.multi = True
-        if index < len(TABS) - len(LIST_TABS):  # a symbol category
+        if name not in LIST_TABS:  # a symbol category
             self.cand.page_size = palette_rows(len(items), self.cfg.candidates_per_page)
         self.cand.columns = min(self.cand.pages, palette_columns(name))
         self.cand.trigger_at = trigger_at
@@ -2443,6 +2445,25 @@ class Session(CorrectionMixin):
         if not items:
             note = "沒有符合的片語" if query else "還沒有片語：到設定頁「片語」新增"
             items = [Candidate(f"（{note}）", None, group="片語")]
+        return items
+
+    def _voice_items(self) -> list[Candidate]:
+        """錄音暫存: recent voice results, newest first (voice/recent.py)."""
+        from ..voice import recent
+
+        now = time.time()
+        rows = recent.items(self.cfg.voice_keep_minutes, now)
+        items = []
+        for r in rows:
+            text = r["text"]
+            first = text.splitlines()[0]
+            label = first[:18] + ("…" if len(first) > 18 or "\n" in text else "")
+            items.append(Candidate(label, None, recent.age_label(r["at"], now), symbol=text, group=VOICE_TAB,
+                                   preview=text))
+        if not items:
+            keep = self.cfg.voice_keep_minutes
+            how_long = f"留 {keep} 分鐘" if keep else "留到輸入法重新啟動"
+            items = [Candidate(f"（還沒有錄音：按住 Ctrl 說話，辨識結果會{how_long}）", None, group=VOICE_TAB)]
         return items
 
     def _kaomoji_items(self) -> list[Candidate]:
@@ -2630,7 +2651,7 @@ class Session(CorrectionMixin):
         self._commit += c.symbol
         if c.snippet_id is not None and self.engine.user is not None:
             self.engine.user.used_snippet(c.snippet_id)
-        else:
+        elif c.group != VOICE_TAB:  # what was said is not a symbol to keep in 常用
             self.engine.symbols.used(c.symbol)
 
     def _insert_symbol(self, symbol: str) -> None:

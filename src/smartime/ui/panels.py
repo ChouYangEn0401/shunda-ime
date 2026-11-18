@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ..engine.panel import CandidatePanel, Column, DecodePanel, HintPanel, SmartPanel
+from ..engine.panel import CHIP_DIVIDER, CandidatePanel, Column, DecodePanel, HintPanel, SmartPanel
 from .canvas import Canvas
 from .theme import Theme
 
@@ -449,11 +449,18 @@ def _rows_height(rows, k: float) -> float:
     return sum(GROUP_H * k if kind == "group" else ROW_H * k for kind, _ in rows)
 
 
+def _chip_width(c: Canvas, s: Styles, ch: str, k: float) -> float:
+    """Room one chip takes, the gap after it included."""
+    if ch == CHIP_DIVIDER:
+        return 9 * k
+    return c.measure(ch, s.small)[0] + 15 * k
+
+
 def _chip_lines(c: Canvas, s: Styles, chips: list[str], room: float, k: float) -> list[list[str]]:
     lines: list[list[str]] = [[]]
     used = 0.0
     for ch in chips:
-        cw = c.measure(ch, s.small)[0] + 18 * k
+        cw = _chip_width(c, s, ch, k)
         if lines[-1] and used + cw > room:
             lines.append([])
             used = 0.0
@@ -465,14 +472,18 @@ def _chip_lines(c: Canvas, s: Styles, chips: list[str], room: float, k: float) -
 def _paint_chips(c: Canvas, s: Styles, t: Theme, x: float, y: float, chips: list[str], active: str,
                  k: float) -> None:
     for ch in chips:
-        cw = c.measure(ch, s.small)[0] + 14 * k
+        if ch == CHIP_DIVIDER:
+            c.fill(x + 2 * k, y + 5 * k, max(1.0, 1 * k), 12 * k, t.border)
+            x += 9 * k
+            continue
+        cw = c.measure(ch, s.small)[0] + 12 * k
         color = _group_color(t, ch)
         if ch == active:
             c.fill(x, y + 1 * k, cw, 19 * k, t.accent_soft, radius=9 * k)
-            c.text(x + 7 * k, y + 3 * k, ch, s.small_bold, t.accent)
+            c.text(x + 6 * k, y + 3 * k, ch, s.small_bold, t.accent)
         else:
-            c.text(x + 7 * k, y + 3 * k, ch, s.small, color if color is not None else t.muted)
-        x += cw + 4 * k
+            c.text(x + 6 * k, y + 3 * k, ch, s.small, color if color is not None else t.muted)
+        x += cw + 3 * k
 
 
 @dataclass
@@ -489,10 +500,13 @@ class _Layout:
 
 def _base_width(c: Canvas, s: Styles, p: CandidatePanel, k: float, cols_w: float, help_items) -> float:
     title_w = measure_mixed(c, p.notice or p.title, s.help, s.symbol) + 60 * k
-    chips_w = sum(c.measure(ch, s.small)[0] + 18 * k for ch in p.chips)
-    width = max(cols_w, _help_width(c, s, help_items), title_w, min(chips_w, 560 * k),
+    chips_w = sum(_chip_width(c, s, ch, k) for ch in p.chips)
+    width = max(cols_w, _help_width(c, s, help_items), title_w, min(chips_w, 720 * k),
                 360 * k if p.preview else 0) + 2 * PAD_X * k
-    return min(width, max(cols_w + 2 * PAD_X * k, 460 * k if p.preview else 420 * k))
+    # the symbol panel's tabs on one line where they fit: two lines of tabs
+    # read as a wall of words
+    return min(width, max(cols_w + 2 * PAD_X * k, 460 * k if p.preview else 420 * k,
+                          min(chips_w, 720 * k) + 2 * PAD_X * k))
 
 
 def _candidate_layout(c: Canvas, s: Styles, p: CandidatePanel, k: float) -> _Layout:

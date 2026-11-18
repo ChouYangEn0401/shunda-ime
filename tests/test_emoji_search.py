@@ -267,8 +267,8 @@ def test_tab_cycling_does_not_strand_the_opening_trigger(session):
     """Reported by reproduction, not by the user: Tab-cycling away from a
     "::"-opened panel and picking something used to leave the literal "::"
     sitting in the composition forever — _open_palette dropped trigger_at
-    on every call. 'ji3::{TAB}1' used to produce '我::「'."""
-    out, v = run(session, "ji3::{TAB}1")
+    on every call. 'ji3::{TAB}1' used to produce '我::「' (two Tabs since 錄音暫存)."""
+    out, v = run(session, "ji3::{TAB}{TAB}1")
     assert "::" not in (out + v.composition)
 
     out, v = run(session, "ji3::{TAB}{TAB}1")

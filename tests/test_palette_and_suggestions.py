@@ -9,14 +9,14 @@ def test_palette_opens_with_categories_and_commits_directly(session):
     _, v = run(session, "{RCTRL}")
     assert v.candidates[:3] == ["，", "。", "、"]
     assert v.candidate_notes[0].startswith("常用")
-    _, v = run(session, "{TAB}{TAB}")
+    _, v = run(session, "{TAB}{TAB}{TAB}")  # past 錄音暫存 and 括號引號
     assert v.candidates[0] == "α" and v.candidate_notes[0].startswith("希臘字母")
     out, v = run(session, "2")
     assert out == "β" and v.candidates is None
 
 
 def test_palette_inserts_into_the_composition(session):
-    _, v = run(session, "ji3{RCTRL}{TAB}{TAB}1u.3")
+    _, v = run(session, "ji3{RCTRL}{TAB}{TAB}{TAB}1u.3")
     assert v.composition == "我α有"
 
 
@@ -76,7 +76,7 @@ def test_left_ctrl_can_be_the_panel_key(session):
     session.cfg.palette_hotkey = "lctrl"
     _, v = run(session, "{RCTRL}")
     assert v.candidates is None
-    _, v = run(session, "ji3{LCTRL}{TAB}{TAB}1")
+    _, v = run(session, "ji3{LCTRL}{TAB}{TAB}{TAB}1")
     assert v.composition == "我α"
 
 
@@ -130,7 +130,7 @@ def test_recent_symbols_come_first(tmp_path):
     panel.used("→")
     again = SymbolPanel(tmp_path / "recent.json")
     name, symbols = again.category(0)
-    assert name == "常用" and symbols[:2] == ["→", "β"]
+    assert name == "常用標點" and symbols[:2] == ["→", "β"]
 
 
 def test_several_suggestions_and_shift_tab_list(session):
@@ -237,3 +237,35 @@ def test_ctrl_digit_does_not_hijack_a_real_navigation_key(session):
     run(session, "ji3rup wu0 ")
     real_numpad4 = KeyInput(vk=VK_NUMPAD0 + 4, ctrl=True)
     assert session._suggestion_digit(real_numpad4) is not None  # this one is genuine
+
+
+def test_voice_results_wait_in_the_panel(session):
+    """「語音如果錄完結果太快我跳轉，我的錄音文字就會永遠消失」: every
+    result also goes to 錄音暫存, the panel's second tab, newest first."""
+    import time
+
+    from smartime.voice import recent
+
+    _, v = run(session, "{RCTRL}{TAB}")
+    assert v.candidates[0].startswith("（還沒有錄音")
+    run(session, "{ESC}")
+    recent.add("第一句", now=time.time() - 120)
+    recent.add("明天下午三點開會，記得帶筆電")
+    _, v = run(session, "{RCTRL}{TAB}")
+    assert v.candidates == ["明天下午三點開會，記得帶筆電", "第一句"]
+    assert v.candidate_notes[1] == "2 分鐘前"
+    out, v = run(session, "2")
+    assert out == "第一句" and v.candidates is None
+    # what was said is not a symbol: 常用標點 stays as it was
+    assert "第一句" not in session.engine.symbols.recent
+
+
+def test_voice_results_expire(tmp_path):
+    from smartime.voice import recent
+
+    recent.add("old", keep_minutes=30, now=1000.0)
+    assert [r["text"] for r in recent.items(30, now=1000.0 + 29 * 60)] == ["old"]
+    assert recent.items(30, now=1000.0 + 31 * 60) == []
+    assert [r["text"] for r in recent.items(0, now=1e12)] == ["old"]  # 0: until the IME restarts
+    recent.clear()
+    assert recent.items(0) == []

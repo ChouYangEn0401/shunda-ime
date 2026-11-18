@@ -1244,7 +1244,7 @@
       ["模式", "系統匣圖示右鍵", "直接選任何模式、開啟設定", D],
       ["模式", "<kbd>Caps Lock</kbd>", "直接打英文大寫", D],
       ["標點", '<a href="#punct" data-goto="punct">見「標點與符號」</a>', "單按／Shift 打鍵帽上的符號，Ctrl／Ctrl+Shift 打中文標點", D],
-      ["符號", '<kbd>:</kbd><kbd>:</kbd> 或單按 <kbd data-key-of="palette_hotkey">右 Ctrl</kbd>', "符號面板：標點、希臘字母、數學、箭頭、單位、片語、顏文字、我的符號、emoji（<kbd>Tab</kbd> 下一頁、<kbd>Shift</kbd>+<kbd>Tab</kbd> 上一頁）。每一頁操作都一樣：↓ 同一欄往下、→ 下一欄、數字選這一欄", pal],
+      ["符號", '<kbd>:</kbd><kbd>:</kbd> 或單按 <kbd data-key-of="palette_hotkey">右 Ctrl</kbd>', "符號面板：常用標點、錄音暫存（剛剛用語音說的話）、括號引號、希臘字母、數學、箭頭、單位、片語、顏文字、我的符號、emoji（<kbd>Tab</kbd> 下一頁、<kbd>Shift</kbd>+<kbd>Tab</kbd> 上一頁）。每一頁操作都一樣：↓ 同一欄往下、→ 下一欄、數字選這一欄", pal],
       ["符號", "<kbd>:</kbd><kbd>:</kbd><kbd>:</kbd>（面板開著時再打一個 <kbd>:</kbd> 也一樣）", "直接跳到「emoji」分頁，打關鍵字（star、heart、星座……）即時篩選", D],
       ["符號", "「常用」分頁的 <kbd>⏎</kbd>", "送出目前的字，再打一個換行（Shift+Enter 傳不過去時用）", D],
       ["語音", '按住 <kbd data-key-of="voice_hotkey">右 Ctrl</kbd>', "說話，放開後打到游標位置（和其他鍵一起按＝一般快捷鍵，不錄音；用哪個鍵在上面選）", D],

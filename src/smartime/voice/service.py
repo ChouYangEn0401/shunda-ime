@@ -382,6 +382,12 @@ class VoiceService:
         if not value:
             self.flash("沒有聽到內容")
             return
+        try:  # 錄音暫存: typed into a window that is gone, it is still here
+            from . import recent
+
+            recent.add(value, self.config.voice_keep_minutes)
+        except Exception:  # noqa: BLE001 - never lose the typing over it
+            log.exception("cannot keep the recognized text")
         if delivery == TYPE or (delivery == SAME_WINDOW and not self.locked
                                 and win.user32.GetForegroundWindow() == self.press_window):
             self.indicator.hide()

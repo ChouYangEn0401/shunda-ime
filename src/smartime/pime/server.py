@@ -104,6 +104,9 @@ def main(icon_dir: Path) -> None:
     from .. import whatsnew
 
     whatsnew.ensure_baseline()  # before user.db exists: tells a fresh install from an upgrade
+    from ..voice import recent
+
+    recent.clear()  # 錄音暫存 never outlives the IME (voice/recent.py)
     try:
         engine = build_engine()
     except Exception:

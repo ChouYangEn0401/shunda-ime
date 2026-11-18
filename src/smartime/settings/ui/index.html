@@ -514,7 +514,7 @@
         <div class="group">
           <h3>顏文字</h3>
           <div class="row"><div class="full">
-            <p style="margin-top:0">單按 <b data-key-of="palette_hotkey">右 Ctrl</b>（或打 <kbd>:</kbd><kbd>:</kbd>）打開符號面板，<kbd>Shift</kbd>+<kbd>Tab</kbd> 就到「顏文字」分頁：依心情分組（開心、喜歡、難過、生氣、驚訝、無奈、害羞、打招呼、謝謝抱歉、加油、睡覺、動物……），最近用過的排在最前面。</p>
+            <p style="margin-top:0">單按 <b data-key-of="palette_hotkey">右 Ctrl</b>（或打 <kbd>:</kbd><kbd>:</kbd>）打開符號面板，按 <kbd>Tab</kbd>（或 <kbd>Shift</kbd>+<kbd>Tab</kbd> 往回）換到「顏文字」分頁：依心情分組（開心、喜歡、難過、生氣、驚訝、無奈、害羞、打招呼、謝謝抱歉、加油、睡覺、動物……），最近用過的排在最前面。</p>
             <div class="kao-sample" id="kao-sample"></div>
           </div></div>
         </div>
@@ -629,6 +629,10 @@
           <div class="row">
             <div><div class="label">輸出台灣正體中文</div><div class="desc">SenseVoice 的簡體結果轉成正體字（只換字形，不改你說的詞，例：头发 → 頭髮）。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="voice_traditional" aria-label="正體輸出"><span></span></label>
+          </div>
+          <div class="row">
+            <div><div class="label" data-new="voice-recent">錄音暫存留多久</div><div class="desc">每次辨識的結果也會留在符號面板的「錄音暫存」分頁（單按一下 <span data-key-of="palette_hotkey">右 Ctrl</span>，再按 <kbd>Tab</kbd>），切到別的視窗太快、字沒打進去，還能從那裡再打一次。只留在這台電腦上，輸入法重新啟動（包括重開機）就清空。</div></div>
+            <select data-cfg="voice_keep_minutes" data-type="int" aria-label="錄音暫存留多久"><option value="5">5 分鐘</option><option value="15">15 分鐘</option><option value="30">30 分鐘</option><option value="60">1 小時</option><option value="180">3 小時</option><option value="0">到輸入法重新啟動</option></select>
           </div>
         </div>
         <div class="group">

@@ -33,6 +33,7 @@ CANDIDATE_SAMPLES = [
     ("palette", "ji3{RCTRL}{TAB}{TAB}{RIGHT}", True),
     ("kaomoji", "ji3{RCTRL}{S-TAB}{DOWN}", True),
     ("snippets", "ji3;;", True),
+    ("voice-recent", "{RCTRL}{TAB}", True),
     ("snippets-filter", "ji3;;ad{DOWN}", True),
 ]
 
@@ -98,6 +99,13 @@ def main() -> int:
             engine.lexicon.user.add_snippet("感謝您的來信！我們已經收到，會在兩個工作天內回覆您。", "", "thanks")
             engine.lexicon.user.add_snippet("這週的進度：\n1. 完成順打面板\n2. 詞庫整理\n3. 測試安裝檔", "週報開頭", "week")
             engine.lexicon.invalidate()
+            import time
+
+            from ..voice import recent
+
+            recent.add("好，那我們就約下週二", now=time.time() - 40 * 60 + 5)
+            recent.add("這個功能可以先上線，細節下一版再調整", now=time.time() - 12 * 60)
+            recent.add("明天下午三點開會，記得帶筆電和上週的報告", now=time.time() - 20)
             for name, script, multi in CANDIDATE_SAMPLES:
                 engine.config.candidate_multi_column = multi
                 session = Session(engine)
