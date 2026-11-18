@@ -22,6 +22,10 @@ def isolated_user_dir(tmp_path, monkeypatch):
     from smartime import update
 
     monkeypatch.setattr(update, "_seen", {"mtime": -1.0, "looked": 0.0, "version": ""})
+    # and practice.active() caches practice.json for a second
+    from smartime import practice
+
+    monkeypatch.setattr(practice, "_active_cache", {"at": -1.0, "until": 0.0})
 
 
 @pytest.fixture(scope="session")

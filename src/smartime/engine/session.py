@@ -2350,8 +2350,12 @@ class Session(CorrectionMixin):
         """快速詞 whose trigger is what was just typed: ``art`` as the last
         keys of a word (not the end of ``start``), or ``順`` as the last
         characters on screen. Newest trigger match first."""
-        quick = getattr(self.engine.lexicon, "quick", None)
-        if not quick or not self.keys:
+        quick = list(getattr(self.engine.lexicon, "quick", None) or [])
+        if not self.keys:
+            return []
+        if practice.active():
+            quick += [d for d in practice.DEMO_QUICK if all(q["trigger"] != d["trigger"] for q in quick)]
+        if not quick:
             return []
         typed = "".join(k.char for k in self.keys)
         units = self.decoding.units()

@@ -41,7 +41,8 @@ def _expand(session, fix: str) -> str:
 
 @pytest.mark.parametrize("step", TASKS, ids=[s.id for s in TASKS])
 def test_every_task_is_passed_by_doing_what_it_says(session, step):
-    keys = practice.step_keys(step, session.engine.lexicon, session.engine.layout)
+    practice.set_active(True)  # as in the practice box (the quick step's 快速詞 is lent only there)
+    keys =practice.step_keys(step, session.engine.lexicon, session.engine.layout)
     out, v = run(session, keys)
     if step.wrong:
         assert v.composition == step.wrong, "the IME no longer makes this mistake: pick another sentence"
@@ -149,3 +150,8 @@ def test_progress_travels_with_the_export_file(tmp_path):
     # another machine's file: a union, unknown ids ignored, nothing taken away
     assert practice.merge_done(["swap", "hello", "no-such-step", 7]) == ["hello", "swap"]
     assert practice.merge_done("junk") == ["hello", "swap"]
+
+
+def test_the_lent_quick_word_exists_only_while_practising(session):
+    _, v = run(session, "gjp4")
+    assert "順打輸入法好棒 !!" not in v.suggestions

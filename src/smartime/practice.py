@@ -60,7 +60,7 @@ CHAPTERS: tuple[Chapter, ...] = (
     Chapter("type", "直接打", "中文、英文、標點，一路打下去就好。"),
     Chapter("colors", "它替你改的，都看得到、改得回", "面板上只有四種顏色、四個意思。"),
     Chapter("fix", "修正模式", "<kbd>Esc</kbd> 之後鍵盤變成指令，字不會亂跑。"),
-    Chapter("more", "還有這些", "符號、emoji、片語、語音。"),
+    Chapter("more", "還有這些", "符號、emoji、片語、快速詞、語音。"),
 )
 
 STEPS: tuple[Step, ...] = (
@@ -81,6 +81,11 @@ STEPS: tuple[Step, ...] = (
          "照這串按：<kbd>rup</kbd> <kbd>空白</kbd> <kbd>wu0</kbd> <kbd>k27</kbd>，<kbd>Enter</kbd>。",
          keys="rup wu0 k27", target="今天的",
          pro="聲調打早（<kbd>248</kbd> → 大）、漏打聲調也認得。它改過的地方，面板會標琥珀色。"),
+    Step("send", "type", "看到對了就送出",
+         "字對了就按 <kbd>Shift</kbd>+<kbd>Enter</kbd> 送出——養成習慣，後面再打什麼都動不到它。",
+         "打「你好」，看到畫面上是對的，馬上按 <kbd>Shift</kbd>+<kbd>Enter</kbd>。",
+         type_text="你好", fix="{S-ENTER}", target="你好",
+         pro="還沒送出的字底下有底線（或旁邊有個小點），輸入法還可能依後面打的字重新判斷；送出之後就定了。"),
     Step("punct", "type", "標點不用切",
          "<kbd>Ctrl</kbd>＋標點鍵就是中文標點；句讀一打，前面的句子自動送出。",
          "打「你好」，再按 <kbd>Ctrl</kbd>+<kbd>,</kbd>。",
@@ -90,7 +95,8 @@ STEPS: tuple[Step, ...] = (
          "提示列右邊出現的字，<kbd>Tab</kbd> 就接上。",
          "打「今天」（<kbd>rup</kbd> <kbd>空白</kbd> <kbd>wu0</kbd> <kbd>空白</kbd>），看到「的 Tab」按 <kbd>Tab</kbd>，<kbd>Enter</kbd>。",
          type_text="今天", wrong="今天", fix="{TAB}", target="今天的",
-         pro="<kbd>Shift</kbd>+<kbd>Tab</kbd> 列出所有接法；<kbd>Ctrl</kbd>+<kbd>2</kbd>…<kbd>9</kbd> 直接接第幾個。"),
+         pro="<kbd>Shift</kbd>+<kbd>Tab</kbd> 列出所有接法；<kbd>Ctrl</kbd>+<kbd>2</kbd>…<kbd>9</kbd> 直接接第幾個。"
+             "建議分兩行：上面是你自己的（橘＝快速詞、紫＝你打過的詞），下面藍色是詞庫原本的。"),
     # ---------------------------------------------------------------- 顏色
     Step("legend", "colors", "四種顏色",
          "面板上的顏色只有四個意思。",
@@ -197,9 +203,19 @@ STEPS: tuple[Step, ...] = (
          "到「片語與顏文字」存一則，關鍵字用英文字母（例如 addr＝你的地址；<kbd>;;</kbd> 後面打的字母不會變成注音，所以關鍵字只能是英文）。"
          "之後打 <kbd>;;addr</kbd>，先預覽再 <kbd>Enter</kbd>。顏文字也在那一頁。",
          kind="tip"),
+    Step("quick", "more", "快速詞：打開頭就整段",
+         "設好觸發字，打到它，提示列最前面就用橘色建議一整段，<kbd>Tab</kbd> 直接打出。",
+         "練習裡先借你一個：打「順」（<kbd>gjp4</kbd>），看到橘色的「順打輸入法好棒 !!」按 <kbd>Tab</kbd>。",
+         keys="gjp4", fix="{TAB}", target="順打輸入法好棒 !!",
+         pro="自己的快速詞在「片語與顏文字」設：art → artifact 這種英文開頭也行，也可以直接連到一則片語。"),
     Step("voice", "more", "用說的",
          "按住右 <kbd>Ctrl</kbd> 說話，放開就打在游標位置（沒有右 Ctrl 的話，在「快捷鍵」換成左 Ctrl）。",
-         "第一次要到「語音輸入」裝語音元件。辨識全在這台電腦上，聲音不會上傳。",
+         "在框裡試試：按住、說「今天天氣很好」、放開。辨識不一定每次都準——說慢一點、一句一句說；"
+         "錯的字照平常用修正模式改。第一次要到「語音輸入」裝語音元件；辨識全在這台電腦上，聲音不會上傳。",
+         kind="tip"),
+    Step("voice-recent", "more", "剛剛說的話都還在",
+         "單按一下右 <kbd>Ctrl</kbd> 開符號面板，<kbd>Tab</kbd> 到「錄音暫存」：剛剛說過的都在。",
+         "結果出來前就切走視窗、字沒打進去，從這裡選一下就再打一次。留多久在「語音輸入」設定，輸入法重新啟動就清空。",
          kind="tip"),
     Step("modes", "more", "三種模式",
          "單按 <kbd>Shift</kbd> 在模式之間輪流。",
@@ -233,16 +249,30 @@ def _save(data: dict) -> None:
         pass
 
 
+# 快速詞 lent to the 練習場 (the quick step), so it works before the user
+# has made any; practising never touches the dictionary.
+DEMO_QUICK = ({"id": None, "trigger": "順", "text": "順打輸入法好棒 !!"},)
+
+
+_active_cache = {"at": -1.0, "until": 0.0}
+ACTIVE_LOOK_EVERY = 1.0  # read practice.json at most this often (it is asked on every key)
+
+
 def active() -> bool:
     """The practice box has the focus: learn nothing."""
-    until = _load().get("until", 0)
-    return isinstance(until, (int, float)) and time.time() < until
+    now = time.time()
+    if now - _active_cache["at"] >= ACTIVE_LOOK_EVERY or now < _active_cache["at"]:
+        until = _load().get("until", 0)
+        _active_cache["until"] = until if isinstance(until, (int, float)) else 0.0
+        _active_cache["at"] = now
+    return now < _active_cache["until"]
 
 
 def set_active(on: bool) -> None:
     data = _load()
     data["until"] = time.time() + ACTIVE_SECONDS if on else 0
     _save(data)
+    _active_cache["at"] = -1.0  # this process reads it fresh next time
 
 
 def done() -> list[str]:
