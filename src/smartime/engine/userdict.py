@@ -721,7 +721,7 @@ class UserDict:
         settles instead of inflating.
         """
         src = sqlite3.connect(f"file:{Path(path).as_posix()}?mode=ro", uri=True)
-        report = {"words": 0, "updated": 0, "snippets": 0, "symbols": 0, "categories": 0, "repeat": False}
+        report = {"words": 0, "updated": 0, "snippets": 0, "symbols": 0, "quick": 0, "categories": 0, "repeat": False}
         try:
             row = src.execute("SELECT value FROM meta WHERE key='export_id'").fetchone()
             export_id = row[0] if row and row[0] else ""
@@ -777,6 +777,31 @@ class UserDict:
                         self._con.execute("UPDATE snippets SET category=? WHERE body=? AND category=''",
                                           (category, body))
                         mine[body] = category
+            has_quick = src.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='quick_words'").fetchone() is not None
+            if has_quick:
+                # 快速詞: skip a trigger I already have; a link to a 片語 is
+                # re-made by matching the 片語's text (ids differ per machine)
+                mine_triggers = {t.lower() for (t,) in self._con.execute("SELECT trigger FROM quick_words")}
+                src_snippets = ({i: b for i, b in src.execute("SELECT id, body FROM snippets")}
+                                if has_snippets else {})
+                for trigger, qbody, qsnippet in src.execute(
+                        "SELECT trigger, body, snippet_id FROM quick_words ORDER BY id"):
+                    if trigger.lower() in mine_triggers:
+                        continue
+                    link = None
+                    if qsnippet is not None and qsnippet in src_snippets:
+                        row = self._con.execute("SELECT id FROM snippets WHERE body=?",
+                                                (src_snippets[qsnippet],)).fetchone()
+                        link = row[0] if row else None
+                        if link is None:
+                            qbody = qbody or src_snippets[qsnippet]  # keep the text, lose the link
+                    try:
+                        self.add_quick_word(trigger, qbody or "", link)
+                    except ValueError:
+                        continue
+                    mine_triggers.add(trigger.lower())
+                    report["quick"] += 1
             has_custom_symbols = src.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='custom_symbols'").fetchone() is not None
             if has_custom_symbols:

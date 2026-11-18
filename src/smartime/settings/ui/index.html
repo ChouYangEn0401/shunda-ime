@@ -512,6 +512,21 @@
         </div>
 
         <div class="group">
+          <h3 data-new="quick-words">快速詞 <span class="note" style="letter-spacing:0" id="qw-count"></span></h3>
+          <div class="row"><div class="full">
+            <p style="margin-top:0">打到觸發字，提示列最前面會用橘色建議這段文字，按 <kbd>Tab</kbd> 直接打出（取代觸發字）。可以自己寫，也可以直接連到一筆片語。</p>
+            <form class="qw-form" id="qw-form" autocomplete="off">
+              <input type="text" id="qw-trigger" placeholder="觸發字，例如：art" aria-label="觸發字" maxlength="20">
+              <select id="qw-link" aria-label="連到片語"></select>
+              <textarea id="qw-body" rows="2" placeholder="要打出的文字，例如：artifact" aria-label="要打出的文字"></textarea>
+              <div class="snip-edit-acts"><button class="btn primary" type="submit">加入</button></div>
+            </form>
+            <div class="qw-list" id="qw-list"></div>
+            <p class="note qw-empty" id="qw-empty" hidden>還沒有快速詞。例：觸發字 art → artifact。</p>
+          </div></div>
+        </div>
+
+        <div class="group">
           <h3>顏文字</h3>
           <div class="row"><div class="full">
             <p style="margin-top:0">單按 <b data-key-of="palette_hotkey">右 Ctrl</b>（或打 <kbd>:</kbd><kbd>:</kbd>）打開符號面板，按 <kbd>Tab</kbd>（或 <kbd>Shift</kbd>+<kbd>Tab</kbd> 往回）換到「顏文字」分頁：依心情分組（開心、喜歡、難過、生氣、驚訝、無奈、害羞、打招呼、謝謝抱歉、加油、睡覺、動物……），最近用過的排在最前面。</p>

@@ -842,6 +842,7 @@
     snipRows = rows.map((r, i) => Object.assign(r, { pos: i }));
     if (snipEditor && !snipRows.some(r => r.id === snipEditor.id)) snipEditor = null;
     renderSnippets();
+    loadQuickWords();  // its 「連到片語」 choices and linked texts follow the 片語
   }
 
   function firstLine(text) {
@@ -1121,6 +1122,121 @@
       const scroll = document.getElementById("snip-scroll");
       scroll.scrollTop = Math.max(0, tr.offsetTop - scroll.clientHeight / 2);
     }
+  });
+
+  // ------------------------------------------------------------ 快速詞 (quick words)
+  // A trigger and the text it stands for: typing the trigger shows the text
+  // in orange, Tab types it. The text is its own, or a 片語's (linked).
+  let qwRows = [];
+  let qwEditId = null;
+
+  function snipLabel(r) { return r.title || r.keyword || firstLine(r.body).slice(0, 20); }
+
+  function fillLinkSelect(sel, current) {
+    sel.innerHTML = "";
+    const none = document.createElement("option"); none.value = ""; none.textContent = "（不連，自己寫）";
+    sel.appendChild(none);
+    snipRows.forEach(r => {
+      const o = document.createElement("option"); o.value = String(r.id);
+      o.textContent = "片語：" + snipLabel(r) + (r.keyword && r.title ? `（${r.keyword}）` : "");
+      sel.appendChild(o);
+    });
+    sel.value = current == null ? "" : String(current);
+  }
+
+  async function loadQuickWords() {
+    try { qwRows = await api("GET", "/api/quickwords"); } catch (e) { toast(e.message, true); return; }
+    if (qwEditId !== null && !qwRows.some(r => r.id === qwEditId)) qwEditId = null;
+    const link = document.getElementById("qw-link");
+    fillLinkSelect(link, link.value);
+    document.getElementById("qw-body").hidden = link.value !== "";
+    renderQuickWords();
+  }
+
+  function renderQuickWords() {
+    const list = document.getElementById("qw-list");
+    document.getElementById("qw-count").textContent = qwRows.length ? `${qwRows.length} 個` : "";
+    document.getElementById("qw-empty").hidden = qwRows.length > 0;
+    list.innerHTML = "";
+    qwRows.forEach(r => list.appendChild(r.id === qwEditId ? qwEditRow(r) : qwRow(r)));
+  }
+
+  function qwRow(r) {
+    const row = document.createElement("div"); row.className = "qw-row"; row.dataset.id = r.id;
+    const trig = document.createElement("kbd"); trig.className = "qw-trig"; trig.textContent = r.trigger;
+    const arrow = document.createElement("span"); arrow.className = "qw-arrow"; arrow.textContent = "→";
+    const text = document.createElement("span"); text.className = "qw-text";
+    text.title = r.text;
+    text.append(firstLine(r.text));
+    if (r.snippet_id != null) {
+      const tag = document.createElement("span"); tag.className = "qw-tag"; tag.textContent = `片語：${r.snippet_title}`;
+      text.appendChild(tag);
+    }
+    const acts = document.createElement("div"); acts.className = "qw-acts";
+    const edit = document.createElement("button"); edit.type = "button"; edit.className = "btn small"; edit.textContent = "編輯";
+    edit.addEventListener("click", () => { qwEditId = r.id; renderQuickWords(); });
+    const del = document.createElement("button"); del.type = "button"; del.className = "btn small danger"; del.textContent = "刪除";
+    del.addEventListener("click", async () => {
+      try { await api("DELETE", `/api/quickwords/${r.id}`); toast(`已刪除快速詞「${r.trigger}」`); }
+      catch (e) { toast(e.message, true); return; }
+      loadQuickWords();
+    });
+    acts.append(edit, del);
+    row.append(trig, arrow, text, acts);
+    return row;
+  }
+
+  function qwEditRow(r) {
+    const row = document.createElement("div"); row.className = "qw-row";
+    const form = document.createElement("div"); form.className = "qw-edit";
+    const trig = document.createElement("input"); trig.type = "text"; trig.value = r.trigger; trig.maxLength = 20;
+    trig.setAttribute("aria-label", "觸發字");
+    const link = document.createElement("select"); link.setAttribute("aria-label", "連到片語");
+    fillLinkSelect(link, r.snippet_id);
+    const body = document.createElement("textarea"); body.rows = 2; body.value = r.snippet_id == null ? r.text : (r.body || "");
+    body.setAttribute("aria-label", "要打出的文字");
+    body.hidden = link.value !== "";
+    link.addEventListener("change", () => { body.hidden = link.value !== ""; });
+    const acts = document.createElement("div"); acts.className = "snip-edit-acts";
+    const ok = document.createElement("button"); ok.type = "button"; ok.className = "btn small primary"; ok.textContent = "儲存";
+    const cancel = document.createElement("button"); cancel.type = "button"; cancel.className = "btn small"; cancel.textContent = "取消";
+    acts.append(cancel, ok);
+    form.append(trig, link, body, acts);
+    row.appendChild(form);
+    const close = () => { qwEditId = null; renderQuickWords(); };
+    const save = async () => {
+      try {
+        await api("PATCH", `/api/quickwords/${r.id}`,
+          { trigger: trig.value, body: link.value ? "" : body.value, snippetId: link.value ? Number(link.value) : null });
+      } catch (e) { toast(e.message, true); return; }
+      toast(`已更新快速詞「${trig.value.trim()}」`);
+      qwEditId = null; loadQuickWords();
+    };
+    ok.addEventListener("click", save);
+    cancel.addEventListener("click", close);
+    trig.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); save(); }
+      if (e.key === "Escape") { e.preventDefault(); close(); }
+    });
+    setTimeout(() => trig.focus(), 0);
+    return row;
+  }
+
+  document.getElementById("qw-link").addEventListener("change", e => {
+    document.getElementById("qw-body").hidden = e.target.value !== "";
+  });
+  document.getElementById("qw-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const trig = document.getElementById("qw-trigger");
+    const link = document.getElementById("qw-link");
+    const body = document.getElementById("qw-body");
+    try {
+      await api("POST", "/api/quickwords",
+        { trigger: trig.value, body: link.value ? "" : body.value, snippetId: link.value ? Number(link.value) : null });
+    } catch (err) { toast(err.message, true); return; }
+    toast(`已加入快速詞「${trig.value.trim()}」`);
+    trig.value = ""; body.value = "";
+    loadQuickWords();
   });
 
   // ------------------------------------------------------------ 我的符號 (custom symbols)
@@ -1510,6 +1626,7 @@
       if (r.updated) parts.push(`${r.updated} 個詞合併次數`);
       if (r.snippets) parts.push(`${r.snippets} 則片語`);
       if (r.symbols) parts.push(`${r.symbols} 個符號`);
+      if (r.quick) parts.push(`${r.quick} 個快速詞`);
       if (r.categories) parts.push(`${r.categories} 個分類`);
       const what = parts.length ? parts.join("、") : "沒有新東西";
       const again = r.repeat ? "（這個檔案匯入過了，次數不再累加）" : "";
