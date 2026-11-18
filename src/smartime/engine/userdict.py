@@ -28,7 +28,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-SCHEMA_VERSION = 3  # 2: entries.origin, 3: snippets.category
+SCHEMA_VERSION = 4  # 2: entries.origin, 3: snippets.category, 4: quick_words
 # Exports already poured into this dictionary, newest last (see merge_from).
 # Only enough to cover "I have a folder of these and lost track of which
 # ones I already did"; older ids fall off.
@@ -138,6 +138,14 @@ class UserDict:
                 last_used REAL,
                 created REAL NOT NULL,
                 category TEXT NOT NULL DEFAULT '');
+            CREATE TABLE IF NOT EXISTS quick_words (
+                id INTEGER PRIMARY KEY,
+                trigger TEXT NOT NULL,
+                body TEXT NOT NULL DEFAULT '',
+                snippet_id INTEGER REFERENCES snippets(id) ON DELETE SET NULL,
+                count INTEGER NOT NULL DEFAULT 0,
+                last_used REAL,
+                created REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS custom_symbols (
                 id INTEGER PRIMARY KEY,
                 text TEXT NOT NULL UNIQUE,
@@ -576,6 +584,68 @@ class UserDict:
     def used_snippet(self, snippet_id: int) -> None:
         self._con.execute("UPDATE snippets SET count = count + 1, last_used = ? WHERE id=?",
                           (time.time(), snippet_id))
+
+    # ------------------------------------------------------------ 快速詞
+    # A trigger (art, 順) and the text it stands for. Typing the trigger
+    # shows the text as the first, orange suggestion; Tab types it in place
+    # of the trigger. The text is the quick word's own, or a 片語's (linked by
+    # id, so editing the 片語 changes it too). Reported wish: 「打到 art 的時候
+    # …就會出現 artifact 的建議，我就可以直接 art+tab 直接結束」.
+    QUICK_FIELDS = ("id", "trigger", "body", "snippet_id", "count", "last_used", "created")
+    QUICK_TRIGGER_MAX = 20
+
+    def quick_words(self) -> list[dict]:
+        """All of them, oldest first, each with ``text``: what Tab types
+        (the linked 片語's text when there is one, else ``body``) and
+        ``snippet_title`` for the settings page."""
+        snippets = {r["id"]: r for r in self.snippets()}
+        out = []
+        for row in self._con.execute(f"SELECT {', '.join(self.QUICK_FIELDS)} FROM quick_words ORDER BY id"):
+            d = dict(zip(self.QUICK_FIELDS, row))
+            s = snippets.get(d["snippet_id"]) if d["snippet_id"] is not None else None
+            d["text"] = s["body"] if s is not None else d["body"]
+            d["snippet_title"] = (s["title"] or s["keyword"] or s["body"][:18]) if s is not None else ""
+            out.append(d)
+        return [d for d in out if d["text"].strip()]
+
+    def _check_quick(self, trigger: str, body: str, snippet_id, own_id: int | None = None) -> tuple[str, str, int | None]:
+        trigger = trigger.strip()
+        if not trigger or any(ch.isspace() for ch in trigger):
+            raise ValueError("觸發字不能是空的，也不能有空白")
+        if len(trigger) > self.QUICK_TRIGGER_MAX:
+            raise ValueError(f"觸發字最多 {self.QUICK_TRIGGER_MAX} 個字")
+        body = body.strip("\r\n")
+        if snippet_id in ("", None):
+            snippet_id = None
+        else:
+            snippet_id = int(snippet_id)
+            if self._con.execute("SELECT 1 FROM snippets WHERE id=?", (snippet_id,)).fetchone() is None:
+                raise ValueError("連結的片語不存在")
+        if snippet_id is None and not body.strip():
+            raise ValueError("要打出的文字是空的")
+        for (other_id, other) in self._con.execute("SELECT id, trigger FROM quick_words"):
+            if other.lower() == trigger.lower() and other_id != own_id:
+                raise ValueError(f"已經有觸發字「{other}」")
+        return trigger, body, snippet_id
+
+    def add_quick_word(self, trigger: str, body: str = "", snippet_id: int | None = None) -> int:
+        trigger, body, snippet_id = self._check_quick(trigger, body, snippet_id)
+        cur = self._con.execute(
+            "INSERT INTO quick_words (trigger, body, snippet_id, created) VALUES (?, ?, ?, ?)",
+            (trigger, body, snippet_id, time.time()))
+        return int(cur.lastrowid)
+
+    def update_quick_word(self, quick_id: int, trigger: str, body: str = "", snippet_id: int | None = None) -> None:
+        trigger, body, snippet_id = self._check_quick(trigger, body, snippet_id, own_id=quick_id)
+        self._con.execute("UPDATE quick_words SET trigger=?, body=?, snippet_id=? WHERE id=?",
+                          (trigger, body, snippet_id, quick_id))
+
+    def delete_quick_word(self, quick_id: int) -> None:
+        self._con.execute("DELETE FROM quick_words WHERE id=?", (quick_id,))
+
+    def used_quick_word(self, quick_id: int) -> None:
+        self._con.execute("UPDATE quick_words SET count = count + 1, last_used = ? WHERE id=?",
+                          (time.time(), quick_id))
 
     # ------------------------------------------------------------ 我的符號
     # Usage/recency is tracked by the engine's existing recent-symbols.json
