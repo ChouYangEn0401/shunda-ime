@@ -73,6 +73,33 @@ def test_test_builds_hear_about_test_builds():
     assert not upd.wants_prereleases("0.10.0")
 
 
+# Every version this project has actually built, in true order (dist/), plus
+# the next ones the scheme allows (CLAUDE.md §5). Auto-update depends on it.
+REAL_ORDER = [
+    "0.6.0",
+    "0.8.0-alpha.8", "0.8.0-alpha.9", "0.8.0-alpha.10", "0.8.0-rc.1", "0.8.0-rc.2",
+    "0.9.0-alpha.1", "0.9.0-alpha.6", "0.9.0-rc.1",
+    "0.10.0-alpha.1", "0.10.0-alpha.1.1", "0.10.0-alpha.1.2", "0.10.0-alpha.1.3",
+    "0.10.0-alpha.1.4", "0.10.0-alpha.2", "0.10.0-beta.1", "0.10.0-beta.1.1",
+    "0.10.0-beta.2", "0.10.0-beta.10", "0.10.0-rc.1", "0.10.0", "0.10.1", "0.11.0-alpha.1",
+]
+
+
+def test_version_order_matches_every_real_build():
+    for a, b in zip(REAL_ORDER, REAL_ORDER[1:]):
+        assert upd.version_tuple(a) < upd.version_tuple(b), (a, b)
+        assert upd.version_tuple("v" + b) == upd.version_tuple(b)  # GitHub tags carry a v
+
+
+def test_pick_release_on_the_real_release_list():
+    # GitHub's list as of 2026-11-18, plus beta.1 once it is published
+    listing = [{"tag_name": t, "draft": False} for t in
+               ("v0.10.0-alpha.2", "v0.10.0-alpha.1", "v0.9.0-rc.1", "v0.6.0")]
+    assert upd.pick_release(listing)["tag_name"] == "v0.10.0-alpha.2"
+    listing.insert(0, {"tag_name": "v0.10.0-beta.1", "draft": False})
+    assert upd.pick_release(listing)["tag_name"] == "v0.10.0-beta.1"
+
+
 def test_pick_release_takes_the_highest_version_not_the_newest_date():
     listing = [
         {"tag_name": "v0.9.1", "draft": False},  # a later patch of the old line
