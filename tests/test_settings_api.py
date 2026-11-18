@@ -412,3 +412,46 @@ def test_corrections_table_and_clear(server):
     assert call(server, "GET", "/api/corrections")[1] == []
     u.log_correction("a", "b", "", "en", "keep")
     assert call(server, "POST", "/api/corrections/clear")[1]["removed"] == 1
+
+
+def test_quick_words_crud_and_bad_input(server):
+    _, s = call(server, "POST", "/api/snippets", {"title": "我的地址", "body": "台北市\n大安區"})
+    status, a = call(server, "POST", "/api/quickwords", {"trigger": "art", "body": "artifact"})
+    assert status == 200
+    _, b = call(server, "POST", "/api/quickwords", {"trigger": "addr", "snippetId": s["id"]})
+    rows = call(server, "GET", "/api/quickwords")[1]
+    assert [(r["trigger"], r["text"]) for r in rows] == [("art", "artifact"), ("addr", "台北市\n大安區")]
+    assert rows[1]["snippet_title"] == "我的地址"
+    # bad input is a 400 carrying the message
+    status, err = call(server, "POST", "/api/quickwords", {"trigger": "ART", "body": "x"})
+    assert status == 400 and "art" in err["error"]
+    assert call(server, "POST", "/api/quickwords", {"trigger": "", "body": "x"})[0] == 400
+    assert call(server, "POST", "/api/quickwords", {"trigger": "zz", "body": ""})[0] == 400
+    assert call(server, "POST", "/api/quickwords", {"trigger": "zz", "snippetId": 9999})[0] == 400
+    assert call(server, "POST", "/api/quickwords", {"trigger": "zz", "snippetId": "abc"})[0] == 400
+    # edit: change the text, then link it to the 片語 instead
+    assert call(server, "PATCH", f"/api/quickwords/{a['id']}", {"trigger": "art", "body": "artifacts"})[0] == 200
+    assert call(server, "PATCH", f"/api/quickwords/{a['id']}", {"trigger": "addr", "body": "x"})[0] == 400
+    assert call(server, "PATCH", f"/api/quickwords/{a['id']}", {"trigger": "art", "snippetId": s["id"]})[0] == 200
+    assert call(server, "GET", "/api/quickwords")[1][0]["snippet_id"] == s["id"]
+    assert call(server, "DELETE", f"/api/quickwords/{b['id']}")[0] == 200
+    assert [r["id"] for r in call(server, "GET", "/api/quickwords")[1]] == [a["id"]]
+
+
+def test_quick_words_travel_with_export_and_import(server):
+    _, s = call(server, "POST", "/api/snippets", {"body": "台北市"})
+    call(server, "POST", "/api/quickwords", {"trigger": "art", "body": "artifact"})
+    call(server, "POST", "/api/quickwords", {"trigger": "addr", "snippetId": s["id"]})
+    blob = call(server, "GET", "/api/export")[1]
+    for r in call(server, "GET", "/api/quickwords")[1]:
+        call(server, "DELETE", f"/api/quickwords/{r['id']}")
+    call(server, "DELETE", f"/api/snippets/{s['id']}")
+    status, rep = call(server, "POST", "/api/import?settings=0", raw=blob)
+    assert status == 200 and rep["quick"] == 2
+    rows = {r["trigger"]: r for r in call(server, "GET", "/api/quickwords")[1]}
+    assert rows["art"]["text"] == "artifact"
+    # the link is re-made to the merged 片語, not to the other machine's id
+    assert rows["addr"]["text"] == "台北市" and rows["addr"]["snippet_id"] is not None
+    # importing again: triggers already here are skipped
+    assert call(server, "POST", "/api/import?settings=0", raw=blob)[1]["quick"] == 0
+    assert len(call(server, "GET", "/api/quickwords")[1]) == 2

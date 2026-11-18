@@ -288,6 +288,20 @@ tr.blocked td { color: var(--muted); }
 .snip-bulk.asking { border-color: var(--warn); background: var(--warn-soft); }
 .kao-sample { display: flex; flex-wrap: wrap; gap: 8px; }
 .kao-sample span { border: 1px solid var(--line); border-radius: 6px; padding: 2px 10px; background: var(--key); }
+.qw-form { display: grid; grid-template-columns: minmax(0, 0.6fr) minmax(0, 1fr); gap: 8px; margin-bottom: 12px; }
+.qw-form textarea, .qw-edit textarea { grid-column: 1 / -1; font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 6px 10px; resize: vertical; min-height: 44px; }
+.qw-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 8px; }
+.qw-list:empty { display: none; }
+.qw-row { display: flex; align-items: center; gap: 10px; padding: 6px 10px; min-height: 40px; }
+.qw-row + .qw-row { border-top: 1px solid var(--line); }
+.qw-row .qw-trig { flex: 0 0 auto; max-width: 30%; overflow: hidden; text-overflow: ellipsis; }
+.qw-row .qw-arrow { color: var(--muted); flex: 0 0 auto; }
+.qw-row .qw-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qw-row .qw-tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; margin-left: 8px; }
+.qw-row .qw-acts { flex: 0 0 auto; display: flex; gap: 6px; }
+.qw-edit { display: grid; grid-template-columns: minmax(0, 0.6fr) minmax(0, 1fr); gap: 8px; width: 100%; padding: 6px 0; }
+.qw-edit .snip-edit-acts { grid-column: 1 / -1; }
+.qw-empty { margin: 0; }
 .sym-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .sym-chip {
   display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 6px;
@@ -403,6 +417,7 @@ a[data-goto]:hover { text-decoration: underline; }
   .dict-table table { table-layout: auto; }
   .dict-tools-right { margin-left: 0; }
   .snipform { grid-template-columns: minmax(0, 1fr); }
+  .qw-form, .qw-edit { grid-template-columns: minmax(0, 1fr); }
   /* narrow window: keyword, text and actions only, so an open editor fits */
   .dict-table.snip-table table { table-layout: fixed; }
   .snip-table th:nth-child(4), .snip-table td:nth-child(4), .snip-table th:nth-child(5), .snip-table td:nth-child(5) { display: none; }

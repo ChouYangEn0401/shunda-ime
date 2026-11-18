@@ -384,6 +384,42 @@ class SettingsApp:
         self.user.delete_snippet(snippet_id)
         return {"ok": True}
 
+    # ---------------------------------------------------------- 快速詞
+    def quick_words(self) -> list[dict]:
+        return self.user.quick_words()
+
+    @staticmethod
+    def _quick_args(body: dict) -> tuple[str, str, int | None]:
+        sid = body.get("snippetId")
+        if sid in ("", None):
+            sid = None
+        else:
+            try:
+                sid = int(sid)
+            except (TypeError, ValueError) as e:
+                raise ApiError(400, "連結的片語不正確") from e
+        text = str(body.get("body", ""))
+        if len(text) > 4000:
+            raise ApiError(400, "文字太長（最多 4000 字）")
+        return str(body.get("trigger", "")), text, sid
+
+    def add_quick_word(self, body: dict) -> dict:
+        try:
+            return {"id": self.user.add_quick_word(*self._quick_args(body))}
+        except ValueError as e:
+            raise ApiError(400, str(e)) from e
+
+    def update_quick_word(self, quick_id: int, body: dict) -> dict:
+        try:
+            self.user.update_quick_word(quick_id, *self._quick_args(body))
+        except ValueError as e:
+            raise ApiError(400, str(e)) from e
+        return {"ok": True}
+
+    def delete_quick_word(self, quick_id: int) -> dict:
+        self.user.delete_quick_word(quick_id)
+        return {"ok": True}
+
     def bulk_snippets(self, body: dict) -> dict:
         """The checkboxes: {"ids": [...], "action": "delete"} or
         {"ids": [...], "action": "category", "category": "客服"} ("" = none)."""
@@ -514,7 +550,7 @@ class SettingsApp:
             applied = True
         before = len(practice.done())
         practice_total = len(practice.merge_done(practice_done))  # 練習場 progress merges too (a union)
-        return {"merged": report["words"] + report["updated"] + report["snippets"] + report["symbols"],
+        return {"merged": report["words"] + report["updated"] + report["snippets"] + report["symbols"] + report["quick"],
                 **report, "settingsApplied": applied, "practice": practice_total - before}
 
     # ---------------------------------------------------------- 這一版的新功能
@@ -695,10 +731,15 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(500, {"error": f"發生錯誤：{e}"})
 
     def _route(self, app: SettingsApp, method: str, path: str, query: dict):
-        m = re.fullmatch(r"/api/(entries|categories|snippets)/(\d+)", path)
+        m = re.fullmatch(r"/api/(entries|categories|snippets|quickwords)/(\d+)", path)
         if m:
             kind, ident = m.group(1), int(m.group(2))
-            if kind == "snippets":
+            if kind == "quickwords":
+                if method == "PATCH":
+                    return app.update_quick_word(ident, self._json_body())
+                if method == "DELETE":
+                    return app.delete_quick_word(ident)
+            elif kind == "snippets":
                 if method == "PATCH":
                     return app.update_snippet(ident, self._json_body())
                 if method == "DELETE":
@@ -726,6 +767,8 @@ class _Handler(BaseHTTPRequestHandler):
             ("GET", "/api/snippets"): app.snippets,
             ("POST", "/api/snippets"): lambda: app.add_snippet(self._json_body()),
             ("POST", "/api/snippets/bulk"): lambda: app.bulk_snippets(self._json_body()),
+            ("GET", "/api/quickwords"): app.quick_words,
+            ("POST", "/api/quickwords"): lambda: app.add_quick_word(self._json_body()),
             ("GET", "/api/custom-symbols"): app.custom_symbols,
             ("POST", "/api/custom-symbols"): lambda: app.add_custom_symbols(self._json_body()),
             ("POST", "/api/custom-symbols/remove"): lambda: app.remove_custom_symbol(self._json_body()),
