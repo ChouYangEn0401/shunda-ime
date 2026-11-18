@@ -29,6 +29,7 @@ sys.path.insert(0, str(ROOT / "src"))
 PANELS = [
     # (file name, script, which panel)
     ("typing-suggestion", "ji3rup wu0 ", "hint"),            # what Tab would take
+    ("typing-suggestion-rows", "ji3ap7", "hint"),            # 快速詞 + mine on top, the dictionary's below
     ("typing-reading", "ji3rup wu0 wu0", "hint"),            # the half-typed syllable
     ("typing-dropped", "ji3ee/", "hint"),                    # a key skipped as a slip
     ("typing-fixed", "ji3 wrold ", "hint"),                  # an English word corrected
@@ -38,6 +39,7 @@ PANELS = [
     ("correction-keys", "ji3ee/4dj94k27{ESC}vv{HOME}lll", "decode"),
     ("palette", "ji3::{TAB}{TAB}", "candidates"),            # symbol grid
     ("snippets", "ji3;;", "candidates"),
+    ("voice-recent", "{RCTRL}{TAB}", "candidates"),          # 錄音暫存
 ]
 SETTINGS_VIEWS = ["general", "dict", "punct", "practice", "about"]
 
@@ -59,7 +61,16 @@ def render_panels(out: Path, scale: float, themes) -> list[Path]:
         engine.lexicon.user.learn("真", "ㄓㄣ", "zh")
         engine.lexicon.user.add_snippet("範例市範例區示範路 100 號\n（請寄到這裡，謝謝）", "我的地址", "addr")
         engine.lexicon.user.add_snippet("感謝您的來信！我們已經收到，會在兩個工作天內回覆您。", "", "thanks")
+        # a 快速詞 and a phrase of mine, so the two-row suggestion strip shows
+        engine.lexicon.user.add_quick_word("我們", "我們下週二見，記得帶筆電！")
+        engine.lexicon.user.add("我們的專案", "ㄨㄛˇ-ㄇㄣ˙-ㄉㄜ˙-ㄓㄨㄢ-ㄢˋ", "zh", "")
         engine.lexicon.invalidate()
+        import time
+
+        from smartime.voice import recent
+
+        recent.add("這個功能可以先上線，細節下一版再調整", now=time.time() - 12 * 60)
+        recent.add("明天下午三點開會，記得帶筆電和上週的報告", now=time.time() - 20)
         for name, script, kind in PANELS:
             session = Session(engine)
             run(session, script)
