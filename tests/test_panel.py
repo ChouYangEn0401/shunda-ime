@@ -204,3 +204,16 @@ def test_correction_help_puts_the_everyday_keys_and_the_way_out_first():
     c.close()
     surf.close()
     fonts.close()
+
+
+def test_suggestions_of_mine_take_their_own_row_above_the_dictionarys():
+    """「推薦變成兩行，紫色在上面，藍色在下面」: one row while all the
+    suggestions are the dictionary's, two once one is mine (or a 快速詞)."""
+    from smartime.engine.panel import HintPanel
+    from smartime.ui.theme import DARK, LIGHT
+
+    plain = HintPanel(suggestion="的", others=["們", "覺得"], kinds=["system"] * 3)
+    mixed = HintPanel(suggestion="artifact", others=["的專案", "們"], kinds=["quick", "mine", "system"])
+    for theme in (LIGHT, DARK):
+        one, two = measure_hint(plain, theme), measure_hint(mixed, theme)
+        assert two.height > one.height

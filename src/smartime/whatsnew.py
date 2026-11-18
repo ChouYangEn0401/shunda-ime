@@ -44,6 +44,12 @@ class Feature:
 
 # Newest first. Only features — never words, phrases or symbol data.
 FEATURES: tuple[Feature, ...] = (
+    Feature("quick-words", "0.10.1", "snippets", "快速詞：打開頭就打出一整段",
+            "設一個觸發字（例：art → artifact、順 → 順打輸入法好棒 !!），打到它提示列就用橘色建議，"
+            "按 Tab 直接打出。文字可以自己寫，也可以直接連到一筆片語。"),
+    Feature("suggest-rows", "0.10.1", "typing", "接續建議分兩行：你的在上面",
+            "提示列上面一行是你自己的（橘色快速詞、紫色你打過或加過的詞），下面一行藍色是詞庫原本的建議。"
+            "Tab 帶入第一個，Ctrl+數字帶入其他的。"),
     Feature("voice-recent", "0.10.1", "voice", "錄音暫存：語音的字不會再弄丟",
             "每次辨識的結果都留在符號面板的「錄音暫存」分頁（單按 Ctrl 再按 Tab）。"
             "切視窗太快、字沒打進去，從那裡再打一次就好；留多久在這裡設定。"),

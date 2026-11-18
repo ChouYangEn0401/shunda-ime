@@ -560,7 +560,15 @@ class UserDict:
         for n, sid in enumerate(ids):
             self._con.execute("UPDATE snippets SET sort=? WHERE id=?", (n, sid))
 
+    def _keep_quick_text(self, ids: list[int]) -> None:
+        # a 快速詞 linked to a 片語 being deleted keeps typing the same text
+        for sid in ids:
+            self._con.execute(
+                "UPDATE quick_words SET body = (SELECT body FROM snippets WHERE id=?) WHERE snippet_id=?",
+                (int(sid), int(sid)))
+
     def delete_snippet(self, snippet_id: int) -> None:
+        self._keep_quick_text([snippet_id])
         self._con.execute("DELETE FROM snippets WHERE id=?", (snippet_id,))
 
     def _many(self, sql: str, rows: list[tuple]) -> int:
@@ -576,6 +584,7 @@ class UserDict:
 
     def delete_snippets(self, ids: list[int]) -> int:
         """Several at once (the settings page's checkboxes). Returns how many."""
+        self._keep_quick_text(ids)
         return self._many("DELETE FROM snippets WHERE id=?", [(int(i),) for i in ids])
 
     def set_snippets_category(self, ids: list[int], category: str) -> int:

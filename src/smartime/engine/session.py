@@ -256,8 +256,14 @@ class CandidateList:
 @dataclass
 class Suggestion:
     text: str  # what Tab will append
-    pin: Segment  # the full phrase pinned after accepting
+    pin: Segment | None  # the full phrase pinned after accepting (None: a 快速詞)
     keys: list[Key]  # keys appended to the buffer
+    # Where it comes from, which is also its colour in the hint strip:
+    # "quick" (orange) a 快速詞 of mine, "mine" (purple) a phrase from my
+    # dictionary or learned from me, "system" (blue) the dictionary's own.
+    kind: str = "system"
+    quick_id: int | None = None  # a 快速詞: its id ...
+    cut: int = 0  # ... and the key where its trigger starts (replaced by text)
 
 
 @dataclass
@@ -285,6 +291,7 @@ class View:
     hint: str = ""
     suggestion: str = ""
     suggestions: list[str] = field(default_factory=list)  # first = what Tab takes
+    suggestion_kinds: list[str] = field(default_factory=list)  # Suggestion.kind of each
     candidate_title: str = ""
     notice: str = ""  # one-off feedback ("已加入詞庫：…"), shown once
     mode: Mode = Mode.AUTO
@@ -419,6 +426,7 @@ class Session(CorrectionMixin):
             if not v.hint and self.suggestion is not None:
                 v.suggestion = self.suggestion.text
                 v.suggestions = [x.text for x in self.suggestions[:self.cfg.suggestion_count]]
+                v.suggestion_kinds = [x.kind for x in self.suggestions[:self.cfg.suggestion_count]]
         v.hint_panel = self._hint_panel(v)
         # One-off feedback used to live in PIME's message window; now that we
         # draw everything ourselves it has to ride on whichever panel is up,
@@ -439,6 +447,7 @@ class Session(CorrectionMixin):
                           fixed=self._recent_fix() if not info else "",
                           suggestion=v.suggestion, others=list(v.suggestions[1:]),
                           more=len(self.suggestions) > len(v.suggestions), notice=v.notice,
+                          kinds=list(v.suggestion_kinds),
                           composing=bool(self.keys) and self.cfg.composing_indicator)
         return panel or None
 
@@ -2285,8 +2294,11 @@ class Session(CorrectionMixin):
         if (not self.cfg.autocomplete or self.cand is not None or self.cursor != len(self.keys)
                 or self.correcting):
             return
+        quick = self._quick_suggestions()
         segs = self.decoding.segments
         if not segs or segs[-1].kind is not Kind.ZH:
+            self.suggestions = quick
+            self.suggestion = quick[0] if quick else None
             return
         run = self._trailing_run()
         lex = self.engine.lexicon
@@ -2319,14 +2331,53 @@ class Session(CorrectionMixin):
                     bounds.append(pos)
                 pin = Segment(tail[0][0], pos, phrase, Kind.ZH, score,
                               tuple(reading.split("-")), tuple(bounds), pinned=True)
-                found.append(Suggestion(phrase[k:], pin, keys))
+                user = self.engine.user
+                mine = user is not None and user.lookup(phrase, reading) is not None
+                found.append(Suggestion(phrase[k:], pin, keys, kind="mine" if mine else "system"))
                 seen.add(phrase[k:])
                 if len(found) >= MAX_SUGGESTIONS:
                     break
             if len(found) >= MAX_SUGGESTIONS:
                 break
+        # what I typed before comes first, then the dictionary's own
+        # (reported: 「會先推薦使用者已經輸入過的字然後才會給原本的建議」)
+        found = [s for s in found if s.kind == "mine"] + [s for s in found if s.kind != "mine"]
+        found = quick + [s for s in found if all(s.text != q.text for q in quick)]
         self.suggestions = found
         self.suggestion = found[0] if found else None
+
+    def _quick_suggestions(self) -> list[Suggestion]:
+        """快速詞 whose trigger is what was just typed: ``art`` as the last
+        keys of a word (not the end of ``start``), or ``順`` as the last
+        characters on screen. Newest trigger match first."""
+        quick = getattr(self.engine.lexicon, "quick", None)
+        if not quick or not self.keys:
+            return []
+        typed = "".join(k.char for k in self.keys)
+        units = self.decoding.units()
+        shown = "".join(u[2] for u in units)
+        out: list[Suggestion] = []
+        for q in quick:
+            trigger = q["trigger"]
+            cut = None
+            n = len(trigger)
+            if trigger.isascii() and typed.lower().endswith(trigger.lower()):
+                a = len(typed) - n
+                if a == 0 or not self.keys[a - 1].char.isalnum() or self._word_ends_at(a):
+                    cut = a
+            if cut is None and not trigger.isascii() and shown.endswith(trigger) and len(units) >= n:
+                cut = units[-n][0]
+            if cut is not None:
+                out.append(Suggestion(q["text"], None, [], kind="quick", quick_id=q["id"], cut=cut))
+        return out
+
+    def _word_ends_at(self, a: int) -> bool:
+        """A segment ends right before key ``a`` and it is not part of an
+        English word (我 + art starts a word; st + art does not)."""
+        for seg in self.decoding.segments:
+            if seg.end == a:
+                return seg.kind not in (Kind.EN, Kind.LITERAL, Kind.PENDING, Kind.DROP)
+        return False
 
     def _smart_items(self) -> list[Candidate]:
         """Pickable 超智慧推薦 items, in the order the panel numbers them."""
@@ -2340,7 +2391,8 @@ class Session(CorrectionMixin):
         """Shift+Tab: all continuations in the candidate window (with
         超智慧推薦 on: its chains and homophones first, numbered as in its panel)."""
         items = self._smart_items()
-        items += [Candidate(s.text, None, s.pin.text, suggestion=s, group="接續") for s in self.suggestions]
+        items += [Candidate(s.text, None, s.pin.text, suggestion=s, group="接續") if s.pin is not None
+                  else Candidate(s.text, None, "快速詞", suggestion=s, group="快速詞") for s in self.suggestions]
         if not items:
             self._notice = "現在沒有接續建議"
             return
@@ -2693,6 +2745,9 @@ class Session(CorrectionMixin):
         self._redecode()
 
     def _accept_suggestion(self, sug: Suggestion) -> None:
+        if sug.kind == "quick":
+            self._accept_quick(sug)
+            return
         self._checkpoint()
         start = len(self.keys)
         self.keys.extend(sug.keys)
@@ -2704,6 +2759,20 @@ class Session(CorrectionMixin):
         self._learn(pin, origin="tab")  # positive feedback: accepted continuations rank higher
         self._redecode()
         self._commit_overflow()
+
+
+    def _accept_quick(self, sug: Suggestion) -> None:
+        """Type a 快速詞's text in place of its trigger: what came before
+        is committed, then the text (like a 片語)."""
+        at = sug.cut
+        del self.keys[at:]
+        self.cursor = len(self.keys)
+        self.pins = [p for p in self.pins if p.end <= at]
+        self._redecode() if self.keys else self._reset_buffer()
+        self.commit_all()
+        self._commit += sug.text
+        if sug.quick_id is not None and self.engine.user is not None and not practice.active():
+            self.engine.user.used_quick_word(sug.quick_id)
 
 
 def _shift_segment(seg: Segment, delta: int) -> Segment:

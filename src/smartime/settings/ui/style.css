@@ -264,6 +264,18 @@ tr.blocked td { color: var(--muted); }
 .snip-key { background: color-mix(in srgb, #7c3aed 12%, transparent); color: #7c3aed; border-radius: 5px; padding: 0 6px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .snip-key { color: #b79cff; } }
 :root[data-theme="dark"] .snip-key { color: #b79cff; }
+/* the hint strip's suggestion colours, named in 接續建議's description (ui/theme.py) */
+.tint-quick { color: #ea580c; font-weight: 600; }
+.tint-mine { color: #7c3aed; font-weight: 600; }
+.tint-system { color: #2563eb; font-weight: 600; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tint-quick { color: #fb923c; }
+  :root:not([data-theme="light"]) .tint-mine { color: #b79cff; }
+  :root:not([data-theme="light"]) .tint-system { color: #6b9bff; }
+}
+:root[data-theme="dark"] .tint-quick { color: #fb923c; }
+:root[data-theme="dark"] .tint-mine { color: #b79cff; }
+:root[data-theme="dark"] .tint-system { color: #6b9bff; }
 .snip-key.dup { background: var(--plan-soft); color: var(--plan); }
 .dict-table.snip-table { height: auto; max-height: 470px; }
 .dict-table.snip-table th:nth-child(1) { width: 40px; } .dict-table.snip-table th:nth-child(2) { width: 15%; }
@@ -295,6 +307,10 @@ tr.blocked td { color: var(--muted); }
 .qw-row { display: flex; align-items: center; gap: 10px; padding: 6px 10px; min-height: 40px; }
 .qw-row + .qw-row { border-top: 1px solid var(--line); }
 .qw-row .qw-trig { flex: 0 0 auto; max-width: 30%; overflow: hidden; text-overflow: ellipsis; }
+/* orange, like the 快速詞 in the hint strip (ui/theme.py quick) */
+.qw-row .qw-trig kbd, .qw-row kbd.qw-trig { color: #c2410c; background: color-mix(in srgb, #ea580c 10%, transparent); border-color: color-mix(in srgb, #ea580c 35%, transparent); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .qw-row .qw-trig kbd, :root:not([data-theme="light"]) .qw-row kbd.qw-trig { color: #fb923c; } }
+:root[data-theme="dark"] .qw-row .qw-trig kbd, :root[data-theme="dark"] .qw-row kbd.qw-trig { color: #fb923c; }
 .qw-row .qw-arrow { color: var(--muted); flex: 0 0 auto; }
 .qw-row .qw-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qw-row .qw-tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; margin-left: 8px; }

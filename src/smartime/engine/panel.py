@@ -106,6 +106,9 @@ class HintPanel:
     suggestion: str = ""  # what Tab takes
     others: list[str] = field(default_factory=list)  # further continuations
     more: bool = False  # there are more than these; Shift+Tab lists them all
+    # where each of [suggestion] + others comes from (Suggestion.kind):
+    # quick / mine / system. Any but system: two rows, 快速詞 and mine on top
+    kinds: list[str] = field(default_factory=list)
     notice: str = ""  # one-off feedback ("記住了「…」")
     composing: bool = False  # text is still in the composition (not committed yet)
 

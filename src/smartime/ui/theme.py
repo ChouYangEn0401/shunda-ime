@@ -7,7 +7,9 @@ Colour carries meaning, and only a few meanings, so the panels stay calm:
                      order were read in order) — and the correction-mode frame
     drop     red     keys that were skipped as strays (struck through)
     memory   green   from your own dictionary or learned from your choices
-    predict  purple  suggestions for what comes next
+    predict  purple  suggestions for what comes next (purple: from what I typed
+                     before; the dictionary's own stay blue, like the cursor)
+    quick    orange  a 快速詞 of mine: the trigger I just typed, and its text
 
 Everything else is neutral text on the panel background; secondary text
 (row labels, help lines) is muted. Tokens follow the settings page
@@ -39,6 +41,8 @@ class Theme:
     memory_soft: int
     predict: int
     predict_soft: int
+    quick: int = 0xEA580C
+    quick_soft: int = 0xFFEDD5
     font_ui: str = "Microsoft JhengHei UI"
     font_mono: str = "Consolas"
 
@@ -54,6 +58,7 @@ DARK = Theme(
     accent=0x6B9BFF, accent_soft=0x1F2D4D, on_accent=0x0B1220,
     fix=0xF2B553, fix_soft=0x3A2A0E, drop=0xFF8A7A, drop_soft=0x3D1A17,
     memory=0x4ADE80, memory_soft=0x143222, predict=0xB79CFF, predict_soft=0x2A1F47,
+    quick=0xFB923C, quick_soft=0x3B2410,
 )
 
 

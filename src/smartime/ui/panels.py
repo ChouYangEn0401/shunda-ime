@@ -766,6 +766,74 @@ def _hint_suggest_width(c: Canvas, s: Styles, p: HintPanel, k: float) -> float:
     return w
 
 
+# Two rows of suggestions (reported wish: 「推薦變成兩行，紫色在上面，藍色
+# 在下面」, and 快速詞 in orange before the purple): on top what is mine —
+# 快速詞 (orange), then phrases I typed before (purple) — below, the
+# dictionary's own (blue). Numbers run on across both rows, so Tab is
+# always the first item and Ctrl+N the N-th, wherever it sits.
+def _hint_rows(p: HintPanel) -> list[list[tuple[int, str, str]]] | None:
+    """[(index, text, kind)] per row, or None for the plain one-row strip
+    (nothing of mine among the suggestions)."""
+    if not p.suggestion:
+        return None
+    texts = [p.suggestion] + list(p.others)
+    kinds = p.kinds if len(p.kinds) == len(texts) else ["system"] * len(texts)
+    if all(kind == "system" for kind in kinds):
+        return None
+    items = [(i, text, kind) for i, (text, kind) in enumerate(zip(texts, kinds))]
+    top = [it for it in items if it[2] != "system"]
+    bottom = [it for it in items if it[2] == "system"]
+    return [row for row in (top, bottom) if row]
+
+
+def _kind_colors(t: Theme, kind: str) -> tuple[int, int]:
+    if kind == "quick":
+        return t.quick, t.quick_soft
+    if kind == "mine":
+        return t.predict, t.predict_soft
+    return t.accent, t.accent_soft
+
+
+def _hint_row(c: Canvas, s: Styles, t: Theme, x: float, y: float, row, k: float, more: bool,
+              draw: bool) -> float:
+    """Measure (and with ``draw``, paint) one row; returns its width."""
+    x0 = x
+    numbered = False
+    for i, text, kind in row:
+        color, soft = _kind_colors(t, kind)
+        tw = measure_mixed(c, text, s.reading if i == 0 else s.small, s.symbol)
+        if i == 0:
+            chip_w = tw + 6 * k + c.measure(TAB_KEY, s.help_key)[0] + 14 * k
+            if draw:
+                c.fill(x, y + 1 * k, chip_w, 20 * k, soft, radius=5 * k)
+                draw_mixed(c, x + 7 * k, y + 1 * k, text, s.reading, s.symbol, t.fg)
+                c.text(x + 7 * k + tw + 6 * k, y + 4 * k, TAB_KEY, s.help_key, color)
+            x += chip_w + 10 * k
+            continue
+        if not numbered:
+            if draw:
+                c.text(x, y + 4 * k, CTRL_LABEL, s.help_key, t.faint)
+            x += c.measure(CTRL_LABEL, s.help_key)[0] + 4 * k
+            numbered = True
+        num = str(i + 1)
+        if draw:
+            c.text(x, y + 4 * k, num, s.help_key, color)
+        x += c.measure(num, s.help_key)[0] + 4 * k
+        if draw:
+            draw_mixed(c, x, y + 4 * k, text, s.small, s.symbol, t.muted if kind == "system" else color)
+        x += tw + 10 * k
+    if more:
+        if draw:
+            c.text(x, y + 4 * k, MORE_KEY, s.help_key, t.faint)
+        x += c.measure(MORE_KEY, s.help_key)[0] + 4 * k
+        if draw:
+            c.text(x, y + 4 * k, MORE_TEXT, s.small, t.faint)
+        x += c.measure(MORE_TEXT, s.small)[0]
+    else:
+        x -= 10 * k
+    return x - x0
+
+
 def paint_hint(c: Canvas, t: Theme, p: HintPanel, size: float = 1.0, draw: bool = True) -> Painted:
     s = Styles(c, t, size)
     k = size
@@ -780,6 +848,13 @@ def paint_hint(c: Canvas, t: Theme, p: HintPanel, size: float = 1.0, draw: bool 
     fixed = f"更正 {p.fixed}  ↓" if p.fixed else ""
     fix_w = measure_mixed(c, fixed, s.small, s.symbol) + 10 * k if fixed else 0.0
     suggest_w = _hint_suggest_width(c, s, p, k)
+    rows = _hint_rows(p)
+    row_w: list[float] = []
+    if rows:
+        more = bool(p.others)
+        row_w = [_hint_row(c, s, t, 0, 0, row, k, more and n == len(rows) - 1, False)
+                 for n, row in enumerate(rows)]
+        suggest_w = row_w[0]
 
     # Nothing to say but text is still being composed: a dot, so the state
     # is visible in editors that do not underline the composition.
@@ -795,9 +870,9 @@ def paint_hint(c: Canvas, t: Theme, p: HintPanel, size: float = 1.0, draw: bool 
             c.stroke(0, 0, width, height, t.border, line=1)
             c.fill(6 * k, 6 * k, 6 * k, 6 * k, t.accent, radius=3 * k)
         return out
-    width = max(body_w, notice_w, HINT_MIN_W * k) + 2 * HINT_PAD_X * k
-    rows = (1 if parts else 0) + (1 if p.notice else 0)
-    height = max(1, rows) * HINT_ROW * k + 2 * HINT_PAD_Y * k
+    width = max([body_w, notice_w, HINT_MIN_W * k] + row_w[1:]) + 2 * HINT_PAD_X * k
+    lines = (1 if parts else 0) + max(0, len(row_w) - 1) + (1 if p.notice else 0)
+    height = max(1, lines) * HINT_ROW * k + 2 * HINT_PAD_Y * k
     out = Painted(width, height)
     if not draw:
         return out
@@ -828,6 +903,17 @@ def paint_hint(c: Canvas, t: Theme, p: HintPanel, size: float = 1.0, draw: bool 
             # right-aligned: a fast typist can ignore this side completely,
             # so it keeps its own place instead of shifting with the reading
             x = max(x, width - HINT_PAD_X * k - suggest_w)
+            if rows:
+                more = bool(p.others)
+                for n, row in enumerate(rows):
+                    if n:
+                        y += HINT_ROW * k
+                        x = width - HINT_PAD_X * k - row_w[n]
+                    _hint_row(c, s, t, x, y, row, k, more and n == len(rows) - 1, True)
+                y += HINT_ROW * k
+                if p.notice:
+                    draw_mixed(c, HINT_PAD_X * k, y + 3 * k, p.notice, s.small, s.symbol, t.muted)
+                return out
             chip_w = _hint_chip_width(c, s, p, k)
             c.fill(x, y + 1 * k, chip_w, 20 * k, t.accent_soft, radius=5 * k)
             draw_mixed(c, x + 7 * k, y + 1 * k, p.suggestion, s.reading, s.symbol, t.fg)

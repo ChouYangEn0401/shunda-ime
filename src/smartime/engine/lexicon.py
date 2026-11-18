@@ -116,6 +116,8 @@ class Lexicon:
                 for phrase in by_phrase:
                     self._user_text.setdefault(phrase, []).append(reading)
                     self._user_abbr.setdefault(abbr_key(reading), []).append((phrase, reading))
+        # 快速詞 (userdict.quick_words): looked at on every key, so cached here
+        self.quick: list[dict] = self.user.quick_words() if self.user is not None else []
         # my English words with an underscore (m_index, m_): the decoder
         # splits tokens at "_", so these are matched whole, by first letter
         self.identifiers: dict[str, tuple[str, ...]] = {}
