@@ -314,6 +314,23 @@ def test_ctrl_d_keeps_a_dropped_first_letter_and_undoes_an_autocorrect(mem_sessi
     assert v.composition == "wrold "  # a word of mine is never corrected
 
 
+def test_ctrl_d_keeps_an_identifier_with_an_underscore(mem_session, user):
+    """「打了 _ 以後 ctrl+D 他就會說游標前面沒有可以加入的文字」: m_ and
+    m_index are one word, and once added they come out whole."""
+    _, v = run(mem_session, "m_")
+    assert v.composition == "_"  # the lone m is dropped as a slip
+    _, v = run(mem_session, "{C-d}")
+    assert v.notice == "已加入詞庫：m_（常用英文）" and "m_" in user.en
+    assert v.composition == "m_"
+    run(mem_session, "{ENTER}")
+    _, v = run(Session(mem_session.engine), "m_count")
+    assert v.composition == "m_count"  # the prefix keeps its m from now on
+    _, v = run(Session(mem_session.engine), "ji3m_index{C-d}")
+    assert "m_index" in user.en
+    _, v = run(Session(mem_session.engine), "ji3m_index ji3")
+    assert v.composition == "我m_index 我"
+
+
 def test_ctrl_d_before_chinese_ignores_a_trailing_stray_key(mem_session, user):
     # a single letter after a sentence is dropped as a slip; Ctrl+D still
     # means the Chinese before it, not the letter

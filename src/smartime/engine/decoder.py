@@ -733,6 +733,15 @@ class Decoder:
                         yield Segment(i, j, word, Kind.EN, score)
                         yield Segment(i, j, fix[0], Kind.EN, self._en_score(fix[0], delimited) + w.en_typo)
 
+        # --- My identifiers with an underscore (m_index), whole: added with
+        #     Ctrl+D, so the user said "this is one word".
+        if allow_english and not k.numpad:
+            for word in getattr(self.lex, "identifiers", {}).get(ch.lower(), ()):
+                j = i + len(word)
+                typed = "".join(x.char for x in keys[i:j])
+                if j <= limit and typed.lower() == word and not any(x.numpad for x in keys[i:j]):
+                    yield Segment(i, j, typed, Kind.EN, self._en_score(word))
+
         # --- Numbers (純注音: numeric keypad only; top-row digits are zhuyin).
         numbers_ok = allow_english or not zhuyin
         if ch in _DIGITS and (numbers_ok or k.numpad):

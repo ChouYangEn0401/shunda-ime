@@ -2062,9 +2062,16 @@ class Session(CorrectionMixin):
         return a, pos
 
     def _typed_letter(self, i: int, kinds: dict[int, Kind]) -> bool:
-        """Key ``i`` is a letter or digit that is not part of a Chinese syllable."""
+        """Key ``i`` is a letter, digit or underscore that is not part of a
+        Chinese syllable. The underscore keeps identifiers whole: Ctrl+D
+        after ``m_index`` (or a bare ``m_`` prefix) adds what was typed, not
+        just ``index`` (reported: 「打了 _ 以後 ctrl+D 他就會說游標前面沒有
+        可以加入的文字」)."""
+        ch = self.keys[i].char
+        if ch == "_":
+            return kinds.get(i) in (Kind.EN, Kind.LITERAL, Kind.PUNCT, Kind.DROP, Kind.PENDING)
         return (kinds.get(i) in (Kind.EN, Kind.LITERAL, Kind.NUM, Kind.PENDING, Kind.DROP)
-                and self.keys[i].char.isascii() and self.keys[i].char.isalnum())
+                and ch.isascii() and ch.isalnum())
 
     def _typed_word_end(self, pos: int) -> int:
         """End of the typed word that key ``pos`` is in (the 按鍵 view can

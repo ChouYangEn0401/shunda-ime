@@ -116,6 +116,15 @@ class Lexicon:
                 for phrase in by_phrase:
                     self._user_text.setdefault(phrase, []).append(reading)
                     self._user_abbr.setdefault(abbr_key(reading), []).append((phrase, reading))
+        # my English words with an underscore (m_index, m_): the decoder
+        # splits tokens at "_", so these are matched whole, by first letter
+        self.identifiers: dict[str, tuple[str, ...]] = {}
+        if self.user is not None:
+            found: dict[str, list[str]] = {}
+            for word in self.user.en:
+                if "_" in word and word.strip("_"):
+                    found.setdefault(word[0], []).append(word)
+            self.identifiers = {c: tuple(sorted(ws, key=len, reverse=True)) for c, ws in found.items()}
 
     def refresh(self) -> bool:
         """Call before decoding; cheap. True if the user dictionary changed."""
