@@ -125,7 +125,7 @@
 - **Shift+←/→**（`_move_edge`）：游標所在的字（英文、數字是整個字）後面的分界一次推一鍵，左邊固定成原本的種類、右邊重讀，
   面板在分界畫琥珀色直線（`Column.edge_after`）；其他任何鍵都讓它定下來。
 - **練習場**（`practice.py`，設定頁「練習場」，系統匣「練習場…」）：五個章節（`CHAPTERS`）、二十幾步（`STEPS`）的導覽，每一步是 task（在框裡打到目標為止）或 tip（一句話＋「知道了」）。句子都是編出來的（不用使用者自己的文字），顯示讀錯的那幾步都是空白詞庫下真的會讀錯的；`tests/test_practice.py` 照每一步的說明打、確認讀成 `wrong`、按 `fix` 的鍵、確認送出的就是 `target`——哪天解碼器不再讀錯，那一步的測試會失敗，提醒換句子。第一次安裝完成頁預設打開它（`settings.py --section=practice`），過關自動把焦點移到下一個沒做過的步，章節籤可以單獨複習，進度存在 `practice.json`。頁面上的框有焦點時，頁面每 8 秒把 `practice.json` 的 `until` 往後推（`ACTIVE_SECONDS` = 20），`practice.active()` 為真時 session 不學習、不忘記、不加詞（`_learn`、`_forget_candidate`、`_add_to_dict`）；頁面關掉 20 秒後自動恢復。按鍵依使用者的鍵盤配置現算（`devtools.keyscript.script_for`）。
-- 候選窗（`CandidateList`）：分組排序 `GROUP_ORDER`（重新分組 → 我的詞庫 → 學過 → 詞庫 → 英文／數字／標點 → 其他讀法 → 原始按鍵），
+- 候選窗（`CandidateList`）：分組排序 `GROUP_ORDER`（重新分組 → 我的詞庫 → 學過 → 詞庫 → 英文／數字／標點 → 其他讀法 → 原始按鍵 → 略過的鍵 → 注音），
   打開時選取停在畫面上目前的字；`Tab` 篩選一組；`candidate_multi_column` 時 → 打開下一欄、第一欄按 ← 收回。
 - 片語：打 `snippet_trigger`（`;;`）→ `CandidateList.snippet_at`，之後的字母是篩選字；選中時打出整段
   （`_type_text`：先送出 `;;` 之前的字，再送出片語）。多字元的符號（顏文字）同樣整段送出，不放進組字區。

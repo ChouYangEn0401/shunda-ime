@@ -308,7 +308,7 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
   <!-- Version list: written by hand, updated with every version (CLAUDE.md §3).
        It ships with the page so the local copy opens offline. -->
   <details class="ver" id="ver">
-    <summary aria-label="版本：目前 0.10.0-beta.1，已在 GitHub 發佈；下一版 0.11.0-alpha.1 試用中。點開看所有版本"><i class="dot"></i><b>v0.10.0-beta.1</b>已發佈<span class="next" aria-hidden="true">下一版 0.11.0-alpha.1</span><span class="chev" aria-hidden="true">▼</span></summary>
+    <summary aria-label="版本：目前 0.10.0-beta.1，已在 GitHub 發佈；下一版 0.11.0-alpha.2 試用中。點開看所有版本"><i class="dot"></i><b>v0.10.0-beta.1</b>已發佈<span class="next" aria-hidden="true">下一版 0.11.0-alpha.2</span><span class="chev" aria-hidden="true">▼</span></summary>
     <div class="ver-pop">
       <h3>版本</h3>
       <p class="intro">「下載安裝檔」拿到的是最新的正式版。測試版、候選版多半只在開發者的電腦上建置、試用；下面有附「下載」連結的，才是在 GitHub 上公開發佈過的。</p>
@@ -316,14 +316,29 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
       <div class="ver-group">
         <p class="eyebrow">下一版</p>
         <div class="next-card">
-          <div class="next-head"><span class="v-name">0.11.0-alpha.1</span><span class="st st-alpha">測試版</span></div>
+          <div class="next-head"><span class="v-name">0.11.0-alpha.2</span><span class="st st-alpha">測試版</span></div>
           <ul class="next-items">
+            <li><b>國字換成注音</b>：候選窗最後一組「注音」，修正模式按 z 一個字一個字換</li>
+            <li><b>看得到第幾頁</b>：候選窗右上角「第 3／27 頁」，Home 回第 1 頁</li>
             <li><b>按標點不再改字</b>：送出的就是畫面上看到的，英文也不會在那一瞬間被換掉</li>
             <li><b>「● Enter 送出」</b>：字還沒送出時，游標旁邊直接說怎麼送出；樣子可以換</li>
             <li><b>閒置時的符號面板</b>：沒在打字時單按 Ctrl 也是新的面板，還多了「快速詞」一頁</li>
           </ul>
           <p class="next-foot">在開發者的電腦上試用中，還沒有下載；發佈之後會移到下面。</p>
         </div>
+      </div>
+
+      <div class="ver-group">
+        <p class="eyebrow">開發中 · 0.11.0</p>
+        <ul class="ver-list">
+          <li class="alphas"><details>
+            <summary><span class="st st-alpha">0.11.0 的測試版</span><span class="v-note">alpha.1 · 1 個</span><span class="chev" aria-hidden="true">▼</span></summary>
+            <ul class="ver-list">
+          <li class="compact"><span class="v-name">alpha.1<span class="v-date">2026-11-24</span></span>
+            <span class="v-body"><span class="st st-unpub">未發佈</span><span class="v-note">按標點不再改字；「● Enter 送出」；沒在打字時單按 Ctrl 也是新的符號面板，多了快速詞一頁；更新紀錄只列這一次</span></span></li>
+            </ul>
+          </details></li>
+        </ul>
       </div>
 
       <div class="ver-group">
@@ -569,13 +584,15 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
     <div class="scene">
       <div>
         <h3>候選字按來源分組、分色</h3>
-        <p>我的詞庫 → 學過 → 詞庫 → 其他讀法 → 原始按鍵，由近到遠。
+        <p>我的詞庫 → 學過 → 詞庫 → 其他讀法 → 原始按鍵 → 注音，由近到遠。
           <kbd>Tab</kbd> 在上面那排分類籤之間走，一眼跳過整個不想要的群組，<kbd>→</kbd> 把下一頁開在旁邊；
           <kbd>1</kbd>–<kbd>9</kbd> 直接選，數字鍵盤不管 NumLock 開不開都能用。</p>
+        <p>右上角寫著現在在第幾頁，不在第 1 頁時用藍底標出來；<kbd>Home</kbd> 一下回到第 1 頁，最常用的詞都在那裡。</p>
       </div>
       <figure>
         <img src="images/candidates.png" alt="候選字窗：分類籤、我的詞庫、學過、詞庫三個分組">
-        <figcaption>綠色是你自己的詞；標題列顯示正在改句子裡的哪一個字。</figcaption>
+        <img src="images/candidates-page.png" alt="翻到第 3 頁的候選窗：右上角藍底「第 3／27 頁」，說明列有「Home 回第 1 頁」" style="margin-top:10px">
+        <figcaption>綠色是你自己的詞；標題列顯示正在改句子裡的哪一個字。下面那張翻到了第 3 頁。</figcaption>
       </figure>
     </div>
 
@@ -584,10 +601,14 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
         <h3>英文和中文在同一個清單裡換</h3>
         <p>打出來的 <code>mvp</code> 想換成「勳」，或是被判成中文的想換回原始按鍵，
           都在同一個候選窗裡。任何一次誤判都離正確答案一個 <kbd>↓</kbd>。</p>
+        <p>想直接打注音也行：最後一組「注音」把這個字或整段中文照注音打出去（你好 → ㄋㄧˇㄏㄠˇ）；
+          修正模式裡按 <kbd>z</kbd>，一個字一個字換，再按一次換回國字。</p>
       </div>
       <figure>
         <img src="images/candidates-english.png" alt="英文 mvp 的候選窗，同時列出中文讀法與原始按鍵">
-        <figcaption>跨類別的候選：英文、其他讀法、原始按鍵。</figcaption>
+        <img src="images/candidates-zhuyin.png" alt="候選窗最後一組「注音」：ㄊㄧㄢ（這個字）、ㄋㄧˇㄏㄠˇㄊㄧㄢ（整段）" style="margin-top:10px">
+        <img src="images/correction-zhuyin.png" alt="修正模式按 z：「你」換成 ㄋㄧˇ" style="margin-top:10px">
+        <figcaption>跨類別的候選：英文、其他讀法、原始按鍵；最後一組是注音。最下面是修正模式按 <kbd>z</kbd> 的樣子。</figcaption>
       </figure>
     </div>
 
