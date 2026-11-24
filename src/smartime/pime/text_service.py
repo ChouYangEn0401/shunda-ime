@@ -97,6 +97,17 @@ def _panel_window(create: bool, second: bool = False):
     return overlay.get() if create else overlay._overlay
 
 
+def _caret_known() -> bool:
+    """Whether the foreground app shows a system caret we can dock under
+    (Win32 edit controls, RichEdit, Word … — not Chromium/Electron)."""
+    try:
+        from ..ui.overlay import caret_rect
+
+        return caret_rect() is not None
+    except Exception:  # noqa: BLE001 - no panel window support here
+        return False
+
+
 def _idle_palette(v) -> bool:
     """The symbol panel is open and nothing is composed."""
     return not v.composition and v.candidate_panel is not None and v.candidate_panel.palette
@@ -381,8 +392,17 @@ class SmartTextService:
         self._show_smart(v)
         if idle_panel and panel_kind and not self._message:
             self._composing_pid = foreground_pid()  # where the panel belongs (still_in_front)
-        shown = self._show_panel(v, panel_kind)
-        if shown and not self._showing_candidates:
+        # With nothing composed, PIME can only place its message by opening a
+        # composition and ending it in the same reply — and in TSF apps
+        # (RichEdit, Word) ending it collapses a selection to its end, so
+        # what is typed next went beside the selected text instead of over
+        # it (real-machine test of alpha.3). Where the app has a system caret
+        # the panel docks under that and no message is sent at all.
+        caret_only = bool(idle_panel and panel_kind and not v.composition and _caret_known())
+        shown = self._show_panel(v, panel_kind, caret_first=caret_only)
+        if caret_only:
+            pass  # no anchor message: see above
+        elif shown and not self._showing_candidates:
             # Our own panel says all of this, in our own colours. PIME's
             # window stays alive underneath purely as the anchor, with one
             # space in it, so it is created once per composition instead of
@@ -449,7 +469,7 @@ class SmartTextService:
             return "hint" if _panel_window(create=True) is not None else ""
         return ""
 
-    def _show_panel(self, v, kind: str) -> str:
+    def _show_panel(self, v, kind: str, caret_first: bool = False) -> str:
         """Show / hide our own panel window for this view; returns the kind shown."""
         overlay = _panel_window(create=bool(kind))
         if overlay is None:
@@ -462,7 +482,7 @@ class SmartTextService:
 
         model = {"candidates": v.candidate_panel, "decode": v.panel, "hint": v.hint_panel}[kind]
         overlay.show(self, kind, model, pick(cfg.panel_theme), cfg.candidate_font_size / 16,
-                     cover=not self._showing_candidates)
+                     cover=not self._showing_candidates and not caret_first, caret_first=caret_first)
         return kind
 
     def _clear_ui(self, reply: dict, composition: bool = True) -> None:

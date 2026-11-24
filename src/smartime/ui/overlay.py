@@ -169,11 +169,15 @@ class Overlay:
     def available(self) -> bool:
         return self._hwnd is not None and not self._failed
 
-    def show(self, owner, kind: str, model, theme: Theme, size: float = 1.0, cover: bool = False) -> None:
+    def show(self, owner, kind: str, model, theme: Theme, size: float = 1.0, cover: bool = False,
+             caret_first: bool = False) -> None:
         """``cover``: sit exactly where PIME's hint box is (and hide it)
-        instead of docking under it — the hint box is then only an anchor."""
+        instead of docking under it — the hint box is then only an anchor.
+        ``caret_first``: dock under the system caret, PIME's windows only when
+        there is none (the symbol panel with nothing composed: no anchor
+        message is sent then, see text_service._render)."""
         with self._lock:
-            self._want = (owner, kind, model, theme, size, cover)
+            self._want = (owner, kind, model, theme, size, cover, caret_first)
             self._owner = owner
         self._post(WM_UPDATE)
 
@@ -302,7 +306,7 @@ class Overlay:
             self._update()
 
     def _measure(self, scale: float) -> tuple[int, int]:
-        _, kind, model, theme, size, _cover = self._shown
+        _, kind, model, theme, size, *_ = self._shown
         surf = Surface(4, 4)
         try:
             painted = PAINTERS[kind](Canvas(surf.hdc, scale, self._fonts), theme, model, size, draw=False)
@@ -315,9 +319,12 @@ class Overlay:
         Returns whether an anchor was found."""
         resize = resize or self._stale
         cover = bool(self._shown and self._shown[5])
+        caret_first = bool(self._shown and len(self._shown) > 6 and self._shown[6])
         anchor = find_own(self.dock_under) if self.dock_under else None
+        if anchor is None and caret_first:
+            anchor = caret_rect()
         if anchor is not None:
-            cover = False  # docking under our own other panel
+            cover = False  # docking under our own other panel, or the caret
         else:
             found = find_anchor()
             if found is None:
@@ -383,7 +390,7 @@ class Overlay:
         try:
             if self._shown is None or self._fonts is None:
                 return
-            _, kind, model, theme, size, _cover = self._shown
+            _, kind, model, theme, size, *_ = self._shown
             width, height = self._size
             surf = Surface(width, height, hdc)
             canvas = Canvas(surf.hdc, self._scale, self._fonts)

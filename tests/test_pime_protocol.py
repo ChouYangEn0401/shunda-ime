@@ -338,9 +338,11 @@ class _FakeOverlay:
 
     def __init__(self):
         self.shown = []  # (kind, cover)
+        self.caret_first = []
 
-    def show(self, owner, kind, model, theme, size=1.0, cover=False):
+    def show(self, owner, kind, model, theme, size=1.0, cover=False, caret_first=False):
         self.shown.append((kind, cover))
+        self.caret_first.append(caret_first)
 
     def hide(self, owner=None):
         self.shown.append((None, False))
@@ -544,6 +546,7 @@ def test_the_idle_symbol_panel_is_ours_too(engine, monkeypatch):
     overlay = _FakeOverlay()
     monkeypatch.setattr(ts, "_panel_window", lambda create, second=False: None if second else overlay)
     monkeypatch.setattr(ts, "foreground_pid", lambda: 1234)
+    monkeypatch.setattr(ts, "_caret_known", lambda: False)  # Chromium: no system caret
     svc = SmartTextService(engine, Path("icons"))
     svc.handle({"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True})
     replies = _ctrl_tap(svc, 10)
@@ -559,6 +562,32 @@ def test_the_idle_symbol_panel_is_ours_too(engine, monkeypatch):
         svc.handle(msg)
         reply = svc.handle(dict(msg, method="onKeyDown", seqNum=21 + 2 * i))
     assert reply["commitString"] == "β" and reply.get("hideMessage")
+    assert overlay.shown[-1] == (None, False)
+
+
+def test_where_there_is_a_caret_the_idle_panel_sends_no_message(engine, monkeypatch):
+    """Real-machine test of alpha.3: in RichEdit (TSF) the composition PIME
+    opens and ends for the anchor message collapsed a selection — 我 selected
+    in 我們, Ctrl tap, Esc, 好 gave 我好們 instead of 好們. With a system caret
+    to dock under, no message is sent and PIME opens nothing."""
+    from smartime.pime import text_service as ts
+    from smartime.pime.text_service import SmartTextService
+
+    overlay = _FakeOverlay()
+    monkeypatch.setattr(ts, "_panel_window", lambda create, second=False: None if second else overlay)
+    monkeypatch.setattr(ts, "foreground_pid", lambda: 1234)
+    monkeypatch.setattr(ts, "_caret_known", lambda: True)
+    svc = SmartTextService(engine, Path("icons"))
+    svc.handle({"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True})
+    replies = _ctrl_tap(svc, 10)
+    assert not any("showMessage" in r for r in replies)
+    assert "compositionString" not in replies[-1]  # the reply that opens the panel
+    assert overlay.shown[-1] == ("candidates", False) and overlay.caret_first[-1]
+    # typing afterwards: the usual anchor, not the caret
+    msg = {"method": "filterKeyDown", "seqNum": 30, "keyCode": 0x1B, "charCode": 0, "scanCode": 0,
+           "isExtended": False, "keyStates": [0] * 256}
+    svc.handle(msg)
+    svc.handle(dict(msg, method="onKeyDown", seqNum=31))
     assert overlay.shown[-1] == (None, False)
 
 
