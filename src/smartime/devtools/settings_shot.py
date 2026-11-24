@@ -107,7 +107,11 @@ def main() -> int:
 
             from .. import update, whatsnew
 
-            whatsnew._write(set())
+            # as after an upgrade from the version before the newest
+            # feature's, with everything up to it already looked at
+            newest = whatsnew.FEATURES[0].version
+            older = [f for f in whatsnew.FEATURES if update.version_tuple(f.version) < update.version_tuple(newest)]
+            whatsnew._write({f.id for f in older}, since=older[0].version if older else None)
             update._store(update.Release(version="99.0.0", asset_url="https://example.invalid/setup.exe",
                                          size=20_000_000, checked=_time.time()))
         if args.set:

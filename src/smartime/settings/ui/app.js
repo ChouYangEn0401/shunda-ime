@@ -1459,7 +1459,9 @@
         const i = steps.indexOf(st);
         const card = el("div", "p-step" + (st.kind === "tip" ? " tip" : "") + (done.has(st.id) ? " passed" : ""));
         const head = el("div", "p-head");
-        head.append(el("span", "p-num", String(i + 1)), el("b", "", st.title), el("span", "p-pass", "✓ 過了"));
+        const title = el("b", "p-title", st.title);
+        if (st.new) title.dataset.new = st.new;  // added in an update: 「新」 until seen (whatsnew)
+        head.append(el("span", "p-num", String(i + 1)), title, el("span", "p-pass", "✓ 過了"));
         const hook = el("p", "p-hook");
         hook.innerHTML = st.hook;
         const how = el("p", "p-how");
@@ -1535,6 +1537,7 @@
       list.append(sec);
     });
     progress();
+    renderWhatsnew();  // the 「新」 tags on steps an update brought
     document.getElementById("practice-start").onclick = () => focusNext(-1);
     document.getElementById("practice-reset").onclick = async () => {
       try { await api("POST", "/api/practice/reset", {}); } catch (e) { toast(e.message, true); return; }
@@ -1744,7 +1747,7 @@
       const f = whatsnew.find(x => x.id === el.dataset.new);
       const fresh = !!f && (!f.seen || seenThisVisit.has(f.id));
       el.classList.toggle("is-new", fresh);
-      const label = el.matches(".label, h3") ? el : el.querySelector(".label, h3");
+      const label = el.matches(".label, h2, h3, .p-title") ? el : el.querySelector(".label, h3");
       let tag = label && label.querySelector(".new-tag");
       if (fresh && label && !tag) {
         tag = document.createElement("button"); tag.type = "button"; tag.className = "new-tag"; tag.textContent = "新";
@@ -1791,7 +1794,7 @@
   }
   async function markSeen(ids) {
     ids.forEach(i => seenThisVisit.add(i));
-    try { whatsnew = (await api("POST", "/api/whatsnew/seen", ids ? { ids } : { all: true })).features; }
+    try { takeWhatsnew(await api("POST", "/api/whatsnew/seen", ids ? { ids } : { all: true })); }
     catch (e) { toast(e.message, true); return; }
     renderWhatsnew();
   }
@@ -1803,8 +1806,15 @@
     if (row) row.classList.toggle("is-new", updateNewer);
   }
   async function loadWhatsnew() {
-    try { whatsnew = (await api("GET", "/api/whatsnew")).features; } catch (e) { return; }
+    try { takeWhatsnew(await api("GET", "/api/whatsnew")); } catch (e) { return; }
     renderWhatsnew();
+  }
+  // Only what changed from the version you had to this one (whatsnew.py):
+  // the card says which range that is, e.g. 「0.10.1 → 0.11.0-alpha.1」.
+  function takeWhatsnew(r) {
+    whatsnew = r.features;
+    const range = r.from ? `${r.from} → ${r.version}` : `到 ${r.version}`;
+    document.querySelectorAll(".whatsnew-range").forEach(el => { el.textContent = `（${range}）`; });
   }
   document.getElementById("whatsnew-all").addEventListener("click", async () => {
     await markSeen(whatsnew.filter(f => !f.seen).map(f => f.id));

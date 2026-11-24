@@ -53,7 +53,12 @@ class Step:
     fix: str = ""  # task: keys after typing, simulator syntax (tests); {T:字} types 字, {PICK:x} picks x
     pro: str = ""  # shown after passing: the "and there is more" line (HTML)
     note: str = ""  # task: what to type differently, when type_text is not the target
+    new: str = ""  # the whatsnew feature that brought it: a 「新」 tag until that is seen
 
+
+# The steps 0.10.1 added had no red dot (user: 「第一次進去你沒有讓練習場出現紅點」):
+# they carry this whatsnew id, and the page tags them 「新」 until it is seen.
+NEW_STEPS = "practice-steps"
 
 CHAPTERS: tuple[Chapter, ...] = (
     Chapter("start", "切過來", "先打一句，確認是順打在打字。"),
@@ -85,7 +90,8 @@ STEPS: tuple[Step, ...] = (
          "字對了就按 <kbd>Shift</kbd>+<kbd>Enter</kbd> 送出——養成習慣，後面再打什麼都動不到它。",
          "打「你好」，看到畫面上是對的，馬上按 <kbd>Shift</kbd>+<kbd>Enter</kbd>。",
          type_text="你好", fix="{S-ENTER}", target="你好",
-         pro="還沒送出的字底下有底線（或旁邊有個小點），輸入法還可能依後面打的字重新判斷；送出之後就定了。"),
+         pro="還沒送出的字底下有底線（或旁邊有個小點），輸入法還可能依後面打的字重新判斷；送出之後就定了。",
+         new=NEW_STEPS),
     Step("punct", "type", "標點不用切",
          "<kbd>Ctrl</kbd>＋標點鍵就是中文標點；句讀一打，前面的句子自動送出。",
          "打「你好」，再按 <kbd>Ctrl</kbd>+<kbd>,</kbd>。",
@@ -207,7 +213,8 @@ STEPS: tuple[Step, ...] = (
          "設好觸發字，打到它，提示列最前面就用橘色建議一整段，<kbd>Tab</kbd> 直接打出。",
          "練習裡先借你一個：打「順」（<kbd>gjp4</kbd>），看到橘色的「順打輸入法好棒 !!」按 <kbd>Tab</kbd>。",
          keys="gjp4", fix="{TAB}", target="順打輸入法好棒 !!",
-         pro="自己的快速詞在「片語與顏文字」設：art → artifact 這種英文開頭也行，也可以直接連到一則片語。"),
+         pro="自己的快速詞在「片語與顏文字」設：art → artifact 這種英文開頭也行，也可以直接連到一則片語。",
+         new=NEW_STEPS),
     Step("voice", "more", "用說的",
          "按住右 <kbd>Ctrl</kbd> 說話，放開就打在游標位置（沒有右 Ctrl 的話，在「快捷鍵」換成左 Ctrl）。",
          "在框裡試試：按住、說「今天天氣很好」、放開。辨識不一定每次都準——說慢一點、一句一句說；"
@@ -216,7 +223,7 @@ STEPS: tuple[Step, ...] = (
     Step("voice-recent", "more", "剛剛說的話都還在",
          "單按一下右 <kbd>Ctrl</kbd> 開符號面板，<kbd>Tab</kbd> 到「錄音暫存」：剛剛說過的都在。",
          "結果出來前就切走視窗、字沒打進去，從這裡選一下就再打一次。留多久在「語音輸入」設定，輸入法重新啟動就清空。",
-         kind="tip"),
+         kind="tip", new=NEW_STEPS),
     Step("modes", "more", "三種模式",
          "單按 <kbd>Shift</kbd> 在模式之間輪流。",
          "中英自動是預設；要一直打英文就切到「英」，純注音切到「中」。哪些模式要輪流，在「一般」設定。",

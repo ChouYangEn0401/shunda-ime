@@ -80,3 +80,72 @@ def test_tray_menu_command_ids_are_unique():
            ts.ID_SETTINGS_KEYS, ts.ID_UPDATE, ts.ID_RESTART, ts.ID_WHATSNEW,
            *ts.MODE_MENU_IDS, *ts.TOGGLES, *ts.CHOICES]
     assert len(ids) == len(set(ids))
+
+
+# ---------------------------------------------------------------- from X to Y
+# 「更新日誌未來只需要紀錄 from X to Y 中間的變化，不用全部列出來」: the card
+# lists only what came after the version you had.
+FAKE = (
+    whatsnew.Feature("c", "0.12.0-alpha.1", "about", "C", ""),
+    whatsnew.Feature("b", "0.11.0-alpha.1", "about", "B", ""),
+    whatsnew.Feature("a", "0.10.1", "about", "A", ""),
+)
+
+
+def _fake(monkeypatch, version):
+    monkeypatch.setattr(whatsnew, "FEATURES", FAKE)
+    monkeypatch.setattr(whatsnew, "IDS", tuple(f.id for f in FAKE))
+    monkeypatch.setattr(whatsnew, "__version__", version)
+
+
+def _seen_file(data):
+    import json
+
+    paths.user_dir().mkdir(parents=True, exist_ok=True)
+    (paths.user_dir() / "seen.json").write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_only_what_came_after_the_old_version_is_listed(monkeypatch):
+    _fake(monkeypatch, "0.11.0-alpha.1")
+    _seen_file({"seen": ["a"], "version": "0.10.1", "from": None})
+    whatsnew.ensure_baseline()
+    assert whatsnew.since() == "0.10.1"
+    assert [f["id"] for f in whatsnew.listing()] == ["b"]
+    assert whatsnew.mark_seen() == 1
+    assert whatsnew.unseen() == [] and [f["id"] for f in whatsnew.listing()] == ["b"]  # folded, still listed
+
+
+def test_a_seen_file_from_before_the_range_guesses_where_you_were(monkeypatch):
+    """0.10.1 wrote no version: everything up to the newest fully seen version counts as old."""
+    _fake(monkeypatch, "0.11.0-alpha.1")
+    _seen_file({"seen": ["a"]})
+    whatsnew.ensure_baseline()
+    assert [f["id"] for f in whatsnew.listing()] == ["b"]
+
+
+def test_news_not_looked_at_survive_the_next_update(monkeypatch):
+    _fake(monkeypatch, "0.11.0-alpha.1")
+    _seen_file({"seen": ["a"], "version": "0.10.1", "from": None})
+    whatsnew.ensure_baseline()
+    _fake(monkeypatch, "0.12.0-alpha.1")  # b never looked at
+    whatsnew.ensure_baseline()
+    assert [f["id"] for f in whatsnew.listing()] == ["c", "b"]
+    whatsnew.mark_seen()
+    _fake(monkeypatch, "0.12.0-alpha.2")
+    whatsnew.ensure_baseline()
+    assert whatsnew.listing() == []  # all seen: the next range starts at 0.12.0-alpha.1
+
+
+def test_a_fresh_install_lists_nothing_at_all(monkeypatch):
+    _fake(monkeypatch, "0.11.0-alpha.1")
+    whatsnew.ensure_baseline()
+    assert whatsnew.listing() == []
+
+
+def test_new_practice_steps_point_at_a_feature():
+    """Steps an update added carry a 「新」 tag (user: 練習場 had no red dot)."""
+    from smartime import practice
+
+    tagged = [s for s in practice.STEPS if s.new]
+    assert tagged and all(s.new in whatsnew.IDS for s in tagged)
+    assert all(whatsnew.FEATURES[whatsnew.IDS.index(s.new)].view == "practice" for s in tagged)

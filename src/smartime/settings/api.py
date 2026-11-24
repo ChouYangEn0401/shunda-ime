@@ -557,13 +557,14 @@ class SettingsApp:
     def whatsnew(self) -> dict:
         from .. import whatsnew
 
-        return {"features": whatsnew.listing()}
+        return {"features": whatsnew.listing(), "from": whatsnew.since(), "version": __version__}
 
     def whatsnew_seen(self, body: dict) -> dict:
         from .. import whatsnew
 
         ids = None if body.get("all") else [str(x) for x in body.get("ids") or []]
-        return {"marked": whatsnew.mark_seen(ids), "features": whatsnew.listing()}
+        return {"marked": whatsnew.mark_seen(ids), "features": whatsnew.listing(), "from": whatsnew.since(),
+                "version": __version__}
 
     # ---------------------------------------------------------- updates
     def update_state(self, force: bool = False) -> dict:

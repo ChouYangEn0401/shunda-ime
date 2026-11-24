@@ -19,6 +19,13 @@ Adding a feature: one ``Feature`` below (``view`` = the settings page's
 Seen ids live in ``%APPDATA%\\SmartIME\\seen.json``. A fresh install starts
 with everything seen (a newcomer has the 練習場 tour, not twenty dots); an
 upgrade from a version without this file starts with nothing seen.
+
+Only what changed **from the version you had to this one** is listed (user,
+2026-11-24: 「更新日誌未來只需要紀錄 from X to Y 中間的變化，不用全部列出來」).
+seen.json also keeps ``version`` (the one that last ran) and ``from`` (the
+lower end of the range shown). When the version changes, ``from`` moves up
+to the old version — unless something in the old range was never looked
+at; then it stays, so skipping a version cannot hide its news.
 """
 
 from __future__ import annotations
@@ -28,7 +35,7 @@ import logging
 import time
 from dataclasses import asdict, dataclass
 
-from . import paths
+from . import __version__, paths
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +51,9 @@ class Feature:
 
 # Newest first. Only features — never words, phrases or symbol data.
 FEATURES: tuple[Feature, ...] = (
+    Feature("practice-steps", "0.11.0-alpha.1", "practice", "練習場多了三步",
+            "看到對了就 Shift+Enter 送出、快速詞（打「順」按 Tab）、找回剛剛說的話（錄音暫存）。"
+            "標著「新」的就是；不想練也可以點「新」收起來。"),
     Feature("quick-words", "0.10.1", "snippets", "快速詞：打開頭就打出一整段",
             "設一個觸發字（例：art → artifact、順 → 順打輸入法好棒 !!），打到它提示列就用橘色建議，"
             "按 Tab 直接打出。文字可以自己寫，也可以直接連到一筆片語。"),
@@ -85,53 +95,110 @@ def _path():
     return paths.user_dir() / "seen.json"
 
 
-def ensure_baseline() -> None:
-    """Create seen.json once. Call before anything creates the user's other
-    files (config, user.db): their absence is how a fresh install is told
-    from an upgrade."""
-    p = _path()
-    if p.exists():
-        return
-    upgraded = paths.config_path().exists() or paths.user_db_path().exists() or \
-        (paths.user_dir() / "practice.json").exists()
-    _write(set() if upgraded else set(IDS))
+def _vt(v: str) -> tuple:
+    from .update import version_tuple
+
+    return version_tuple(v)
 
 
-def _write(ids: set[str]) -> None:
+def _read() -> dict | None:
+    try:
+        data = json.loads(_path().read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def _write(ids: set[str], since: str | None) -> None:
+    data = {"seen": sorted(ids), "version": __version__, "from": since}
     try:
         _path().parent.mkdir(parents=True, exist_ok=True)
-        _path().write_text(json.dumps({"seen": sorted(ids)}, ensure_ascii=False, indent=1), encoding="utf-8")
+        _path().write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     except OSError:
         log.debug("cannot write seen.json", exc_info=True)
 
 
+def _in_range(f: Feature, since: str | None) -> bool:
+    v = _vt(f.version)
+    return (since is None or v > _vt(since)) and v <= _vt(__version__)
+
+
+def _guess_from(seen_ids: set[str]) -> str | None:
+    """A seen.json from before ``from`` existed: the newest version whose
+    features, and every older one's, were all looked at."""
+    best = None
+    for f in sorted(FEATURES, key=lambda f: _vt(f.version)):
+        if f.id not in seen_ids:
+            break
+        best = f.version
+    return best
+
+
+def ensure_baseline() -> None:
+    """Create seen.json once, and move the listed range when the version
+    changed. Call before anything creates the user's other files (config,
+    user.db): their absence is how a fresh install is told from an upgrade."""
+    data = _read()
+    if data is None:
+        upgraded = paths.config_path().exists() or paths.user_db_path().exists() or \
+            (paths.user_dir() / "practice.json").exists()
+        if upgraded:
+            _write(set(), since=None)  # from a version without this file: all of it is news
+        else:
+            _write(set(IDS), since=__version__)  # a newcomer: none of it is
+        return
+    if data.get("version") == __version__:
+        return
+    seen_ids = {str(x) for x in data.get("seen", [])}
+    old = data.get("version")
+    since = data.get("from") if old else _guess_from(seen_ids)
+    if old and all(f.id in seen_ids for f in FEATURES
+                   if _in_range(f, since) and _vt(f.version) <= _vt(old)):
+        since = old  # the old range was all looked at: only what came after it
+    _write(seen_ids, since=since)
+
+
+def _state() -> tuple[set[str], str | None]:
+    data = _read()
+    if data is None:
+        return set(IDS), __version__  # no file (or a broken one): no dots rather than a stuck one
+    return {str(x) for x in data.get("seen", [])}, data.get("from")
+
+
 def seen() -> set[str]:
-    try:
-        data = json.loads(_path().read_text(encoding="utf-8"))
-        return {str(x) for x in data.get("seen", [])}
-    except (OSError, ValueError, AttributeError):
-        return set(IDS)  # no file (or a broken one): no dots rather than a stuck one
+    return _state()[0]
+
+
+def since() -> str | None:
+    """The version the listed range starts after (None = from the start)."""
+    return _state()[1]
+
+
+def current() -> list[Feature]:
+    """The features between the version you had and this one."""
+    frm = since()
+    return [f for f in FEATURES if _in_range(f, frm)]
 
 
 def unseen() -> list[Feature]:
     s = seen()
-    return [f for f in FEATURES if f.id not in s]
+    return [f for f in current() if f.id not in s]
 
 
 def mark_seen(ids=None) -> int:
-    """Mark ``ids`` (all features when None) as seen; returns how many
-    were new."""
-    s = seen()
-    add = set(IDS if ids is None else ids) & set(IDS)
+    """Mark ``ids`` (every listed feature when None) as seen; returns how
+    many were new."""
+    s, frm = _state()
+    add = {f.id for f in current()} if ids is None else set(ids) & set(IDS)
     fresh = add - s
     if fresh:
-        _write(s | fresh)
+        _write(s | fresh, since=frm)
     return len(fresh)
 
 
 def listing() -> list[dict]:
     s = seen()
-    return [{**asdict(f), "seen": f.id in s} for f in FEATURES]
+    return [{**asdict(f), "seen": f.id in s} for f in current()]
 
 
 # The tray icon asks on every key: read the file at most every few seconds.
