@@ -218,7 +218,7 @@ def _click(hwnd: int, css_x: float, css_y: float, dpr: float) -> None:
 # (field, script, expected or None = what the engine simulator produces)
 SCENARIOS_PER_FIELD = [
     "ji3ap7{ENTER}",
-    "su3cl3<",
+    "su3cl3<{ENTER}",  # < no longer commits by itself (keycap style): Enter, or the text runs into the next case
     "ji3m/4python vu,3{ENTER}",
     "ji3a87{LEFT}{UP}2{ENTER}",
     "ao6u.3{TAB}{ENTER}",
@@ -255,6 +255,9 @@ def main() -> int:
     url = f"http://127.0.0.1:{server.server_address[1]}/"
     proc = subprocess.Popen(browser + [f"--app={url}", f"--user-data-dir={profile}", "--no-first-run",
                                        "--no-default-browser-check", "--window-position=40,40",
+                                       # a temp profile still signed itself in and synced the user's
+                                       # extensions: MetaMask's window stole the foreground mid-test
+                                       "--disable-extensions", "--disable-sync", "--disable-features=msImplicitSignin",
                                        "--window-size=1150,760"])
     memory = tt.MemoryGuard()
     tt.ole32.CoInitializeEx(None, 0x2)
