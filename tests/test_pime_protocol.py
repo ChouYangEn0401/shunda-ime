@@ -517,3 +517,57 @@ def test_multi_line_snippet_keeps_its_order_in_a_terminal(engine, monkeypatch):
         reply = {}
         svc._render(reply)
         assert reply["commitString"] == text.replace("\n", want)
+
+
+def _ctrl_tap(svc, seq, extended=True):
+    """A lone Ctrl tap as PIME delivers it (down then up)."""
+    states = [0] * 256
+    states[0x11] = 0x80
+    down = {"method": "filterKeyDown", "seqNum": seq, "keyCode": 0x11, "charCode": 0, "scanCode": 0,
+            "isExtended": extended, "keyStates": states}
+    up = dict(down, method="filterKeyUp", seqNum=seq + 1, keyStates=[0] * 256)
+    replies = [svc.handle(down), svc.handle(dict(down, method="onKeyDown", seqNum=seq + 2))]
+    replies.append(svc.handle(up))
+    if up and replies[-1].get("return"):
+        replies.append(svc.handle(dict(up, method="onKeyUp", seqNum=seq + 3)))
+    return replies
+
+
+def test_the_idle_symbol_panel_is_ours_too(engine, monkeypatch):
+    """A lone Ctrl tap with nothing typed opened PIME's plain list (user:
+    「那個 ui 跟現在的格格不入」). Now it is our panel, anchored on PIME's
+    message window — and no compositionString rides along, which would be
+    written into the composition PIME opens for the message (over a selection)."""
+    from smartime.pime import text_service as ts
+    from smartime.pime.text_service import SmartTextService
+
+    overlay = _FakeOverlay()
+    monkeypatch.setattr(ts, "_panel_window", lambda create, second=False: None if second else overlay)
+    monkeypatch.setattr(ts, "foreground_pid", lambda: 1234)
+    svc = SmartTextService(engine, Path("icons"))
+    svc.handle({"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True})
+    replies = _ctrl_tap(svc, 10)
+    opened = replies[-1]
+    assert opened["showMessage"]["message"] == ts.ANCHOR_MESSAGE
+    assert "compositionString" not in opened and not opened.get("showCandidates")
+    assert overlay.shown[-1] == ("candidates", True)
+    assert svc.still_in_front()
+    # Tab to 希臘字母, pick β: typed straight into the app, the panel and anchor go
+    for i, (vk, ch) in enumerate([(0x09, "")] * 4 + [(0x32, "2")]):
+        msg = {"method": "filterKeyDown", "seqNum": 20 + 2 * i, "keyCode": vk, "charCode": ord(ch) if ch else 0,
+               "scanCode": 0, "isExtended": False, "keyStates": [0] * 256}
+        svc.handle(msg)
+        reply = svc.handle(dict(msg, method="onKeyDown", seqNum=21 + 2 * i))
+    assert reply["commitString"] == "β" and reply.get("hideMessage")
+    assert overlay.shown[-1] == (None, False)
+
+
+def test_without_our_panel_the_idle_symbol_panel_is_pime_s_list(engine):
+    """No panel window (tests, a broken install): the plain list as before."""
+    from smartime.pime.text_service import SmartTextService
+
+    svc = SmartTextService(engine, Path("icons"))
+    svc.handle({"method": "onActivate", "seqNum": 1, "isKeyboardOpen": True})
+    opened = _ctrl_tap(svc, 10)[-1]
+    assert opened.get("showCandidates") and opened["candidateList"][0].startswith("，")
+    assert "showMessage" not in opened

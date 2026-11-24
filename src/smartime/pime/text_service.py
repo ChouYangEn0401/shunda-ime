@@ -97,6 +97,11 @@ def _panel_window(create: bool, second: bool = False):
     return overlay.get() if create else overlay._overlay
 
 
+def _idle_palette(v) -> bool:
+    """The symbol panel is open and nothing is composed."""
+    return not v.composition and v.candidate_panel is not None and v.candidate_panel.palette
+
+
 def key_from_msg(msg: dict) -> KeyInput:
     states = msg.get("keyStates") or [0] * 256
 
@@ -333,7 +338,14 @@ class SmartTextService:
         if v.commit:
             # a multi-line 片語 in a terminal: CR, not LF (winapp.TERMINAL_APPS)
             reply["commitString"] = line_breaks_for(foreground_app(), v.commit) if "\n" in v.commit else v.commit
-        reply["compositionString"] = v.composition
+        idle_panel = _idle_palette(v)
+        if v.composition or self._composing or not idle_panel:
+            # The symbol panel opened with nothing composed sends no
+            # composition at all: its anchor message makes PIME open a
+            # composition just to place the message, and an empty
+            # compositionString would then be written into it — over
+            # whatever text is selected.
+            reply["compositionString"] = v.composition
         self._updated_at = time.monotonic()
         if v.composition:
             reply["compositionCursor"] = v.cursor
@@ -367,6 +379,8 @@ class SmartTextService:
         if not v.composition:
             message = ""
         self._show_smart(v)
+        if idle_panel and panel_kind and not self._message:
+            self._composing_pid = foreground_pid()  # where the panel belongs (still_in_front)
         shown = self._show_panel(v, panel_kind)
         if shown and not self._showing_candidates:
             # Our own panel says all of this, in our own colours. PIME's
@@ -385,7 +399,7 @@ class SmartTextService:
         # the end of the reply — which commits our first key as raw text.
         # So never show a message in the reply that starts the composition;
         # it appears from the next key on.
-        if not self._composing:
+        if not self._composing and v.composition:
             message = ""
             if v.composition:
                 self._composing_app = foreground_app()  # where this composition lives
@@ -416,11 +430,17 @@ class SmartTextService:
 
     def _panel_kind(self, v) -> str:
         """Which of our panels this view wants: "candidates", "decode" or "".
-        Our panels dock under PIME's hint box, which needs a composition;
-        with nothing composed (symbol panel from idle) PIME's own list is used."""
-        if not v.composition:
-            return ""
+        Our panels cover PIME's hint box, its anchor. With nothing composed
+        only the symbol panel can be open (a lone Ctrl tap): PIME still
+        places a message under the caret then (it opens a composition for
+        it and ends it in the same reply), so it gets our panel too — it
+        used to fall back to PIME's plain list, which the user called
+        「跟現在的格格不入」."""
         cfg = self.engine.config
+        if not v.composition:
+            if _idle_palette(v) and cfg.panel_candidates:
+                return "candidates" if _panel_window(create=True) is not None else ""
+            return ""
         if v.candidate_panel is not None and cfg.panel_candidates:
             return "candidates" if _panel_window(create=True) is not None else ""
         if v.panel is not None:
