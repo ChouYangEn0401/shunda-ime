@@ -146,7 +146,18 @@ def main() -> int:
             problems = []
             if panel is None:
                 problems.append("panel window not visible")
-            if not anchors:
+            if panel and not anchors:
+                # the idle symbol panel docks under the system caret and PIME
+                # shows nothing at all (text_service: no anchor message where
+                # a caret exists — it collapsed selections in RichEdit)
+                from ..ui.overlay import caret_rect
+
+                caret = caret_rect()
+                if caret is None:
+                    problems.append("no PIME hint window and no system caret")
+                elif abs(panel[0] - caret[0]) > 8 or not 0 <= panel[1] - caret[3] <= 12:
+                    problems.append(f"panel {panel} is not under the caret {caret}")
+            elif not anchors:
                 problems.append("no PIME hint window")
             if panel and anchors:
                 # PIME leaves hint windows of other applications lying around

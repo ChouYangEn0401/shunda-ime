@@ -71,7 +71,12 @@ NAMED_VK = {"ENTER": VK_RETURN, "BS": 0x08, "TAB": 0x09, "ESC": 0x1B, "LEFT": 0x
 # too, catching a real bug in _suggestion_digit along the way.
 EXTENDED_VKS = frozenset({0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E, 0xA3, 0xA5})
 OEM_VK = {" ": 0x20, ",": 0xBC, ".": 0xBE, "/": 0xBF, ";": 0xBA, "-": 0xBD, "'": 0xDE, "[": 0xDB, "]": 0xDD}
-SHIFTED = {"<": ",", ">": ".", "?": "/", ":": ";", '"': "'", "{": "[", "}": "]"}
+SHIFTED = {"<": ",", ">": ".", "?": "/", ":": ";", '"': "'", "{": "[", "}": "]",
+           # the digit row's upper symbols: without these @ went out as the
+           # undefined VK 0x40 and ji3@ typed 我2 (alpha.4 test run)
+           "!": "1", "@": "2", "#": "3", "$": "4", "%": "5", "^": "6", "&": "7", "*": "8", "(": "9", ")": "0",
+           "_": "-", "+": "=", "~": "`", "|": "\\"}
+OEM_VK.update({"=": 0xBB, "`": 0xC0, "\\": 0xDC})
 
 
 class GUID(ctypes.Structure):
