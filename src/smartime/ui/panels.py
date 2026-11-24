@@ -387,6 +387,16 @@ def _cand_help(p: "CandidatePanel") -> list[tuple[str, str]]:
 # all of them, grid tabs and list tabs alike.
 PALETTE_W = 520
 SNIPPET_HELP = [("字母", "篩選"), ("↑↓", "移動"), ("1–9", "選"), ("Enter", "打出"), ("Esc", "關閉（保留 ;;）")]
+
+
+def _snippet_help(p: "CandidatePanel") -> list[tuple[str, str]]:
+    """The ;; list's help row. More 片語 than one column holds sit behind →,
+    and nothing on screen said so (user: 「;; 的片語視窗只顯示 1~9，應該要在說明
+    欄位裡面告訴使用者可以用 left/right arrow 去展開顯示更多選項」)."""
+    if p.pages <= 1:
+        return SNIPPET_HELP
+    more = [("→", "更多"), ("←", "收合")] if p.multi else [("← →", "翻頁")]
+    return SNIPPET_HELP[:3] + more + SNIPPET_HELP[3:]
 PREVIEW_LINES = 8
 
 
@@ -518,7 +528,7 @@ def _candidate_layout(c: Canvas, s: Styles, p: CandidatePanel, k: float) -> _Lay
     col_w = [max([96 * k] + [_row_width(c, s, kind, val, k) for kind, val in rows]) for rows in col_rows]
     body_h = max((_rows_height(rows, k) for rows in col_rows), default=ROW_H * k)
     cols_w = sum(col_w) + COL_GAP * k * max(0, len(col_w) - 1)
-    help_items = SNIPPET_HELP if p.snippet else _cand_help(p)
+    help_items = _snippet_help(p) if p.snippet else _cand_help(p)
     return _Layout(cols, col_rows, col_w, body_h, _base_width(c, s, p, k, cols_w, help_items), help_items)
 
 

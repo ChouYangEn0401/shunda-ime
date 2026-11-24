@@ -243,3 +243,16 @@ def test_merging_another_pcs_snippets_carries_their_category(tmp_path):
     assert mine.merge_from(old)["snippets"] == 1
     assert {r["body"]: r["category"] for r in mine.snippets()}["再見"] == ""
     mine.close()
+
+
+def test_the_snippet_help_row_mentions_the_arrows_when_there_is_more():
+    """「;; 的片語視窗只顯示 1~9，應該要在說明欄位裡面告訴使用者可以用 left/right arrow」"""
+    from smartime.engine.panel import CandidatePanel
+    from smartime.ui.panels import SNIPPET_HELP, _snippet_help
+
+    one = CandidatePanel([], 0, 9, pages=1, multi=True, snippet=True)
+    assert _snippet_help(one) == SNIPPET_HELP
+    keys = [k for k, _ in _snippet_help(CandidatePanel([], 0, 9, pages=2, multi=True, snippet=True))]
+    assert "→" in keys and "←" in keys
+    keys = [k for k, _ in _snippet_help(CandidatePanel([], 0, 9, pages=2, multi=False, snippet=True))]
+    assert "← →" in keys
