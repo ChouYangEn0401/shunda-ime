@@ -86,7 +86,7 @@ SCHEME_LABEL = {"zhuyin": "注音", "pinyin": "拼音", "cangjie": "倉頡"}
 # first, then what you chose before, then the dictionary, then the other
 # ways to read the keys (user feedback #6-2: "先從自訂群組匹配，然後常用，
 # 最後推薦"). The panel colours each group (smartime.ui.theme).
-GROUP_ORDER = ("重新分組", "我的詞庫", "學過", "詞庫", "英文", "數字", "標點", "其他讀法", "原始按鍵", "略過的鍵",
+GROUP_ORDER = ("重新分組", "我的詞庫", "學過", "詞庫", "英文", "數字", "標點", "其他讀法", "原始按鍵", "略過的鍵", "注音",
                "長句", "也許是", "接續", "符號")
 REGROUP_MAX = 3  # 重新分組 candidates offered at most
 # ... and none that reads this much worse (log10) than what is on screen. Measured:
@@ -1426,10 +1426,10 @@ class Session(CorrectionMixin):
             # "tian"), then longer words starting here.
             alts = self._zh_alternatives(a, own=True)
             alts.sort(key=lambda c: (c.pin.end != b, len(c.pin.readings) != 1))
-            items = alts + self._raw_candidates(a, b)
+            items = alts + self._zhuyin_candidates(units, t) + self._raw_candidates(a, b)
         elif seg.kind is Kind.ZH:
             items = self._zh_candidates(units, t, at_end=self.cursor >= len(self.keys))
-            items += self._raw_candidates(a, b)
+            items += self._zhuyin_candidates(units, t) + self._raw_candidates(a, b)
         elif seg.kind is Kind.EN:
             typed = "".join(k.char for k in self.keys[seg.start:seg.end])
             items = _en_candidates(seg, typed) + self._zh_alternatives(seg.start)
@@ -1482,6 +1482,38 @@ class Session(CorrectionMixin):
         while pos in dropped_ends:
             pos = dropped_ends[pos]
         return pos
+
+    def _zhuyin_candidates(self, units, t: int) -> list[Candidate]:
+        """The Chinese written as its zhuyin (你好 → ㄋㄧˇㄏㄠˇ): this
+        character, and the whole run of Chinese around it. Asked for: 「打注音
+        鍵盤的時候，都要有一個選項是可以直接顯示注音」 — the readings were
+        only ever shown, in the correction panel, never offered as text."""
+        segs = self.decoding.segments
+        lo = hi = t
+        while lo > 0 and segs[units[lo - 1][3]].kind is Kind.ZH:
+            lo -= 1
+        while hi + 1 < len(units) and segs[units[hi + 1][3]].kind is Kind.ZH:
+            hi += 1
+
+        def reading(u) -> str | None:
+            seg = segs[u[3]]
+            if seg.kind is not Kind.ZH or u[0] not in seg.bounds[:-1]:
+                return None
+            r = seg.readings[seg.bounds.index(u[0])]
+            return r if bopomofo.is_zhuyin_text(r) else None
+
+        out = []
+        for (s, e), note in (((t, t + 1), "這個字"), ((lo, hi + 1), "整段")):
+            rs = [reading(u) for u in units[s:e]]
+            if not rs or None in rs:
+                continue
+            text = "".join(rs)
+            a, b = units[s][0], units[e - 1][1]
+            out.append(Candidate(text, Segment(a, b, text, Kind.LITERAL, -10.0, pinned=True), note,
+                                 group="注音"))
+        if len(out) == 2 and out[0].pin.start == out[1].pin.start and out[0].pin.end == out[1].pin.end:
+            out = out[:1]  # one character on its own: 這個字 is the whole run
+        return out
 
     def _raw_candidates(self, a: int, b: int) -> list[Candidate]:
         """The keys exactly as typed (including stray keys dropped just

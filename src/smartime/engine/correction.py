@@ -12,6 +12,7 @@ Commands: ←/→ (h/l) move — one Chinese character, or a whole English word 
 number, per press · j/k swap the thing under the cursor for its next/previous
 candidate in place (never a longer word: that is ↓) ·
 v next view · x delete (one key in the 按鍵 view) · e Chinese <-> English/raw
+· z this character as its zhuyin (你 -> ㄋㄧˇ) and back
 · r retype one character (back here by itself when it is done) · a add the
 word to my dictionary · u undo · i or Esc back to typing · Enter commit ·
 D twice: clear everything.
@@ -28,6 +29,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
+from . import bopomofo
 from .decoder import TOKEN_KINDS, Key, Kind, Segment
 from .keys import (
     VK_BACK, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE, VK_HOME, VK_LEFT, VK_RETURN, VK_RIGHT, VK_TAB, VK_UP,
@@ -40,7 +42,7 @@ LAYER_LABEL = {"text": "國字", "zhuyin": "注音", "keys": "按鍵"}
 # h l and i still work for Vim hands, but the arrows and Esc are what
 # everybody already knows.
 HELP = ("← → 移動 · ↓ 選字／分組 · j k 換這個字 · r 重打 · x 刪 · u 復原 · Enter 送出 · Esc 打字 · "
-        "聲調鍵 改聲調 · e 中英 · Shift+←/→ 分界 · R 重新判定 · v 檢視 · a 加詞 · D D 清除")
+        "聲調鍵 改聲調 · e 中英 · z 注音 · Shift+←/→ 分界 · R 重新判定 · v 檢視 · a 加詞 · D D 清除")
 
 
 @dataclass
@@ -237,6 +239,8 @@ class CorrectionMixin:
             self._delete_here()
         elif ch == "e":
             self._toggle_kind()
+        elif ch == "z":
+            self._toggle_zhuyin()
         elif ch == "r":
             self._retype()
         elif ch == "R":
@@ -517,6 +521,35 @@ class CorrectionMixin:
             pin = replace((same_span or alts)[0], pinned=True)
         self._snapshot()
         self._apply_pin(pin)
+
+    def _toggle_zhuyin(self) -> None:
+        """z: the character under the cursor written as its zhuyin (你 ->
+        ㄋㄧˇ), and z again turns it back. Asked for: 「每一個字可以直接快速
+        轉換成組成注音」. Its own key rather than one more step of e, so that
+        e stays one press from Chinese to the keys typed."""
+        self._finish_cycle()
+        t = self._target()
+        if t is None:
+            return
+        seg = self.decoding.segments[t[3]]
+        if seg.kind is Kind.LITERAL and bopomofo.is_zhuyin_text(seg.text):
+            # back to Chinese: let the decoder read the keys again
+            self._snapshot()
+            self.pins = [p for p in self.pins if p.end <= seg.start or p.start >= seg.end]
+            self._redecode()
+            self.cursor = seg.start
+            self._snap_to_unit()
+            back = "".join(ch for a, _, ch, _ in self.decoding.units() if seg.start <= a < seg.end)
+            self._notice = f"換回國字「{back}」"
+            return
+        a, b = t[0], t[1]
+        reading = seg.readings[seg.bounds.index(a)] if seg.kind is Kind.ZH and a in seg.bounds[:-1] else ""
+        if not bopomofo.is_zhuyin_text(reading):
+            self._notice = "z 把國字換成注音：游標要停在國字上"
+            return
+        self._snapshot()
+        self._apply_pin(Segment(a, b, reading, Kind.LITERAL, -10.0, pinned=True))
+        self._notice = f"「{t[2]}」→ {reading} · z 換回國字"
 
     def _redecide(self) -> None:
         """R: throw away the choices made over this stretch and decode it again.

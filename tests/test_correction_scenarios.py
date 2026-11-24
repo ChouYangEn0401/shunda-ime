@@ -111,7 +111,7 @@ def test_typing_keys_never_escape_the_box_by_accident(session):
     keystroke in the middle of a repair types into the sentence."""
     run(session, "ji3rup wu0 {ESC}")
     before = text(session)
-    for ch in "bcdfgmnopqstwyz":
+    for ch in "bcdfgmnopqstwy":  # z: 注音 (it changes the text on purpose)
         run(session, ch)
         assert session.correcting, f"{ch!r} left correction mode"
         assert text(session) == before, f"{ch!r} changed the text"

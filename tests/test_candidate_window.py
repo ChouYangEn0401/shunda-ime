@@ -33,7 +33,7 @@ def test_my_words_then_learned_then_the_dictionary(memory_session):
     _, v = run(memory_session, "ji35p {DOWN}")
     groups = [c.group for c in memory_session.cand.items]
     first = {g: groups.index(g) for g in dict.fromkeys(groups)}
-    assert list(first) == ["我的詞庫", "學過", "詞庫", "原始按鍵"]
+    assert list(first) == ["我的詞庫", "學過", "詞庫", "原始按鍵", "注音"]
     assert memory_session.cand.items[0].text == "珍" and memory_session.cand.items[0].annotation == "朋友"
     # the selection starts on what is on screen, so Enter keeps it
     assert memory_session.cand.current.text == v.composition[-1]
@@ -172,6 +172,22 @@ def test_the_page_is_plain_to_see_and_home_goes_back_to_page_one(session):
     # several columns: the pages on screen
     run(session, "{RIGHT}{RIGHT}")
     assert _page_label(candidate_panel(session)).startswith("第 1–3／")
+
+
+def test_chinese_can_be_picked_as_its_zhuyin(session):
+    """「打注音鍵盤的時候，都要有一個選項是可以直接顯示注音」."""
+    run(session, "su3cl3wu0 {DOWN}")
+    zhuyin = [(c.text, c.annotation) for c in session.cand.shown if c.group == "注音"]
+    assert zhuyin == [("ㄊㄧㄢ", "這個字"), ("ㄋㄧˇㄏㄠˇㄊㄧㄢ", "整段")]
+    out, v = run(session, "{HOME}")
+    i = next(i for i, c in enumerate(session.cand.shown) if c.text == "ㄋㄧˇㄏㄠˇㄊㄧㄢ")
+    session.cand.index = i
+    out, v = run(session, "{ENTER}{ENTER}")
+    assert out == "ㄋㄧˇㄏㄠˇㄊㄧㄢ"
+    # one character on its own: once
+    s = Session(session.engine)
+    run(s, "su3{DOWN}")
+    assert [c.text for c in s.cand.shown if c.group == "注音"] == ["ㄋㄧˇ"]
 
 
 def test_every_symbol_panel_tab_moves_the_same_way(session):

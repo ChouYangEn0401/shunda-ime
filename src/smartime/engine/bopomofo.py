@@ -35,6 +35,13 @@ def is_symbol(ch: str) -> bool:
     return ch in _CATEGORY and _CATEGORY[ch] != TONE
 
 
+def is_zhuyin_text(text: str) -> bool:
+    """Nothing but bopomofo symbols and tone marks (ㄋㄧˇㄏㄠˇ): Chinese
+    that the user turned into its zhuyin (z in correction mode, the 注音 group
+    of the candidate window), which z turns back."""
+    return bool(text) and all(ch in _CATEGORY for ch in text)
+
+
 def compose_strict(symbols: Iterable[str], tone: str = "") -> str | None:
     """Join symbols into a syllable only if they are already in canonical order.
 

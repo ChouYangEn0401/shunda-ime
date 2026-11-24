@@ -26,7 +26,7 @@ TYPING_HELP = [("Esc", "修正模式"), ("Ctrl+Z", "復原"), ("↓", "選字")]
 # too, but everybody already knows these.
 CORRECTING_HELP = [("← →", "移動"), ("↓", "選字／分組"), ("j k", "換這個字"), ("r", "重打"), ("x", "刪"),
                    ("u", "復原"), ("Enter", "送出"), ("Esc", "打字"), None,
-                   ("聲調鍵", "改聲調"), ("e", "中⇄英"), ("Shift+←/→", "分界"), ("R", "重新判定"),
+                   ("聲調鍵", "改聲調"), ("e", "中⇄英"), ("z", "注音"), ("Shift+←/→", "分界"), ("R", "重新判定"),
                    ("v", "檢視"), ("a", "加詞"), ("DD", "清除")]
 CORRECTING_HELP_ROOM = 560  # px at 100 %: the help wraps here instead of widening the panel
 

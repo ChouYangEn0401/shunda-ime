@@ -1,6 +1,7 @@
 """Correction mode (Esc while composing; Vim-like keys)."""
 
 from smartime.devtools.simulate import run
+from smartime.engine.session import Session
 
 
 def test_esc_enters_correction_and_esc_again_returns_to_typing(session):
@@ -128,6 +129,28 @@ def test_e_switches_chinese_and_raw_keys(session):
     assert v.composition == "我k27"
 
 
+def test_z_writes_one_character_as_its_zhuyin_and_back(session):
+    """「每一個字可以直接快速轉換成組成注音」: z on a character, z again."""
+    _, v = run(session, "su3cl3wu0 {ESC}{HOME}z")
+    assert v.composition == "ㄋㄧˇ好天" and v.correcting and "ㄋㄧˇ" in v.notice
+    # the zhuyin is one stop for ← →, like an English word
+    _, v = run(session, "llz")
+    assert v.composition == "ㄋㄧˇ好ㄊㄧㄢ"  # first tone: no mark
+    _, v = run(session, "{HOME}z")
+    assert v.composition == "你好ㄊㄧㄢ" and "換回國字" in v.notice
+    out, v = run(session, "{ENTER}")
+    assert out == "你好ㄊㄧㄢ"
+
+    # x on it deletes the whole syllable, not a symbol of it
+    s = Session(session.engine)
+    _, v = run(s, "wu0 {ESC}zx")
+    assert v.composition == ""
+    # only on Chinese
+    s = Session(session.engine)
+    _, v = run(s, "hello {ESC}{HOME}z")
+    assert v.composition == "hello " and "國字" in v.notice
+
+
 def test_r_retypes_one_character(session):
     _, v = run(session, "ji3k27{ESC}hr")
     assert not v.correcting and v.composition == "的"
@@ -149,7 +172,7 @@ def test_enter_commits_from_correction_mode(session):
 
 
 def test_unknown_key_shows_help_instead_of_typing(session):
-    _, v = run(session, "ji3{ESC}z")
+    _, v = run(session, "ji3{ESC}q")
     assert v.composition == "我" and "修正模式" in v.notice
 
 
