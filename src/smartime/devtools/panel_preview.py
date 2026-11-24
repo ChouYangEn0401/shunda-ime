@@ -30,7 +30,7 @@ CANDIDATE_SAMPLES = [
     ("cand-en", "mvp {DOWN}", False),
     ("cand-multi", "u4{DOWN}{RIGHT}{RIGHT}", True),
     ("cand-filter", "mvp {DOWN}{TAB}{TAB}", False),
-    ("palette", "ji3{RCTRL}{TAB}{TAB}{RIGHT}", True),
+    ("palette", "ji3{RCTRL}{TAB}{TAB}{TAB}{RIGHT}", True),
     ("kaomoji", "ji3{RCTRL}{S-TAB}{DOWN}", True),
     ("snippets", "ji3;;", True),
     ("voice-recent", "{RCTRL}{TAB}", True),

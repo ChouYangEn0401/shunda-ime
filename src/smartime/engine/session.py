@@ -41,7 +41,7 @@ from .panel import (
     CandidatePanel, DecodePanel, HintPanel, SmartPanel, candidate_panel, decode_panel, smart_panel,
 )
 from .punct import ctrl_output
-from .symbols import CATEGORY_INDEX, EMOJI_TAB, LIST_TABS, NEWLINE_SYMBOL, TABS, VOICE_TAB, SymbolPanel
+from .symbols import CATEGORY_INDEX, EMOJI_TAB, LIST_TABS, NEWLINE_SYMBOL, QUICK_TAB, TABS, VOICE_TAB, SymbolPanel
 
 VK_D = 0x44
 VK_Y = 0x59
@@ -100,7 +100,7 @@ def palette_columns(tab: str) -> int:
     """Columns a symbol-panel tab opens with: as many as fill the panel's
     fixed width. Single symbols make narrow columns, faces wide ones, and a
     片語 line takes the whole width."""
-    if tab in ("片語", VOICE_TAB):
+    if tab in ("片語", VOICE_TAB, QUICK_TAB):
         return 1
     if tab in ("顏文字", "我的符號"):
         return 2
@@ -131,6 +131,7 @@ class Candidate:
     preview: str = ""  # 片語: the whole text, shown under the list before it is typed
     snippet_id: int | None = None
     joint: int | None = None  # 重新分組: picking it fixes a word boundary at this key
+    quick_id: int | None = None  # 快速詞 tab: the quick word (its use is counted)
 
 
 @dataclass
@@ -1634,7 +1635,7 @@ class Session(CorrectionMixin):
             return
         if c.pin is None and not c.symbol and c.suggestion is None:
             return  # a placeholder row (「還沒有片語」)
-        if c.symbol and (len(c.symbol) > 1 or c.snippet_id is not None or c.group == VOICE_TAB):
+        if c.symbol and (len(c.symbol) > 1 or c.snippet_id is not None or c.group in (VOICE_TAB, QUICK_TAB)):
             self._type_text(c)
             return
         if c.symbol:
@@ -2471,6 +2472,8 @@ class Session(CorrectionMixin):
             items = self._emoji_items("")
         elif name == VOICE_TAB:
             items = self._voice_items()
+        elif name == QUICK_TAB:
+            items = self._quick_items()
         else:
             _, groups = self.engine.symbols.groups(CATEGORY_INDEX[name])
             items = [Candidate(sym, None, symbol=sym, group=label) for label, syms in groups for sym in syms]
@@ -2520,6 +2523,24 @@ class Session(CorrectionMixin):
             keep = self.cfg.voice_keep_minutes
             how_long = f"留 {keep} 分鐘" if keep else "留到輸入法重新啟動"
             items = [Candidate(f"（還沒有錄音：按住 Ctrl 說話，辨識結果會{how_long}）", None, group=VOICE_TAB)]
+        return items
+
+    def _quick_items(self) -> list[Candidate]:
+        """快速詞: every quick word, its trigger beside it. Picking one types
+        its text, the same as Tab after the trigger."""
+        quick = list(getattr(self.engine.lexicon, "quick", None) or [])
+        if practice.active():
+            quick += [d for d in practice.DEMO_QUICK if all(q["trigger"] != d["trigger"] for q in quick)]
+        items = []
+        for q in quick:
+            text = q["text"]
+            first = text.strip().splitlines()[0] if text.strip() else ""
+            label = first[:18] + ("…" if len(first) > 18 or "\n" in text.strip() else "")
+            items.append(Candidate(label, None, q["trigger"], symbol=text, group=QUICK_TAB, preview=text,
+                                   quick_id=q["id"]))
+        if not items:
+            items = [Candidate("（還沒有快速詞：到設定頁「片語與顏文字」加一個，例如 art → artifact）", None,
+                               group=QUICK_TAB)]
         return items
 
     def _kaomoji_items(self) -> list[Candidate]:
@@ -2707,6 +2728,9 @@ class Session(CorrectionMixin):
         self._commit += c.symbol
         if c.snippet_id is not None and self.engine.user is not None:
             self.engine.user.used_snippet(c.snippet_id)
+        elif c.group == QUICK_TAB:
+            if c.quick_id is not None and self.engine.user is not None and not practice.active():
+                self.engine.user.used_quick_word(c.quick_id)
         elif c.group != VOICE_TAB:  # what was said is not a symbol to keep in 常用
             self.engine.symbols.used(c.symbol)
 

@@ -127,7 +127,7 @@ def test_settings_api_gives_the_tour_with_keys_for_the_users_layout(tmp_path):
         steps = {s["id"]: s for c in state["chapters"] for s in c["steps"]}
         assert [c["id"] for c in state["chapters"]] == [c.id for c in practice.CHAPTERS]
         assert steps["swap"]["keys"] == "su3vu0 y.318 " and steps["swap"]["show_keys"]  # 你先走吧 on 大千
-        assert steps["symbol"]["keys"] == "::{TAB}{TAB}1" and not steps["symbol"]["show_keys"]
+        assert steps["symbol"]["keys"] == "::{TAB}{TAB}{TAB}1" and not steps["symbol"]["show_keys"]
         assert steps["legend"]["kind"] == "tip" and steps["legend"]["keys"] == ""
         cfg = Config.load(app.config_path)
         cfg.layout = "eten"

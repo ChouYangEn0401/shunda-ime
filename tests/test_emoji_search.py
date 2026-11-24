@@ -90,7 +90,7 @@ def test_a_further_colon_pivots_from_any_tab_into_search(session):
     """Not just the first time: ':' from any symbol-family tab jumps to
     search, so "打開面板、按個冒號" works regardless of which tab you
     happen to be browsing."""
-    run(session, "ji3{RCTRL}{TAB}{TAB}")  # 希臘字母, a grid tab
+    run(session, "ji3{RCTRL}{TAB}{TAB}{TAB}")  # 括號引號, a grid tab
     _, v = run(session, ":")
     assert TABS[session.cand.palette] == EMOJI_TAB
 
@@ -268,10 +268,10 @@ def test_tab_cycling_does_not_strand_the_opening_trigger(session):
     "::"-opened panel and picking something used to leave the literal "::"
     sitting in the composition forever — _open_palette dropped trigger_at
     on every call. 'ji3::{TAB}1' used to produce '我::「' (two Tabs since 錄音暫存)."""
-    out, v = run(session, "ji3::{TAB}{TAB}1")
+    out, v = run(session, "ji3::{TAB}{TAB}{TAB}1")
     assert "::" not in (out + v.composition)
 
-    out, v = run(session, "ji3::{TAB}{TAB}1")
+    out, v = run(session, "ji3::{TAB}{TAB}{TAB}1")
     assert "::" not in (out + v.composition)
 
 

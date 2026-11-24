@@ -44,8 +44,12 @@ EMOJI_TAB = "emoji"
 # 常用標點: the panel opens with a tap of the same Ctrl that is held to talk,
 # so a result typed into the wrong window is one Tab away.
 VOICE_TAB = "錄音暫存"
-LIST_TABS = (VOICE_TAB, "片語", "顏文字", "我的符號", EMOJI_TAB)
-TABS = [CATEGORIES[0][0], VOICE_TAB] + [name for name, _ in CATEGORIES[1:]] + list(LIST_TABS[1:])
+# 快速詞 (userdict.quick_words): third, with the two above — the Ctrl tap
+# is mostly for these (user: 「我不是說快速字可以出現在那裡面嗎」).
+QUICK_TAB = "快速詞"
+LIST_TABS = (VOICE_TAB, QUICK_TAB, "片語", "顏文字", "我的符號", EMOJI_TAB)
+FRONT_TABS = 3  # 常用標點, 錄音暫存, 快速詞: a divider after them on the chip row
+TABS = [CATEGORIES[0][0], VOICE_TAB, QUICK_TAB] + [name for name, _ in CATEGORIES[1:]] + list(LIST_TABS[2:])
 CATEGORY_INDEX = {name: i for i, (name, _) in enumerate(CATEGORIES)}  # tab name -> CATEGORIES index
 
 # ------------------------------------------------------------- emoji

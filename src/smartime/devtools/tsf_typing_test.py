@@ -447,8 +447,8 @@ CASES = [
     ("ji3a87{ESC}j{ENTER}", Changed("ji3a87{ENTER}")),  # correction mode: j swaps the candidate in place
     ("mvp {ESC}e{ENTER}", "勳"),  # correction mode: e turns raw keys into Chinese
     ("ji3ee/4dj94{ESC}vv{HOME}lllxv{ENTER}", "我更快"),  # 按鍵 view: delete one stray key
-    ("ji3{RCTRL}{TAB}{TAB}1{ENTER}", "我α"),  # symbol panel: a lone right-Ctrl tap
-    ("{RCTRL}{TAB}{TAB}2", "β"),  # symbol panel with nothing composed: typed directly
+    ("ji3{RCTRL}{TAB}{TAB}{TAB}{TAB}1{ENTER}", "我α"),  # symbol panel: a lone right-Ctrl tap
+    ("{RCTRL}{TAB}{TAB}{TAB}{TAB}2", "β"),  # symbol panel with nothing composed: typed directly
     ("ao6u.3{S-TAB}3{ENTER}", None),  # Shift+Tab: all continuations
     # > 30 characters: automatic partial commit mid-sentence (broke in VS Code)
     ("b06c.4283tj x96k27y4b/6b06j6z83fm4u/ jp6k27jp4wu6ru.4cjo4y94vscodexu3ua04yjo4284k27t8 u4{ENTER}", None),

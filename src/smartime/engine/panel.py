@@ -149,7 +149,7 @@ def candidate_panel(session) -> CandidatePanel | None:
         return None
     shown = cand.shown
     page = cand.page
-    from .symbols import LIST_TABS, TABS
+    from .symbols import FRONT_TABS, LIST_TABS, TABS
 
     tab = TABS[cand.palette % len(TABS)] if cand.palette is not None else ""
     # a symbol category's first item carries "希臘字母 · Tab 換分類" for
@@ -164,9 +164,9 @@ def candidate_panel(session) -> CandidatePanel | None:
         panel.preview = cand.current.preview
     if cand.palette is not None:
         panel.palette = True
-        # 常用標點 and 錄音暫存 are what the Ctrl tap is mostly for: a divider
+        # 常用標點, 錄音暫存 and 快速詞 are what the Ctrl tap is mostly for: a divider
         # after them (CHIP_DIVIDER, drawn as a thin line) sets them apart
-        panel.chips = TABS[:2] + [CHIP_DIVIDER] + TABS[2:]
+        panel.chips = TABS[:FRONT_TABS] + [CHIP_DIVIDER] + TABS[FRONT_TABS:]
         panel.chip = tab
         panel.title = f"符號 · {tab}"
     elif cand.snippet_at is not None:

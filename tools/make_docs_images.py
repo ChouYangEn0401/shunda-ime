@@ -37,7 +37,7 @@ PANELS = [
     ("candidates-english", "mvp {DOWN}", "candidates"),      # English <-> Chinese
     ("correction", "ji3ee/4dj94k27{ESC}h", "decode"),        # 按鍵 / 注音 / 國字
     ("correction-keys", "ji3ee/4dj94k27{ESC}vv{HOME}lll", "decode"),
-    ("palette", "ji3::{TAB}{TAB}", "candidates"),            # symbol grid
+    ("palette", "ji3::{TAB}{TAB}{TAB}", "candidates"),            # symbol grid
     ("snippets", "ji3;;", "candidates"),
     ("voice-recent", "{RCTRL}{TAB}", "candidates"),          # 錄音暫存
 ]

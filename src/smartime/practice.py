@@ -196,8 +196,8 @@ STEPS: tuple[Step, ...] = (
     # ---------------------------------------------------------------- 還有這些
     Step("symbol", "more", "符號面板",
          "連打兩個冒號 <kbd>::</kbd>，符號面板就開了。",
-         "打 <kbd>:</kbd><kbd>:</kbd>（Shift+; 兩下），按兩下 <kbd>Tab</kbd> 換到括號那一頁，按 <kbd>1</kbd>。",
-         keys="::{TAB}{TAB}1", target="「",
+         "打 <kbd>:</kbd><kbd>:</kbd>（Shift+; 兩下），按三下 <kbd>Tab</kbd> 換到括號那一頁，按 <kbd>1</kbd>。",
+         keys="::{TAB}{TAB}{TAB}1", target="「",
          pro="每一頁都一樣：<kbd>↓</kbd> 同一欄往下、<kbd>→</kbd> 下一欄、數字選。「我的符號」可以放自己常用的。"),
     Step("emoji", "more", "emoji 用搜的",
          "三個冒號接關鍵字，emoji 即時篩選。",

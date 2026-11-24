@@ -9,14 +9,14 @@ def test_palette_opens_with_categories_and_commits_directly(session):
     _, v = run(session, "{RCTRL}")
     assert v.candidates[:3] == ["，", "。", "、"]
     assert v.candidate_notes[0].startswith("常用")
-    _, v = run(session, "{TAB}{TAB}{TAB}")  # past 錄音暫存 and 括號引號
+    _, v = run(session, "{TAB}{TAB}{TAB}{TAB}")  # past 錄音暫存, 快速詞 and 括號引號
     assert v.candidates[0] == "α" and v.candidate_notes[0].startswith("希臘字母")
     out, v = run(session, "2")
     assert out == "β" and v.candidates is None
 
 
 def test_palette_inserts_into_the_composition(session):
-    _, v = run(session, "ji3{RCTRL}{TAB}{TAB}{TAB}1u.3")
+    _, v = run(session, "ji3{RCTRL}{TAB}{TAB}{TAB}{TAB}1u.3")
     assert v.composition == "我α有"
 
 
@@ -76,7 +76,7 @@ def test_left_ctrl_can_be_the_panel_key(session):
     session.cfg.palette_hotkey = "lctrl"
     _, v = run(session, "{RCTRL}")
     assert v.candidates is None
-    _, v = run(session, "ji3{LCTRL}{TAB}{TAB}{TAB}1")
+    _, v = run(session, "ji3{LCTRL}{TAB}{TAB}{TAB}{TAB}1")
     assert v.composition == "我α"
 
 
@@ -269,3 +269,40 @@ def test_voice_results_expire(tmp_path):
     assert [r["text"] for r in recent.items(0, now=1e12)] == ["old"]  # 0: until the IME restarts
     recent.clear()
     assert recent.items(0) == []
+
+
+# ---------------------------------------------------------------- 快速詞 tab
+def _quick_session(tmp_path):
+    from smartime import paths
+    from smartime.config import Config
+    from smartime.engine.decoder import Decoder
+    from smartime.engine.layouts import DACHEN
+    from smartime.engine.lexicon import Lexicon
+    from smartime.engine.session import Engine, Session
+    from smartime.engine.userdict import UserDict
+
+    user = UserDict(tmp_path / "user.db")
+    lex = Lexicon(paths.system_db_path(), user)
+    return user, Session(Engine(lexicon=lex, layout=DACHEN, decoder=Decoder(lex, DACHEN), config=Config()))
+
+
+def test_quick_words_have_a_tab_in_the_symbol_panel(tmp_path):
+    """「我不是說快速字可以出現在那裡面嗎」: third tab, right after 錄音暫存."""
+    from smartime.engine.symbols import QUICK_TAB, TABS
+
+    assert TABS[:3] == ["常用標點", "錄音暫存", QUICK_TAB]
+    user, s = _quick_session(tmp_path)
+    try:
+        _, v = run(s, "{RCTRL}{TAB}{TAB}")
+        assert "沒有快速詞" in v.candidates[0]  # empty: says where to add one
+        run(s, "{ESC}")
+        qid = user.add_quick_word("art", "artifact")
+        s.engine.lexicon.invalidate()
+        _, v = run(s, "{RCTRL}{TAB}{TAB}")
+        assert v.candidates[0].startswith("artifact") and "art" in v.candidate_notes[0]
+        out, v = run(s, "1")
+        assert out == "artifact" and v.candidates is None
+        assert {r["id"]: r for r in user.quick_words()}[qid]["count"] == 1
+    finally:
+        s.engine.lexicon.close()
+        user.close()
