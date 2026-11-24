@@ -47,9 +47,15 @@ def test_only_finished_words(session):
     # half a word while typing is left alone (gaug is gauge in a moment) ...
     _, v = run(session, "ji3 teh")
     assert v.composition == "我 teh"
-    # ... and fixed once a space or punctuation ends it
+    # ... a punctuation mark sends it as it is on screen: fixing it in the
+    # instant it is sent was the change nobody could see coming (user: 「在我
+    # 按下標點符號的那一剎那又出現變化」) ...
     out, v = run(session, "{C-,}")
-    assert out + v.composition == "我 the，"
+    assert out + v.composition == "我 teh，"
+    # ... and a space ends it and fixes it, where you can see it (↓ undoes)
+    session._reset_buffer()
+    _, v = run(session, "ji3 teh ")
+    assert v.composition == "我 the "
 
 
 def test_case_follows_the_word_as_typed(session):

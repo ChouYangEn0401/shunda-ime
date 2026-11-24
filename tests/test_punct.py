@@ -73,3 +73,16 @@ def test_the_four_layer_table():
 def test_unknown_override_keys_are_dropped():
     cfg = Config.from_dict({"punct_overrides": {"C+,": "、", "bogus": "x", "CS+/": "toolongvalue"}})
     assert cfg.punct_overrides == {"C+,": "、"}
+
+
+@pytest.mark.parametrize("keys", ["ji3m06pnpm", "ji3m06venv", "ji3m06teh", "ji3m06wrold", "ji3m06python",
+                                  "su3cl3ji3", "ji3 teh su3"])
+@pytest.mark.parametrize("mark", ["{C-,}", "{C-.}", "{CS-/}"])
+def test_a_mark_sends_exactly_what_was_on_screen(session, keys, mark):
+    """「我現在看到文字以後，在我按下標點符號的那一剎那又出現變化」: pnpm went
+    out as npm, teh as the, the last v of venv vanished. The mark closes the
+    sentence; it must not re-read anything before it."""
+    _, v = run(session, keys)
+    shown = v.composition
+    out, v = run(session, mark)
+    assert (out + v.composition)[:-1] == shown

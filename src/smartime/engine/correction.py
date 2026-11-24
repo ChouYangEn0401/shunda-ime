@@ -627,19 +627,31 @@ class CorrectionMixin:
         self._cycle.held = self._hold_outside(pin.start, pin.end, old)
         self._cycle.start = self.cursor
 
-    def _hold_outside(self, a: int, b: int, old, chinese_only: bool = False) -> list:
+    def _hold_outside(self, a: int, b: int, old, chinese_only: bool = False, exact: bool = False) -> list:
         """j/k change what is under the cursor and nothing else. Decoding
         again with the new character can re-read a neighbour (cycling 打 →
         大 → 達 flipped 記 and 計 next to it); put what changed back as it
         was. Held in place, not marked as chosen (pinned=False: the decoder
         keeps every pin, the flag is only the panel's underline).
 
-        ``chinese_only``: hold Chinese characters only — punctuation ends an
-        English word, and fixing that word (teh → the) is meant to happen.
+        ``chinese_only``: hold Chinese characters only.
+
+        ``exact``: hold everything as it is on screen, skipped keys and the
+        raw letters of an unfinished syllable included (the latter as plain
+        text): a punctuation mark sends what you saw. Holding only Chinese
+        let the mark re-read the English before it in the instant it was
+        sent — pnpm went out as npm, teh as the, the v of venv vanished
+        (user: 「我現在看到文字以後，在我按下標點符號的那一剎那又出現變化」).
 
         Returns what had to be held: the neighbours the decoder wanted to
         change (the caller learns them together with the choice)."""
+        token_ends = {s.end for s in old.segments if s.kind in TOKEN_KINDS}
+
         def keep(seg) -> bool:
+            if exact:
+                # an unfinished syllable after Chinese is still Chinese (ji3su，
+                # is 我你，); right after an English word its letters are the word's
+                return seg.kind is not Kind.PENDING or seg.start in token_ends
             return seg.kind is Kind.ZH if chinese_only else seg.kind not in (Kind.DROP, Kind.PENDING)
 
         def outside(dec):
@@ -649,7 +661,8 @@ class CorrectionMixin:
         want = outside(old)
         if outside(self.decoding) == want:
             return []
-        parts = [p for seg in old.segments if keep(seg) for p in _outside(seg, a, b)]
+        parts = [p if p.kind is not Kind.PENDING else replace(p, kind=Kind.LITERAL)
+                 for seg in old.segments if keep(seg) for p in _outside(seg, a, b)]
         all_held: list = []
         for only_changed in (True, False):
             now = {(s.start, s.end, s.text, s.kind) for s in self.decoding.segments}

@@ -854,9 +854,9 @@ class Session(CorrectionMixin):
             # Reported: 「剛剛都看對了，結果因為標點符號他立刻更換，反而改錯」.
             # The mark closes the sentence, and decoding a closed end may
             # read the words before it differently — in the instant it is
-            # sent, with no chance to see it. What was read is what is sent.
-            # (An unfinished syllable is not held: it was never shown as text.)
-            self._hold_outside(pos, pos + 1, old, chinese_only=True)
+            # sent, with no chance to see it. What was read is what is sent —
+            # English, skipped keys and raw letters too (see _hold_outside).
+            self._hold_outside(pos, pos + 1, old, exact=True)
         if not middle and not self.correcting:
             self._check_retype()
         here = next((s for s in self.decoding.segments if s.start <= pos < s.end), None)
