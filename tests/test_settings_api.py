@@ -455,3 +455,30 @@ def test_quick_words_travel_with_export_and_import(server):
     # importing again: triggers already here are skipped
     assert call(server, "POST", "/api/import?settings=0", raw=blob)[1]["quick"] == 0
     assert len(call(server, "GET", "/api/quickwords")[1]) == 2
+
+
+def test_cleanup_suggestions_and_bulk_delete(server):
+    """整理建議 uses the real lexicon: 開新 is not a word, 候選 is; teh would
+    be corrected to the. Checked rows go through /api/entries/bulk."""
+    import time
+
+    app = server.app
+    u = app.user
+    old = time.time() - 30 * 86400
+    for phrase, reading, kind in [("開新", "ㄎㄞ-ㄒㄧㄣ", "zh"), ("候選", "ㄏㄡˋ-ㄒㄩㄢˇ", "zh"), ("teh", "", "en")]:
+        u.learn(phrase, reading, kind)
+    u._con.execute("UPDATE entries SET last_used=?, created=?", (old, old))
+    u._load()
+    status, body = call(server, "GET", "/api/entries/cleanup")
+    assert status == 200
+    got = {r["phrase"]: (r["reason"], r["fix"]) for r in body["rows"]}
+    assert got == {"開新": ("once", ""), "teh": ("typo", "the")}
+    assert body["rows"][0]["readingDisplay"] == "ㄎㄞ ㄒㄧㄣ"
+
+    assert call(server, "POST", "/api/entries/bulk", {"ids": []})[0] == 400
+    assert call(server, "POST", "/api/entries/bulk", {"ids": [1], "action": "nope"})[0] == 400
+    ids = [r["id"] for r in body["rows"]]
+    status, r = call(server, "POST", "/api/entries/bulk", {"ids": ids, "action": "delete"})
+    assert status == 200 and r["changed"] == 2
+    assert call(server, "GET", "/api/entries/cleanup")[1] == {"rows": [], "total": 0}
+    assert [e["phrase"] for e in call(server, "GET", "/api/entries?view=inbox")[1]] == ["候選"]

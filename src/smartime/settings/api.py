@@ -321,6 +321,35 @@ class SettingsApp:
         self.user.delete(entry_id)
         return {"ok": True}
 
+    def bulk_entries(self, body: dict) -> dict:
+        """The checkboxes (整理建議): {"ids": [...], "action": "delete"}."""
+        ids = body.get("ids")
+        if not isinstance(ids, list) or not ids or not all(isinstance(i, int) for i in ids):
+            raise ApiError(400, "請先勾選詞")
+        if body.get("action") != "delete":
+            raise ApiError(400, "不支援的動作")
+        return {"changed": self.user.delete_many(ids)}
+
+    def cleanup_suggestions(self) -> dict:
+        """整理建議: learned words that look unneeded (rules only, all local)."""
+        from ..engine import en_fix
+
+        lex = self.lexicon
+
+        def is_word(phrase: str, reading: str, kind: str) -> bool:
+            if kind == "en":
+                return lex.en_score(phrase.lower()) is not None or lex.en_curated(phrase.lower())
+            return lex.in_system(phrase, reading)
+
+        def fix(word: str) -> str | None:
+            found = en_fix.correction(lex, word)
+            return found[0] if found else None
+
+        out = self.user.cleanup_suggestions(is_word, fix)
+        for r in out["rows"]:
+            r["readingDisplay"] = r["reading"].replace("-", " ")
+        return out
+
     def add_category(self, body: dict) -> dict:
         name = str(body.get("name", "")).strip()
         if not name:
@@ -763,6 +792,8 @@ class _Handler(BaseHTTPRequestHandler):
             ("POST", "/api/config/reset"): app.reset_config,
             ("GET", "/api/entries"): lambda: app.entries(query),
             ("POST", "/api/entries"): lambda: app.add_entry(self._json_body()),
+            ("POST", "/api/entries/bulk"): lambda: app.bulk_entries(self._json_body()),
+            ("GET", "/api/entries/cleanup"): app.cleanup_suggestions,
             ("POST", "/api/reading"): lambda: app.suggest_reading(str(self._json_body().get("text", ""))),
             ("POST", "/api/categories"): lambda: app.add_category(self._json_body()),
             ("GET", "/api/snippets"): app.snippets,

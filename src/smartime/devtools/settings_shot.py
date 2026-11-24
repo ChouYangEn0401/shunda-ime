@@ -30,6 +30,17 @@ def sample_data(app) -> None:
         for _ in range(n):
             u.learn(phrase, reading, "zh", origin)
     u.learn("deadline", "", "en", "pick")
+    # older learning, so 整理建議 has something to show: a one-off
+    # combination, a word not used for months, an English slip
+    import time as _time
+
+    for phrase, reading, kind, n, days in [("開新", "ㄎㄞ-ㄒㄧㄣ", "zh", 1, 30), ("跟屎", "ㄍㄣ-ㄕˇ", "zh", 1, 52),
+                                           ("專案", "ㄓㄨㄢ-ㄢˋ", "zh", 3, 140), ("teh", "", "en", 2, 20)]:
+        for _ in range(n):
+            u.learn(phrase, reading, kind, "fix" if kind == "zh" and n == 1 else "pick")
+        then = _time.time() - days * 86400
+        u._con.execute("UPDATE entries SET last_used=?, created=? WHERE phrase=?", (then, then, phrase))
+    u._load()
     u.add("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ", "zh", "朋友")
     u.add("順打輸入法", "ㄕㄨㄣˋ-ㄉㄚˇ-ㄕㄨ-ㄖㄨˋ-ㄈㄚˇ", "zh", "專案術語")
     u.block("鬥號", "ㄉㄡˋ-ㄏㄠˋ")

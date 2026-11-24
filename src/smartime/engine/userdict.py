@@ -47,6 +47,14 @@ PROMOTE_AT = 2
 # "never suggest" blocks are always kept.
 TIDY_AFTER_DAYS = 120
 
+# 整理建議 (settings page, 我的詞庫): words the user may want gone, shown
+# for the user to tick — nothing is deleted without them. Softer and earlier
+# than tidy(), and only in the unsorted 自動收集 area.
+SUGGEST_ONCE_DAYS = 14  # used once, not since, and not a word: a slip
+SUGGEST_IDLE_DAYS = 90  # not used for this long, however often before
+SUGGEST_LIMIT = 200
+SUGGEST_REASONS = {"once": "只用過一次", "idle": "很久沒用", "typo": "英文像打錯"}
+
 # Scores are log10 like the system lexicon (common words ≈ -3, rare ≈ -7).
 MANUAL_BASE = -3.0  # an added word is at least as likely as a common word
 LEARNED_NEW_BASE = -6.0  # a learned word the system lexicon does not know
@@ -406,6 +414,51 @@ class UserDict:
     def delete(self, entry_id: int) -> None:
         self._con.execute("DELETE FROM entries WHERE id=?", (entry_id,))
         self._load()
+
+    def delete_many(self, ids: list[int]) -> int:
+        """Several entries at once (整理建議's checkboxes). Returns how many."""
+        n = self._many("DELETE FROM entries WHERE id=?", [(int(i),) for i in ids])
+        if n:
+            self._load()
+        return n
+
+    def cleanup_suggestions(self, is_word, en_fix, limit: int = SUGGEST_LIMIT,
+                            now: float | None = None) -> dict:
+        """整理建議: learned words that look unneeded, for the user to confirm.
+
+        Only the 自動收集 area (learned, no category, not blocked): a word
+        the user added or sorted is theirs. Each row gets one reason —
+
+        * typo: an English word ``en_fix(word)`` would correct (teh → the);
+        * once: used once, not for SUGGEST_ONCE_DAYS, and ``is_word(phrase,
+          reading, kind)`` is False — likely an accidental combination
+          (tidy() forgets these by itself only after TIDY_AFTER_DAYS);
+        * idle: not used for SUGGEST_IDLE_DAYS.
+
+        Sorted once → idle → typo, oldest first; at most ``limit`` rows.
+        Returns {"rows": [...], "total": n} (total before the cap)."""
+        now = time.time() if now is None else now
+        rows = self._con.execute(
+            "SELECT id, phrase, reading, kind, count, coalesce(last_used, created, 0) FROM entries "
+            "WHERE source='learned' AND blocked=0 AND category_id IS NULL").fetchall()
+        found = []
+        for entry_id, phrase, reading, kind, count, last in rows:
+            days = (now - last) / 86400
+            fix = en_fix(phrase) if kind == "en" else None
+            if fix and fix != phrase:
+                reason = "typo"
+            elif count <= 1 and days > SUGGEST_ONCE_DAYS and not is_word(phrase, reading, kind):
+                reason = "once"
+            elif days > SUGGEST_IDLE_DAYS:
+                reason = "idle"
+            else:
+                continue
+            found.append({"id": entry_id, "phrase": phrase, "reading": reading, "kind": kind, "count": count,
+                          "last_used": last or None, "reason": reason, "label": SUGGEST_REASONS[reason],
+                          "fix": fix if reason == "typo" else ""})
+        order = list(SUGGEST_REASONS)
+        found.sort(key=lambda r: (order.index(r["reason"]), r["last_used"] or 0, r["id"]))
+        return {"rows": found[:limit], "total": len(found)}
 
     # The settings page's two areas: what the IME collected by itself and
     # the user has not sorted yet, and the user's own curated words.

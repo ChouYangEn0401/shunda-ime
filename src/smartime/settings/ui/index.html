@@ -166,7 +166,7 @@
         <div class="group">
           <h3>Shift 切換模式</h3>
           <div class="row">
-            <div><div class="label">Shift 的切換方式</div><div class="desc" id="cycle-desc">三段（預設）：開著的模式依序輪流。兩段：英文 ⇄ 上次用的中文。用哪一邊的 Shift 在< href="#keys" data-goto="keys">「快捷鍵」</a>選。</div></div>
+            <div><div class="label">Shift 的切換方式</div><div class="desc" id="cycle-desc">三段（預設）：開著的模式依序輪流。兩段：英文 ⇄ 上次用的中文。用哪一邊的 Shift 在<a href="#keys" data-goto="keys">「快捷鍵」</a>選。</div></div>
             <div class="seg" role="group" aria-label="Shift 的切換方式" data-cfg="shift_cycle">
               <button data-value="three">三段循環</button><button data-value="two">兩段</button>
             </div>
@@ -469,6 +469,24 @@
               <div class="dict-more" id="dict-more" hidden><button class="btn small" type="button">載入更多</button></div>
             </div>
             <p class="note" id="dict-count" style="margin-bottom:0"></p>
+          </div></div>
+        </div>
+
+        <div class="group">
+          <h3 data-new="dict-cleanup">整理建議 <span class="note" style="letter-spacing:0" id="cleanup-stats"></span></h3>
+          <div class="row"><div class="full">
+            <p class="note" style="margin-top:0">可能用不到的詞，勾選後刪除。只看自動收集的詞，你加的、分了類的不會出現。</p>
+            <div class="snip-bulk" id="cleanup-bulk" hidden></div>
+            <div class="dict-table cleanup-table">
+              <table>
+                <thead><tr><th><input type="checkbox" id="cleanup-all" aria-label="全選建議"></th><th>詞</th><th>讀音</th><th>為什麼</th><th>最近</th></tr></thead>
+                <tbody id="cleanup-body"></tbody>
+              </table>
+            </div>
+            <div class="cleanup-actions">
+              <button class="btn small" type="button" id="cleanup-select">全選</button>
+              <button class="btn small danger" type="button" id="cleanup-delete" disabled>刪除勾選的</button>
+            </div>
           </div></div>
         </div>
 

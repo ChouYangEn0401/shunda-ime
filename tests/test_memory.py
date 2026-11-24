@@ -739,3 +739,57 @@ def test_moving_a_boundary_by_hand_is_counted_once(user, mem_engine):
     rows = user.corrections()
     assert len(rows) == 1 and rows[0]["methods"] == ["regroup"] and rows[0]["count"] == 1
     assert "10" in rows[0]["right"] and "大" in rows[0]["right"]
+
+
+def test_cleanup_suggestions_rules(tmp_path):
+    """整理建議: only the 自動收集 area; once (not a word, 14+ days), idle
+    (90+ days), English slips; sorted by reason, then oldest first."""
+    import time
+
+    from smartime.engine.userdict import UserDict
+
+    u = UserDict(tmp_path / "user.db")
+    now = time.time()
+    words = {"候選", "今天", "the"}
+
+    def is_word(phrase, reading, kind):
+        return phrase in words
+
+    def fix(word):
+        return {"teh": "the"}.get(word)
+
+    def learn(phrase, reading="", kind="zh", n=1, days=0):
+        for _ in range(n):
+            u.learn(phrase, reading, kind)
+        t = now - days * 86400
+        u._con.execute("UPDATE entries SET last_used=?, created=? WHERE phrase=?", (t, t, phrase))
+
+    learn("開新", "ㄎㄞ-ㄒㄧㄣ", days=20)  # once, not a word, 20 days: once
+    learn("跟屎", "ㄍㄣ-ㄕˇ", days=40)  # once, older: once, listed first
+    learn("的視", "ㄉㄜ˙-ㄕˋ", days=5)  # once but recent: not yet
+    learn("候選", "ㄏㄡˋ-ㄒㄩㄢˇ", days=30)  # once but a word: kept
+    learn("今天", "ㄐㄧㄣ-ㄊㄧㄢ", n=5, days=100)  # used often, long ago: idle
+    learn("teh", kind="en", n=3)  # a slip: typo, however recent
+    learn("ok", kind="en", n=1, days=1)
+    u.add("陳怡君", "ㄔㄣˊ-ㄧˊ-ㄐㄩㄣ", "zh", "朋友")  # mine: never suggested
+    u._con.execute("UPDATE entries SET last_used=?, created=? WHERE phrase='陳怡君'", (now - 400 * 86400,) * 2)
+    learn("開會", "ㄎㄞ-ㄏㄨㄟˋ", days=200)
+    u.update(u.lookup("開會", "ㄎㄞ-ㄏㄨㄟˋ").id, category="常用詞")  # sorted: never suggested
+    u.block("鬥號", "ㄉㄡˋ-ㄏㄠˋ")
+    u._load()
+
+    out = u.cleanup_suggestions(is_word, fix, now=now)
+    got = [(r["phrase"], r["reason"]) for r in out["rows"]]
+    assert got == [("跟屎", "once"), ("開新", "once"), ("今天", "idle"), ("teh", "typo")]
+    assert out["total"] == 4
+    assert out["rows"][-1]["fix"] == "the" and out["rows"][-1]["label"] == "英文像打錯"
+    assert out["rows"][0]["label"] == "只用過一次" and out["rows"][2]["label"] == "很久沒用"
+    capped = u.cleanup_suggestions(is_word, fix, limit=2, now=now)
+    assert len(capped["rows"]) == 2 and capped["total"] == 4
+
+    # bulk delete: one transaction, the words are gone from lookups too
+    ids = [r["id"] for r in out["rows"][:2]]
+    assert u.delete_many(ids) == 2
+    assert u.lookup("開新", "ㄎㄞ-ㄒㄧㄣ") is None and u.lookup("跟屎", "ㄍㄣ-ㄕˇ") is None
+    assert [r["phrase"] for r in u.cleanup_suggestions(is_word, fix, now=now)["rows"]] == ["今天", "teh"]
+    u.close()

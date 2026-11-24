@@ -51,6 +51,8 @@ class Feature:
 
 # Newest first. Only features — never words, phrases or symbol data.
 FEATURES: tuple[Feature, ...] = (
+    Feature("dict-cleanup", "0.11.0-alpha.4", "dict", "詞庫的整理建議",
+            "列出可能用不到的詞：只用過一次、很久沒用、英文像打錯的。勾選後刪除；只看自動收集的詞。"),
     Feature("punct-fullwidth", "0.11.0-alpha.4", "punct", "＠＃＄％＆＊ 也有鍵了",
             "Ctrl+Shift+2 3 4 5 7 8，跟 Ctrl+Shift+9 0 打（）一樣：上排符號的全形。"
             "Ctrl+- 和 Ctrl+/ 沒在打字時交給程式，縮小、切換註解不再失靈。"),

@@ -44,7 +44,7 @@
     views.forEach(v => { v.hidden = v.id !== "view-" + id; });
     rail.forEach(b => b.setAttribute("aria-current", b.dataset.view === id ? "page" : "false"));
     try { localStorage.setItem("smartime-view", id); } catch (e) { /* storage may be blocked */ }
-    if (id === "dict") loadEntries();
+    if (id === "dict") { loadEntries(); loadCleanup(); }
     if (id === "voice") loadVoice();
     if (id === "practice") loadPractice();
     if (id === "fix") loadCorrections();
@@ -509,6 +509,7 @@
     state.stats = fresh.stats;
     renderCategories();
     await loadEntries();
+    loadCleanup();
   }
 
   // Changing one row (刪除, 還原, a category that moves it to the other
@@ -530,6 +531,7 @@
       state.categories = fresh.categories;
       state.stats = fresh.stats;
       renderCategories();
+      loadCleanup();  // a word deleted or sorted above leaves the suggestions too
     } catch (e) { /* the next change tries again */ }
   }
 
@@ -736,6 +738,106 @@
       if (e.key === "Escape") { e.preventDefault(); restore(); }
     }));
     word.focus(); word.select();
+  }
+
+  // ------------------------------------------------------------ 整理建議
+  // Learned words that look unneeded (rules on the server, all local):
+  // tick and delete; nothing goes without the user's say.
+  let cleanupRows = [];
+  const cleanupSel = new Set();
+  let cleanupConfirm = false;
+  const CLEANUP_TAG = { once: "later", idle: "warn", typo: "plan" };
+
+  async function loadCleanup() {
+    let data;
+    try { data = await api("GET", "/api/entries/cleanup"); } catch (e) { toast(e.message, true); return; }
+    cleanupRows = data.rows;
+    const have = new Set(cleanupRows.map(r => r.id));
+    [...cleanupSel].forEach(id => { if (!have.has(id)) cleanupSel.delete(id); });
+    document.getElementById("cleanup-stats").textContent =
+      data.total > cleanupRows.length ? `${data.total} 個，先列 ${cleanupRows.length} 個` : (data.total ? `${data.total} 個` : "");
+    renderCleanup();
+  }
+
+  function renderCleanup() {
+    const body = document.getElementById("cleanup-body");
+    body.innerHTML = "";
+    if (!cleanupRows.length) {
+      body.innerHTML = `<tr><td colspan="5" class="note empty">目前沒有建議。</td></tr>`;
+    }
+    cleanupRows.forEach(r => {
+      const tr = document.createElement("tr");
+      tr.classList.toggle("picked", cleanupSel.has(r.id));
+      const tdCheck = document.createElement("td"); tdCheck.className = "check";
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = cleanupSel.has(r.id);
+      cb.setAttribute("aria-label", `勾選「${r.phrase}」`);
+      cb.addEventListener("change", () => {
+        if (cb.checked) cleanupSel.add(r.id); else cleanupSel.delete(r.id);
+        tr.classList.toggle("picked", cb.checked);
+        cleanupConfirm = false;
+        syncCleanup();
+      });
+      tdCheck.appendChild(cb);
+      const tdWord = document.createElement("td"); tdWord.className = "word"; tdWord.textContent = r.phrase; tdWord.title = r.phrase;
+      const tdRead = document.createElement("td");
+      const code = document.createElement("code"); code.textContent = r.kind === "en" ? "英文" : r.readingDisplay; tdRead.appendChild(code);
+      const tdWhy = document.createElement("td");
+      const b = document.createElement("span"); b.className = `badge ${CLEANUP_TAG[r.reason] || "later"}`; b.textContent = r.label;
+      tdWhy.appendChild(b);
+      if (r.fix) { const f = document.createElement("span"); f.className = "fix"; f.textContent = `→ ${r.fix}`; tdWhy.appendChild(f); }
+      else if (r.reason === "idle") { const f = document.createElement("span"); f.className = "fix"; f.textContent = `用過 ${r.count} 次`; tdWhy.appendChild(f); }
+      const tdWhen = document.createElement("td"); tdWhen.className = "when"; tdWhen.textContent = ago(r.last_used);
+      tr.append(tdCheck, tdWord, tdRead, tdWhy, tdWhen);
+      body.appendChild(tr);
+    });
+    syncCleanup();
+  }
+
+  function syncCleanup() {
+    const n = cleanupSel.size;
+    const all = document.getElementById("cleanup-all");
+    all.checked = cleanupRows.length > 0 && n === cleanupRows.length;
+    all.indeterminate = n > 0 && !all.checked;
+    all.disabled = !cleanupRows.length;
+    document.getElementById("cleanup-select").disabled = !cleanupRows.length;
+    document.getElementById("cleanup-select").textContent = all.checked ? "全不選" : "全選";
+    const del = document.getElementById("cleanup-delete");
+    del.disabled = !n;
+    del.textContent = n ? `刪除勾選的 ${n} 個` : "刪除勾選的";
+    // deleting asks first, right here (no dialog boxes), like 片語's bar
+    const bar = document.getElementById("cleanup-bulk");
+    bar.hidden = !(n && cleanupConfirm);
+    bar.innerHTML = "";
+    bar.classList.toggle("asking", !bar.hidden);
+    if (bar.hidden) return;
+    const q = document.createElement("span"); q.textContent = `刪除勾選的 ${n} 個詞？刪了就不能復原。`;
+    const yes = document.createElement("button"); yes.type = "button"; yes.className = "btn small danger"; yes.textContent = "確定刪除";
+    yes.addEventListener("click", cleanupDelete);
+    const no = document.createElement("button"); no.type = "button"; no.className = "btn small"; no.textContent = "取消";
+    no.addEventListener("click", () => { cleanupConfirm = false; syncCleanup(); });
+    bar.append(q, yes, no);
+  }
+
+  function cleanupSelectAll(on) {
+    cleanupSel.clear();
+    if (on) cleanupRows.forEach(r => cleanupSel.add(r.id));
+    cleanupConfirm = false;
+    renderCleanup();
+  }
+  document.getElementById("cleanup-all").addEventListener("change", e => cleanupSelectAll(e.target.checked));
+  document.getElementById("cleanup-select").addEventListener("click", () =>
+    cleanupSelectAll(cleanupSel.size !== cleanupRows.length));
+  document.getElementById("cleanup-delete").addEventListener("click", () => { cleanupConfirm = true; syncCleanup(); });
+
+  async function cleanupDelete() {
+    const ids = [...cleanupSel];
+    try {
+      const r = await api("POST", "/api/entries/bulk", { ids, action: "delete" });
+      toast(`已刪除 ${r.changed} 個詞`);
+      cleanupSel.clear();
+      cleanupConfirm = false;
+      await refreshState();
+    } catch (e) { toast(e.message, true); }
   }
 
   let searchTimer = 0;
