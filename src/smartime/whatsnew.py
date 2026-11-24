@@ -51,6 +51,11 @@ class Feature:
 
 # Newest first. Only features — never words, phrases or symbol data.
 FEATURES: tuple[Feature, ...] = (
+    Feature("zhuyin", "0.11.0-alpha.2", "typing", "國字可以直接換成注音",
+            "候選窗最後一組「注音」：這個字（天 → ㄊㄧㄢ）或整段（你好 → ㄋㄧˇㄏㄠˇ），選了就照注音打出去。"
+            "修正模式裡按 z，游標上的字換成注音，再按一次換回國字。"),
+    Feature("cand-page", "0.11.0-alpha.2", "typing", "候選窗寫出現在在第幾頁",
+            "右上角「第 3／27 頁」，不在第 1 頁時用藍底標出來；按 Home 一下回到第 1 頁，最常用的詞都在那裡。"),
     Feature("composing-hint", "0.11.0-alpha.1", "typing", "還沒送出的字，提示會說怎麼送出",
             "游標旁邊的小點旁邊多了「Enter 送出」：看到對了就按 Enter，後面再打什麼都動不到它。"
             "嫌多可以換回只有一個點，或換成一支筆。標點也不會再改掉你剛看到的英文了。"),
