@@ -35,6 +35,7 @@ PANELS = [
     ("typing-fixed", "ji3 wrold ", "hint"),                  # an English word corrected
     ("candidates", "ji35p {DOWN}", "candidates"),            # grouped, coloured
     ("candidates-english", "mvp {DOWN}", "candidates"),      # English <-> Chinese
+    ("candidates-page", "u4{DOWN}{PGDN}{PGDN}", "candidates"),  # 第 3／N 頁 · Home 回第 1 頁
     ("correction", "ji3ee/4dj94k27{ESC}h", "decode"),        # 按鍵 / 注音 / 國字
     ("correction-keys", "ji3ee/4dj94k27{ESC}vv{HOME}lll", "decode"),
     ("palette", "ji3::{TAB}{TAB}{TAB}", "candidates"),            # symbol grid

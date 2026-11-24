@@ -1624,6 +1624,11 @@ class Session(CorrectionMixin):
             cand.move_page(+1)
         elif vk == VK_PRIOR:
             cand.move_page(-1)
+        elif vk == VK_HOME:
+            # back to page 1, where the likeliest words are: the window opens
+            # on what is on screen, which can be page 3 (「我要的字的
+            # recommendation 在 page1，結果我找半天往上找才找到」)
+            cand.index, cand.first_page, cand.columns = 0, 0, 1
         elif vk in (VK_ESCAPE, VK_BACK):
             self.cand = None
         else:

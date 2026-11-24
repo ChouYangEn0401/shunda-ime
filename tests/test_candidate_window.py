@@ -154,6 +154,26 @@ def test_pageup_pagedown_turn_pages(session):
     assert cand.page == 0
 
 
+def test_the_page_is_plain_to_see_and_home_goes_back_to_page_one(session):
+    """Reported: the window opened on page 3, the word wanted was on page 1,
+    and nothing said which page this was (a pale 「3/3」 in the corner)."""
+    from smartime.ui.panels import _cand_help, _page_label
+
+    run(session, "u4{DOWN}")
+    p = candidate_panel(session)
+    assert _page_label(p) == f"第 1／{p.pages} 頁"
+    assert ("Home", "回第 1 頁") not in _cand_help(p)
+    run(session, "{PGDN}{PGDN}")
+    p = candidate_panel(session)
+    assert _page_label(p) == f"第 3／{p.pages} 頁"
+    assert ("Home", "回第 1 頁") in _cand_help(p)
+    run(session, "{HOME}")
+    assert session.cand is not None and session.cand.index == 0 and session.cand.page == 0
+    # several columns: the pages on screen
+    run(session, "{RIGHT}{RIGHT}")
+    assert _page_label(candidate_panel(session)).startswith("第 1–3／")
+
+
 def test_every_symbol_panel_tab_moves_the_same_way(session):
     """Reported: 「為什麼同樣是那一個框框裡面，操作的感覺彼此有差異」 — the
     symbol categories were a grid (1–9 across a row, ← → along it) while

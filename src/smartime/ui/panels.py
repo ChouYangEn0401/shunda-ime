@@ -376,11 +376,31 @@ def _cand_help(p: "CandidatePanel") -> list[tuple[str, str]]:
     # forgets a learned word, and blocks a combination that is not a word.
     # 「忘記」 read as bookkeeping, and the user never found it for 開新.
     items += [("Del", "不要"), ("Ctrl+D", "加詞")]
+    if _away_from_first(p):
+        # the window opens on what is on screen, which can be page 3 while
+        # the likeliest words are on page 1 (「找半天往上找才找到」)
+        items.insert(2, ("Home", "回第 1 頁"))
     if p.chips:
         # last, so that when the row wraps (_help_lines) the Tab pair is the
         # second line together instead of being split across two
         items += [("Tab", "下一類"), ("Shift+Tab", "上一類")]
     return items
+
+
+def _away_from_first(p: "CandidatePanel") -> bool:
+    return p.pages > 1 and (p.first_page > 0 if p.columns > 1 else p.index // p.page_size > 0)
+
+
+def _page_label(p: "CandidatePanel") -> str:
+    """「第 2／3 頁」: where in the list the window is. It used to be a pale
+    「2/3」 in the corner that nobody saw — the user went looking for a word
+    on page 3 that was on page 1."""
+    if p.pages <= 1:
+        return ""
+    shown = min(p.columns, p.pages - p.first_page)
+    if shown > 1:
+        return f"第 {p.first_page + 1}–{p.first_page + shown}／{p.pages} 頁"
+    return f"第 {p.index // p.page_size + 1}／{p.pages} 頁"
 # Tab walks eleven categories whose contents are nothing like each other in
 # size (「，」 next to 「ヽ(✿ﾟ▽ﾟ)ノ」). A window that resizes under the cursor on
 # every Tab is exhausting to follow, so the symbol panel keeps one size for
@@ -509,7 +529,9 @@ class _Layout:
 
 
 def _base_width(c: Canvas, s: Styles, p: CandidatePanel, k: float, cols_w: float, help_items) -> float:
-    title_w = measure_mixed(c, p.notice or p.title, s.help, s.symbol) + 60 * k
+    label = _page_label(p)
+    room = c.measure(label, s.small_bold)[0] + 28 * k if label else 0
+    title_w = measure_mixed(c, p.notice or p.title, s.help, s.symbol) + max(60 * k, room)
     chips_w = sum(_chip_width(c, s, ch, k) for ch in p.chips)
     width = max(cols_w, _help_width(c, s, help_items), title_w, min(chips_w, 720 * k),
                 360 * k if p.preview else 0) + 2 * PAD_X * k
@@ -592,11 +614,18 @@ def paint_candidates(c: Canvas, t: Theme, p: CandidatePanel, size: float = 1.0, 
     c.stroke(0, 0, width, height, t.border, line=1)
     x0, y = PAD_X * k, PAD_Y * k
     # title: what is being chosen, and where we are
-    pages = f"{p.first_page + 1}–{p.first_page + len(cols)}/{p.pages}" if len(cols) > 1 else f"{p.index // p.page_size + 1}/{p.pages}"
     draw_mixed(c, x0, y, p.notice or p.title, s.help, s.symbol, t.accent if p.notice else t.muted)
-    pw = c.measure(pages, s.num)[0]
-    if p.pages > 1:
-        c.text(width - PAD_X * k - pw, y + 1 * k, pages, s.num, t.faint)
+    label = _page_label(p)
+    if label:
+        # page 1 in grey; any other page stands out, so it is plain that
+        # there is a page 1 above (Home goes there)
+        pw = c.measure(label, s.small_bold)[0]
+        lx = width - PAD_X * k - pw - 12 * k  # the pill ends where the columns do
+        if _away_from_first(p):
+            c.fill(lx, y - 1 * k, pw + 12 * k, 19 * k, t.accent_soft, radius=9 * k)
+            c.text(lx + 6 * k, y + 1 * k, label, s.small_bold, t.accent)
+        else:
+            c.text(lx + 6 * k, y + 1 * k, label, s.small, t.muted)
     y += title_h
     # Tab chips: the groups (or the symbol panel's tabs); the active one filled
     for line in chip_lines:
