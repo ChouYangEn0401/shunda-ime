@@ -103,6 +103,9 @@ class SettingsApp:
         return {
             "keycaps": [[lower, upper] for _, lower, upper in punct.KEYCAPS],
             "fullwidth": FULLWIDTH_PUNCT,
+            # only shown (「↓ ＠」): ↓ offers them, but they have no
+            # full/half-width typing choice like the marks above
+            "alternatives": {ch: chr(ord(ch) + 0xFEE0) for ch in "@#$%&*=+|_"},
             "ctrl": {punct.combo_name(lower, shift): out for (lower, shift), out in punct.CTRL_PUNCT.items()},
         }
 

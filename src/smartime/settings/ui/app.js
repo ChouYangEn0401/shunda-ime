@@ -357,6 +357,10 @@
             a.title = "選字框裡的另一種寬度";
             td.appendChild(a);
           }
+        } else if (p.alternatives && p.alternatives[ch] && out === ch) {
+          const a = document.createElement("span"); a.className = "pk-alt"; a.textContent = `↓ ${p.alternatives[ch]}`;
+          a.title = "選字框裡的全形";
+          td.appendChild(a);
         }
         return td;
       }
@@ -364,7 +368,8 @@
         const td = document.createElement("td");
         const inp = document.createElement("input"); inp.type = "text"; inp.maxLength = 2;
         inp.className = "pk-input" + (dup(out) ? " dup" : "");
-        inp.value = out; inp.placeholder = "—";
+        // empty = the app gets it; not "—": that is what Ctrl+- types, and the two looked the same
+        inp.value = out; inp.placeholder = "·"; inp.title = out ? "" : "空白：交給程式";
         inp.setAttribute("aria-label", combo.replace("CS+", "Ctrl+Shift+").replace("C+", "Ctrl+"));
         inp.addEventListener("change", () => {
           const next = Object.assign({}, config.punct_overrides || {});
