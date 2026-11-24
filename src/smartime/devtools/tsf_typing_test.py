@@ -59,7 +59,7 @@ PM_REMOVE = 1
 
 NAMED_VK = {"ENTER": VK_RETURN, "BS": 0x08, "TAB": 0x09, "ESC": 0x1B, "LEFT": 0x25, "UP": 0x26,
             "RIGHT": 0x27, "DOWN": 0x28, "RSHIFT": 0xA1, "HOME": 0x24, "END": 0x23, "DEL": 0x2E,
-            "RALT": 0xA5, "RCTRL": 0xA3, "LCTRL": 0xA2}
+            "RALT": 0xA5, "RCTRL": 0xA3, "LCTRL": 0xA2, "PGUP": 0x21, "PGDN": 0x22, "SPACE": 0x20}
 # The dedicated navigation block (arrows, Home/End, PageUp/PageDown,
 # Insert/Delete) is an "extended" key on real hardware — Windows tells it
 # apart from the numeric keypad's own nav keys (NumLock off) exactly that
@@ -374,8 +374,11 @@ def type_script(tap, script: str) -> None:
                 mods, base = name.split("-", 1)
                 vk = NAMED_VK.get(base) or OEM_VK.get(base, ord(base.upper()))
                 tap(vk, mods == "CS", True, mods == "CA")
-            elif name == "S-TAB":
-                tap(0x09, True, False)
+            elif name.startswith("S-"):
+                # {S-TAB}, {S-LEFT} …: the simulator takes any of them, and a
+                # script copied from there must type the same thing here
+                base = name[2:]
+                tap(NAMED_VK.get(base) or OEM_VK.get(base, ord(base.upper())), True, False)
             else:
                 tap(NAMED_VK[name], False, False)
                 if name in ("RSHIFT", "RALT", "RCTRL", "LCTRL"):

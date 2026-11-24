@@ -100,6 +100,10 @@ def screenshot(rect, path: Path) -> None:
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
+    if any(a in ("-h", "--help") for a in sys.argv[1:]):
+        # it types into a real window as soon as it starts: --help must not
+        print(__doc__ or "python -m smartime.devtools.panel_check [out_dir] [--richedit]")
+        return 0
     out = Path(sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else "panel-check")
     out.mkdir(parents=True, exist_ok=True)
     richedit = "--richedit" in sys.argv
@@ -154,7 +158,10 @@ def main() -> int:
                 # sits exactly on it. (Below it, when there is no room under
                 # the caret, the panel goes above the whole line instead.)
                 stub = (a[2] - a[0]) <= 80 and (a[3] - a[1]) <= 70
-                covers = panel[0] == a[0] and panel[1] == a[1] and panel[2] >= a[2] and panel[3] >= a[3]
+                # on the stub: same top-left corner, at least as wide. Not
+                # necessarily as tall — the 「● Enter 送出」 chip is 19 px and
+                # PIME's stub 26 px, and that chip is drawn exactly right
+                covers = panel[0] == a[0] and panel[1] == a[1] and panel[2] >= a[2]
                 docked_below = 0 <= panel[1] - a[3] <= 12
                 docked_above = panel[3] <= a[1]
                 if not (covers or docked_below or docked_above) or abs(panel[0] - a[0]) > 400:
