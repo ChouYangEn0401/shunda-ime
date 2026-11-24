@@ -41,7 +41,7 @@
 | `correction.py` | Vim 式修正模式（`CorrectionMixin`，混入 Session） |
 | `panel.py` | 面板的資料模型（平台無關）：解碼面板 `DecodePanel`（每字一欄：按鍵／注音／國字）、候選面板 `CandidatePanel` |
 | `punct.py` | 符號鍵四層（單按／Shift／Ctrl／Ctrl+Shift）：風格、Ctrl 預設與逐格覆寫、設定頁對照表 |
-| `symbols.py` | 符號面板的分類、錄音暫存／片語／顏文字分頁與最近使用（`recent-symbols.json`）；`TABS` 的順序和 `CATEGORIES` 不同（錄音暫存排第二），用 `CATEGORY_INDEX` 查 |
+| `symbols.py` | 符號面板的分類、錄音暫存／快速詞／片語／顏文字分頁與最近使用（`recent-symbols.json`）；`TABS` 的順序和 `CATEGORIES` 不同（錄音暫存、快速詞排第二、三，`FRONT_TABS`），用 `CATEGORY_INDEX` 查 |
 | `kaomoji.py` | 顏文字（依心情分組） |
 | `keys.py` | 與平台無關的按鍵事件（數值沿用 Windows VK code；`extended` 區分左右 Alt／Ctrl） |
 
@@ -169,7 +169,9 @@
   同一個讀音裡，我的詞庫（source=manual）的多字詞再被抬到其他詞之上 `MINE_LEAD`（`lexicon._mine_first`；
   否則手動加的「臺灣」輸給 -2.79 的「台灣」）。單字不抬。
 - **選字只改選的那一段**：`_choose` 之後呼叫 `_hold_outside`，旁邊和選之前不一樣的字用不畫底線的釘子放回去
-  （每一洲選一週不會變美一週）。標點送出時同樣把標點前的中文釘回畫面原樣（`_insert(hold_before=True)`）。
+  （每一洲選一週不會變美一週）。標點送出時把標點前**畫面上的一切**釘回原樣（`_insert(hold_before=True)` → `_hold_outside(exact=True)`）：
+  中文、英文、略過的鍵，還有緊接英文字、仍顯示成原始字母的未完成音節（teh 的 h，釘成 `LITERAL`）。
+  中文後面的未完成音節不釘（`ji3su，` 照舊交給解碼器）。以前只釘中文：按下標點那一刻 pnpm 變 npm、teh 變 the。
 - **改正的單位**：被釘回去的鄰字和選的字一起記成一個詞（`_learn_correction` / `_binding`，每一週）；
   修正模式改一個字時記的前後文詞若切進畫面上的詞，擴到整個詞（`_whole_words`，最多 4 字）。
 - **修正紀錄**：`corrections(old_text, new_text, reading, kind, method, count)`；method = pick／cycle（j k）／
@@ -208,7 +210,10 @@
   PIME 在我們回覆後才移動它的視窗，所以顯示期間每 40ms 跟一次；錨點消失 0.6 秒就自己隱藏。
   PIME 的提示框只放一個空白當錨點，並設成完全透明（`WS_EX_LAYERED`、alpha 0），提示列由我們自己畫在它的位置。
   錨點可能剛好在 PIME 重建視窗的空檔不存在：模型換了但還沒量尺寸時記成 `_stale`，之後找到錨點的那一次一定重新量，
-  不會沿用上一個面板的大小。沒有組字時（閒置叫出符號面板）照舊用 PIME 的清單。
+  不會沿用上一個面板的大小。
+- **沒有組字時的符號面板**（閒置單按 Ctrl）：照樣送那一格空白的訊息——PIME 沒有組字時會為了放訊息視窗臨時開一個組字、
+  同一個回覆結束掉，訊息視窗一樣落在游標下，面板蓋上去。這種回覆**不帶 `compositionString`**：空字串會被寫進那個臨時組字，
+  有反白的字時等於刪掉它（`text_service._idle_palette`）。Chromium 系沒有系統游標，所以不能改用 `GetGUIThreadInfo`。
 - 模型在 `engine/panel.py`（可測試）；`ui/panels.py` 先量尺寸再畫（GDI，`ui/canvas.py`），同一套程式也畫進離屏點陣圖
   （`devtools/panel_preview` 輸出 PNG、設定頁的示意圖）。缺字的符號（␣ ↺ ⇄）用 Segoe UI Symbol 並以基線對齊。
 - 顏色只代表五種意思（`ui/theme.py`）：藍＝游標／選中、琥珀＝輸入法幫你改的（↺、修正模式外框）、紅＝略過的鍵、
@@ -290,6 +295,10 @@
   只放功能——新詞、片語、符號資料不放（使用者說會干擾）。
 - 看過的 id 存在 `%APPDATA%\SmartIME\seen.json`。`ensure_baseline()`（後端與設定頁啟動時，在 user.db 建立之前）：
   沒有 config／user.db／practice.json＝新安裝，全部算看過；否則＝升級，全部沒看過。
+- **只列 X → Y**：seen.json 也記 `version`（上次跑的版本）與 `from`（列表從哪一版之後開始）。版本一變，`from` 移到舊版本；
+  舊範圍裡還有沒看過的就不移（跳過一版不會漏掉它的新功能）。0.10.1 的 seen.json 沒有 `version`：`_guess_from` 用
+  「看過的功能裡最新、且更舊的全都看過」那一版。卡片標題與摺起來的更新紀錄都寫出範圍。
+- 練習場：`practice.Step.new` 指向帶來它的功能 id，那一步的標題標「新」，跟其他紅點一起看過就收。
 - 後端：`whatsnew.unseen_count()`（最多每 5 秒 stat 一次）＞0 時圖示也換成紅點版，選單第一項「● 這一版有 N 項新功能」
   （`ID_WHATSNEW`，開設定頁「關於」）；有新版本時以新版本優先。
 - 設定頁：`/api/whatsnew`、`/api/whatsnew/seen`。左邊那一頁亮紅點、那一列標「新」（可點＝標成看過）。
@@ -421,8 +430,7 @@
 - 詞庫缺台灣口語讀音（例：欸 只有 ㄞˇ/ㄟˋ，沒有 ㄟ），需要口語讀音補充表。
 - 語言模型只有詞頻（unigram）：同音字靠詞頻選（例：「打逗號」可能成「打鬥號」），需要學習或 bigram。
 - Chromium 系的自動化實機測試只有 Edge；VS Code、LINE 等 Electron App 靠同一套 `KEEP_APPS` 規則，尚未逐一實測。
-- 提示列、候選窗、解碼面板都自己畫（§2.5），PIME 的提示框只當透明錨點。沒有組字時（閒置單按 Ctrl）叫出的符號面板
-  沒有錨點，仍是 PIME 的純文字清單，和組字中的分組清單長得不一樣。
+- 提示列、候選窗、解碼面板、閒置的符號面板都自己畫（§2.5），PIME 的提示框只當透明錨點。
 - 自己畫的面板在 UWP／沉浸式 App（開始功能表搜尋等）可能被蓋住（不同的視窗層級）；面板關閉時（`panel_hint` 關）退回 PIME 的提示框文字。
 - 拼音、倉頡模式的 `;` 是全形標點並會立即送出，所以 `;;` 片語觸發只在注音／中英自動有效（符號面板的片語分頁都可用）。
 - 語音輸入與符號面板的鍵只能選右 Ctrl 或左 Ctrl（理由見 §2.2）；語音還不會串流顯示（放開後才辨識整段）。
