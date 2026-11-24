@@ -40,6 +40,8 @@ PANELS = [
     ("palette", "ji3::{TAB}{TAB}{TAB}", "candidates"),            # symbol grid
     ("snippets", "ji3;;", "candidates"),
     ("voice-recent", "{RCTRL}{TAB}", "candidates"),          # 錄音暫存
+    ("quick-tab", "{RCTRL}{TAB}{TAB}", "candidates"),        # 快速詞, also when nothing is typed
+    ("typing-composing", "ji3m06ok", "hint"),                # ● Enter 送出: not sent yet
 ]
 SETTINGS_VIEWS = ["general", "dict", "punct", "practice", "about"]
 

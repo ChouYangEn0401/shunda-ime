@@ -308,7 +308,7 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
   <!-- Version list: written by hand, updated with every version (CLAUDE.md §3).
        It ships with the page so the local copy opens offline. -->
   <details class="ver" id="ver">
-    <summary aria-label="版本：目前 0.10.0-beta.1，已在 GitHub 發佈；下一版 0.10.1 試用中。點開看所有版本"><i class="dot"></i><b>v0.10.0-beta.1</b>已發佈<span class="next" aria-hidden="true">下一版 0.10.1</span><span class="chev" aria-hidden="true">▼</span></summary>
+    <summary aria-label="版本：目前 0.10.0-beta.1，已在 GitHub 發佈；下一版 0.11.0-alpha.1 試用中。點開看所有版本"><i class="dot"></i><b>v0.10.0-beta.1</b>已發佈<span class="next" aria-hidden="true">下一版 0.11.0-alpha.1</span><span class="chev" aria-hidden="true">▼</span></summary>
     <div class="ver-pop">
       <h3>版本</h3>
       <p class="intro">「下載安裝檔」拿到的是最新的正式版。測試版、候選版多半只在開發者的電腦上建置、試用；下面有附「下載」連結的，才是在 GitHub 上公開發佈過的。</p>
@@ -316,14 +316,22 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
       <div class="ver-group">
         <p class="eyebrow">下一版</p>
         <div class="next-card">
-          <div class="next-head"><span class="v-name">0.10.1</span><span class="st st-unpub">試用中</span></div>
+          <div class="next-head"><span class="v-name">0.11.0-alpha.1</span><span class="st st-alpha">測試版</span></div>
           <ul class="next-items">
-            <li><b>快速詞</b>：打 <code>art</code> 按 <kbd>Tab</kbd> 就是 artifact，觸發字和文字自己設</li>
-            <li><b>你的建議在前</b>：接續建議分兩行，你打過的詞在上、詞庫的在下</li>
-            <li><b>錄音暫存</b>：語音的字切視窗太快也不會弄丟，從符號面板再打一次</li>
+            <li><b>按標點不再改字</b>：送出的就是畫面上看到的，英文也不會在那一瞬間被換掉</li>
+            <li><b>「● Enter 送出」</b>：字還沒送出時，游標旁邊直接說怎麼送出；樣子可以換</li>
+            <li><b>閒置時的符號面板</b>：沒在打字時單按 Ctrl 也是新的面板，還多了「快速詞」一頁</li>
           </ul>
           <p class="next-foot">在開發者的電腦上試用中，還沒有下載；發佈之後會移到下面。</p>
         </div>
+      </div>
+
+      <div class="ver-group">
+        <p class="eyebrow">0.10.1</p>
+        <ul class="ver-list">
+          <li><span class="v-name">0.10.1<span class="v-date">2026-11-18</span></span>
+            <span class="v-body"><span class="st st-unpub">未發佈</span><span class="v-note">快速詞（打 art 按 Tab 就是 artifact）；接續建議分兩行，你打過的詞在上；錄音暫存：語音的字切視窗太快也不會弄丟</span></span></li>
+        </ul>
       </div>
 
       <div class="ver-group">
@@ -540,8 +548,9 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
       <div>
         <h3>打字時只有一條細細的提示列</h3>
         <p>還沒成字的注音在左邊，右邊靠齊的是按 <kbd>Tab</kbd> 會接上的詞。
-          右邊那一區位置固定，打字快的人可以整區無視它。沒話說的時候它縮成一個藍點，
-          提醒你這段字還沒送出去。</p>
+          右邊那一區位置固定，打字快的人可以整區無視它。沒話說的時候它縮成「● Enter 送出」，
+          提醒你這段字還沒送出去、按哪個鍵送出（嫌多可以換成只有一個點）。按標點時送出的也就是畫面上的字，
+          不會在按下去的那一瞬間又變。</p>
         <p>你自己的排在前面：建議分兩行，上面一行是你的——<b>快速詞</b>（自己設的觸發字，打 <code>art</code>
           按 <kbd>Tab</kbd> 就是 artifact）和你打過的詞，下面一行才是詞庫原本的。</p>
         <p>輸入法替你做了決定時也在這裡說一聲：紅色是略過了一個鍵，琥珀色是把打錯一鍵的英文字改好了
@@ -552,7 +561,8 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
         <img src="images/typing-suggestion.png" alt="提示列：淡藍小籤「的 Tab」，後面接「在 · 是」" style="margin-top:10px">
         <img src="images/typing-dropped.png" alt="提示列：紅色小籤「略過 e ↓」，右邊是注音 ㄍㄥ" style="margin-top:10px">
         <img src="images/typing-fixed.png" alt="提示列：琥珀色小籤「更正 wrold → world ↓」" style="margin-top:10px">
-        <figcaption>由上而下：你的建議在上一行（橘色快速詞、紫色你打過的詞），詞庫的在下一行；只有詞庫建議時是一行；有一個鍵被當成雜鍵略過了；英文打錯一鍵，自動改好了。</figcaption>
+        <img src="images/typing-composing.png" alt="提示列只剩一個藍點和「Enter 送出」" style="margin-top:10px">
+        <figcaption>由上而下：你的建議在上一行（橘色快速詞、紫色你打過的詞），詞庫的在下一行；只有詞庫建議時是一行；有一個鍵被當成雜鍵略過了；英文打錯一鍵，自動改好了；沒別的話說時，提醒你字還沒送出。</figcaption>
       </figure>
     </div>
 
@@ -604,16 +614,17 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
         <p><b>連打兩個冒號 <code>::</code></b>（<kbd>Shift</kbd>+<kbd>;</kbd> 兩下）就開符號面板，
           <kbd>Tab</kbd> 換到括號、希臘字母、數學、箭頭、單位、顏文字、emoji。
           <b>連打兩個分號 <code>;;</code></b> 叫出自己存的罐頭訊息，可以接關鍵字（<code>;;addr</code>），
-          選中時先預覽全文再打出去。符號面板也可以單按一下 <kbd>Ctrl</kbd> 打開（預設右邊，可改左邊或關掉）。兩個都不用記熱鍵，也不會在英文詞中間誤觸——
+          選中時先預覽全文再打出去，片語多過一欄時 <kbd>→</kbd> 看更多。符號面板也可以單按一下 <kbd>Ctrl</kbd> 打開（預設右邊，可改左邊或關掉），沒在打字時也一樣。兩個都不用記熱鍵，也不會在英文詞中間誤觸——
           C++ 的 <code>std::vector</code> 照常打得出來。</p>
-        <p>符號面板第二頁是<b>錄音暫存</b>：語音說過的話由新到舊列在這裡，結果出來前就切走視窗、字沒打進去，選一下再打一次。
-          留多久可以設，輸入法重新啟動就清空。</p>
+        <p>前三頁是單按 <kbd>Ctrl</kbd> 最常要的：常用標點、<b>錄音暫存</b>（語音說過的話由新到舊列在這裡，結果出來前就切走視窗、
+          字沒打進去，選一下再打一次；留多久可以設，輸入法重新啟動就清空），和<b>快速詞</b>（忘了觸發字也能從這裡選）。</p>
       </div>
       <figure>
         <img src="images/palette.png" alt="符號面板：分組清單，分類籤在上方">
         <img src="images/snippets.png" alt="片語清單，選中的片語在下方預覽全文" style="margin-top:10px">
         <img src="images/voice-recent.png" alt="符號面板的錄音暫存分頁：剛剛說過的兩句話，標著剛剛、12 分鐘前，下方預覽全文" style="margin-top:10px">
-        <figcaption>每一頁都是同一套分組清單：↓ 同一欄、→ 下一欄、<kbd>1</kbd>–<kbd>9</kbd> 選這一欄。最下面是錄音暫存。</figcaption>
+        <img src="images/quick-tab.png" alt="符號面板的快速詞分頁：「我們下週二見，記得帶筆電！」，觸發字「我們」" style="margin-top:10px">
+        <figcaption>每一頁都是同一套分組清單：↓ 同一欄、→ 下一欄、<kbd>1</kbd>–<kbd>9</kbd> 選這一欄。最下面兩張是錄音暫存和快速詞。</figcaption>
       </figure>
     </div>
 
