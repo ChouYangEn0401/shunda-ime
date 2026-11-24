@@ -639,7 +639,7 @@ class Session(CorrectionMixin):
     def _ctrl_punct(self, key: KeyInput) -> str | None:
         if not (key.ctrl and not key.alt and self.cfg.ctrl_punctuation and self.mode is not Mode.ENGLISH):
             return None
-        return ctrl_output(self.cfg, key.vk, key.shift)
+        return ctrl_output(self.cfg, key.vk, key.shift, composing=self.composing or self.cand is not None)
 
     def _wants(self, key: KeyInput) -> bool:
         if key.vk in MODIFIER_VKS:

@@ -161,7 +161,11 @@ PUNCT_VARIANTS = {
 PUNCT_FORMS = [
     "，,", "。.", "？?", "！!", "：:", "；;", "、\\", "＂\"“”", "＇'‘’",
     "「『【〔［[", "」』】〕］]", "（(｛{", "）)｝}", "《<〈", "》>〉",
-    "～~", "＼\\", "—－-", "…‥·",
+    "～~", "＼\\", "—－-", "…‥·‧",
+    # the rest of the symbol keys: their full-width form and close relatives,
+    # so ↓ after any symbol offers the other width (↓ after @ used to list
+    # only @ itself). ‧ (U+2027) is the Taiwanese 間隔號 of 約翰‧史密斯.
+    "＠@", "＃#", "＄$￥¥", "％%‰", "＆&", "＊*※★", "＝=≠≈", "＋+±×", "＿_﹏", "｜|", "／/",
 ]
 PUNCT_ALTERNATIVES = {ch: forms for forms in PUNCT_FORMS for ch in forms}
 # Keys that may be dropped as accidental: lowercase letters plus the layout's

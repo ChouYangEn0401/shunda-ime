@@ -163,15 +163,16 @@
 |------|------|------|
 | 單按、<kbd>Shift</kbd> | 鍵帽上印的符號（半形） | <kbd>Shift</kbd>+<kbd>,</kbd> → `<`、<kbd>[</kbd> → `[` |
 | <kbd>Ctrl</kbd> | 中文標點 | <kbd>Ctrl</kbd>+<kbd>,</kbd> ，　<kbd>Ctrl</kbd>+<kbd>.</kbd> 。　<kbd>Ctrl</kbd>+<kbd>;</kbd> ；　<kbd>Ctrl</kbd>+<kbd>'</kbd> 、　<kbd>Ctrl</kbd>+<kbd>/</kbd> …　<kbd>Ctrl</kbd>+<kbd>-</kbd> —　<kbd>Ctrl</kbd>+<kbd>[</kbd> <kbd>]</kbd> 「」 |
-| <kbd>Ctrl</kbd>+<kbd>Shift</kbd> | 上排符號的全形 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>/</kbd> ？　<kbd>+1</kbd> ！　<kbd>+;</kbd> ：　<kbd>+,</kbd> <kbd>+.</kbd> 《》　<kbd>+9</kbd> <kbd>+0</kbd> （）　<kbd>+[</kbd> <kbd>+]</kbd> 『』 |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd> | 上排符號的全形 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>/</kbd> ？　<kbd>+1</kbd> ！　<kbd>+;</kbd> ：　<kbd>+,</kbd> <kbd>+.</kbd> 《》　<kbd>+9</kbd> <kbd>+0</kbd> （）　<kbd>+[</kbd> <kbd>+]</kbd> 『』　<kbd>+2</kbd> <kbd>+3</kbd> <kbd>+4</kbd> <kbd>+5</kbd> <kbd>+7</kbd> <kbd>+8</kbd> ＠＃＄％＆＊ |
 
 - 設定頁「標點與符號」有完整對照表（每個鍵 × 四種按法），
   <kbd>Ctrl</kbd> 和 <kbd>Ctrl</kbd>+<kbd>Shift</kbd> 每一格都能改；
   **清空就把那個組合還給程式**
 - 也可以改回「微軟相容」（<kbd>Shift</kbd>+<kbd>,</kbd> 也打 ，）或逐鍵自訂全形／半形
 - <kbd>Ctrl</kbd> 組合只在中英自動與純中文模式有效；純英文模式照常交給程式
+- <kbd>Ctrl</kbd>+<kbd>-</kbd>（—）和 <kbd>Ctrl</kbd>+<kbd>/</kbd>（…）**只在打字中**才是標點；沒在打字時交給程式（縮小、切換註解）
 - <kbd>Ctrl</kbd>+<kbd>\\</kbd>、<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>`</kbd> 刻意不用（VS Code 的分割編輯器、新終端機）
-- **打錯寬度時**：游標停在標點後按 <kbd>↓</kbd>，全形、半形與相關符號都在候選裡。
+- **打錯寬度時**：游標停在標點後按 <kbd>↓</kbd>，全形、半形與相關符號都在候選裡（任何符號都有：`@` → ＠、`*` → ＊ ※ ★、`…` → ‧ 間隔號）。
   句讀標點（，。？！：；）會把前面的句子送出，但標點本身留在組字區，所以照樣改得動
 
 ---

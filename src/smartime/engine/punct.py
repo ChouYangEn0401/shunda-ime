@@ -47,7 +47,16 @@ CTRL_PUNCT = {
     ("-", False): "—", ("[", False): "「", ("]", False): "」",
     (",", True): "《", (".", True): "》", (";", True): "：", ("'", True): "＂", ("/", True): "？",
     ("1", True): "！", ("[", True): "『", ("]", True): "』", ("9", True): "（", ("0", True): "）",
+    # the rest of the digit row's upper symbols, full-width like ！（）: the
+    # Ctrl+Shift layer is "the upper symbol, Chinese/full-width" for every
+    # key (PunctInventory.md plan A). Ctrl+digit alone stays free: it takes
+    # a continuation (Ctrl+2…9) and switches browser tabs.
+    ("2", True): "＠", ("3", True): "＃", ("4", True): "＄", ("5", True): "％", ("7", True): "＆", ("8", True): "＊",
 }
+# Ctrl+- and Ctrl+/ are zoom-out and toggle-comment everywhere else; when
+# nothing is being typed they go to the app (the user's choice: 「只有組字中
+# 才吃」). Ctrl+[ ] stay: 「」 is worth it, and editors indent with Tab too.
+COMPOSING_ONLY = frozenset({"-", "/"})
 
 STYLES = ("keycap", "fullwidth", "custom")
 
@@ -66,10 +75,14 @@ def combo_name(lower: str, shift: bool) -> str:
     return ("CS+" if shift else "C+") + lower
 
 
-def ctrl_output(cfg, vk: int, shift: bool) -> str | None:
-    """What Ctrl(+Shift)+key types (None: the combination goes to the app)."""
+def ctrl_output(cfg, vk: int, shift: bool, composing: bool = True) -> str | None:
+    """What Ctrl(+Shift)+key types (None: the combination goes to the app).
+    ``composing`` False: nothing is being typed, and Ctrl+- / Ctrl+/ are the
+    app's (COMPOSING_ONLY)."""
     lower = KEYCAP_OF_VK.get(vk)
     if lower is None:
+        return None
+    if not composing and not shift and lower in COMPOSING_ONLY:
         return None
     override = cfg.punct_overrides.get(combo_name(lower, shift))
     if override is not None:

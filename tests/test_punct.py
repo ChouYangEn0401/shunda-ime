@@ -86,3 +86,36 @@ def test_a_mark_sends_exactly_what_was_on_screen(session, keys, mark):
     shown = v.composition
     out, v = run(session, mark)
     assert (out + v.composition)[:-1] == shown
+
+
+def test_ctrl_shift_on_the_digit_row_types_the_full_width_upper_symbol(session):
+    """PunctInventory.md plan A: Ctrl+Shift is "the upper symbol, full-width"
+    on every key; ＠＃＄％＆＊ had no key at all."""
+    _, v = run(session, "ji3{CS-2}{CS-3}{CS-4}{CS-5}{CS-7}{CS-8}{CS-9}{CS-0}")
+    assert v.composition == "我＠＃＄％＆＊（）"
+
+
+def test_ctrl_minus_and_ctrl_slash_belong_to_the_app_when_nothing_is_typed(session):
+    """Zoom out and toggle comment kept breaking: they are only — and … while
+    composing (the user's choice)."""
+    _, v = run(session, "{C--}{C-/}")
+    assert v.composition == ""
+    _, v = run(session, "ji3{C--}{C-/}")
+    assert v.composition == "我—…"
+    # 「」 and ， stay on Ctrl even with nothing typed
+    s = type(session)(session.engine)
+    _, v = run(s, "{C-[}")
+    assert v.composition == "「"
+
+
+@pytest.mark.parametrize("typed, wanted", [("@", "＠"), ("%", "％"), ("&", "＆"), ("*", "※"), ("=", "＝"),
+                                           ("+", "±"), ("|", "｜")])
+def test_down_after_any_symbol_offers_its_full_width_form(session, typed, wanted):
+    """↓ after @ listed only @ itself."""
+    run(session, "ji3" + typed + "{DOWN}")
+    assert wanted in [c.text for c in session.cand.shown]
+
+
+def test_the_taiwanese_interpunct_is_one_down_away(session):
+    run(session, "ji3{C-/}{DOWN}")
+    assert "‧" in [c.text for c in session.cand.shown]
