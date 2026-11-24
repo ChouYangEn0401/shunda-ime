@@ -111,6 +111,7 @@ class HintPanel:
     kinds: list[str] = field(default_factory=list)
     notice: str = ""  # one-off feedback ("記住了「…」")
     composing: bool = False  # text is still in the composition (not committed yet)
+    indicator: str = "enter"  # how that is shown (Config.composing_indicator_style)
 
     def __bool__(self) -> bool:
         return bool(self.reading or self.dropped or self.fixed or self.info or self.suggestion or self.notice

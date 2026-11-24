@@ -449,7 +449,8 @@ class Session(CorrectionMixin):
                           suggestion=v.suggestion, others=list(v.suggestions[1:]),
                           more=len(self.suggestions) > len(v.suggestions), notice=v.notice,
                           kinds=list(v.suggestion_kinds),
-                          composing=bool(self.keys) and self.cfg.composing_indicator)
+                          composing=bool(self.keys) and self.cfg.composing_indicator,
+                          indicator=self.cfg.composing_indicator_style)
         return panel or None
 
     def filter_key_down(self, key: KeyInput) -> bool:

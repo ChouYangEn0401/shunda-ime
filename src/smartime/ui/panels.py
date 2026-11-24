@@ -844,6 +844,39 @@ def _hint_row(c: Canvas, s: Styles, t: Theme, x: float, y: float, row, k: float,
     return x - x0
 
 
+INDICATOR_KEY, INDICATOR_TEXT = "Enter", "送出"
+PEN = "✎"
+
+
+def _paint_indicator(c: Canvas, s: "Styles", t: Theme, style: str, k: float, draw: bool) -> Painted:
+    """Text is still composing and there is nothing else to say. The dot
+    alone was clean but did not say what it meant or what to do about it
+    (user: 「不一定大家可以理解」), so by default it says how to send what is
+    there: 「● Enter 送出」. 「●」 and 「✎」 are the quieter choices
+    (Config.composing_indicator_style)."""
+    if style == "enter":
+        key_w = c.measure(INDICATOR_KEY, s.help_key)[0]
+        text_w = c.measure(INDICATOR_TEXT, s.small)[0]
+        width, height = 6 * k + 6 * k + 6 * k + key_w + 4 * k + text_w + 7 * k, 18 * k
+    else:
+        width = height = 18 * k
+    out = Painted(width, height)
+    if not draw:
+        return out
+    c.fill(0, 0, width, height, t.bg)
+    c.stroke(0, 0, width, height, t.border, line=1)
+    if style == "pen":
+        w = c.measure(PEN, s.symbol)[0]
+        c.text((width - w) / 2, 0, PEN, s.symbol, t.accent)
+        return out
+    c.fill(6 * k, 6 * k, 6 * k, 6 * k, t.accent, radius=3 * k)
+    if style == "enter":
+        x = 18 * k
+        c.text(x, 2 * k, INDICATOR_KEY, s.help_key, t.muted)
+        c.text(x + c.measure(INDICATOR_KEY, s.help_key)[0] + 4 * k, 2 * k, INDICATOR_TEXT, s.small, t.faint)
+    return out
+
+
 def paint_hint(c: Canvas, t: Theme, p: HintPanel, size: float = 1.0, draw: bool = True) -> Painted:
     s = Styles(c, t, size)
     k = size
@@ -873,13 +906,7 @@ def paint_hint(c: Canvas, t: Theme, p: HintPanel, size: float = 1.0, draw: bool 
     body_w = sum(parts) + GAP_HINT * k * max(0, len(parts) - 1)
     notice_w = measure_mixed(c, p.notice, s.small, s.symbol) if p.notice else 0.0
     if dot:
-        width = height = 18 * k
-        out = Painted(width, height)
-        if draw:
-            c.fill(0, 0, width, height, t.bg)
-            c.stroke(0, 0, width, height, t.border, line=1)
-            c.fill(6 * k, 6 * k, 6 * k, 6 * k, t.accent, radius=3 * k)
-        return out
+        return _paint_indicator(c, s, t, p.indicator, k, draw)
     width = max([body_w, notice_w, HINT_MIN_W * k] + row_w[1:]) + 2 * HINT_PAD_X * k
     lines = (1 if parts else 0) + max(0, len(row_w) - 1) + (1 if p.notice else 0)
     height = max(1, lines) * HINT_ROW * k + 2 * HINT_PAD_Y * k

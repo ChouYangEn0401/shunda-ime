@@ -113,10 +113,14 @@ def test_the_strip_stays_as_a_dot_while_composing(session):
     v = run_view(session, "ji3ap7")
     assert v.hint_panel is not None and v.hint_panel.composing
 
-    size = measure_hint(HintPanel(composing=True), LIGHT)
+    size = measure_hint(HintPanel(composing=True, indicator="dot"), LIGHT)
     assert size.width < 30 and size.height < 30, "with nothing to say it is only a dot"
     bigger = measure_hint(HintPanel(composing=True, reading="ㄊㄧㄢ"), LIGHT)
     assert bigger.width > size.width  # and it grows into the strip when there is
+    # the default says how to send it (「● Enter 送出」), still one low line
+    enter = measure_hint(HintPanel(composing=True), LIGHT)
+    assert size.width < enter.width < 120 and enter.height == size.height
+    assert measure_hint(HintPanel(composing=True, indicator="pen"), LIGHT).width == size.width
 
     v = run_view(session, "{ENTER}")
     assert v.hint_panel is None  # committed: nothing left on screen

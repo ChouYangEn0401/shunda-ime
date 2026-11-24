@@ -201,6 +201,16 @@
             <div style="display:flex; gap:10px; align-items:center"><input type="range" min="1" max="9" data-cfg="suggestion_count" data-type="int" aria-label="建議數量"><b data-out="suggestion_count" style="font-variant-numeric: tabular-nums">3</b></div>
           </div>
           <div class="row">
+            <div><div class="label" data-new="composing-hint">還沒送出時留一個提示</div><div class="desc">字還在組字中、提示列又沒別的話要說時，游標旁邊留一個小提示：字還沒送出，輸入法還可能依後面打的字重新判斷。看到對了按 <kbd>Enter</kbd> 送出，後面再打什麼都動不到它。有些程式（例如 Sublime Text）不畫底線，點別的地方整段字就沒了，這個提示就是為了它。</div></div>
+            <label class="switch"><input type="checkbox" data-cfg="composing_indicator" aria-label="還沒送出時的提示"><span></span></label>
+          </div>
+          <div class="row">
+            <div><div class="label">提示的樣子</div><div class="desc">「● Enter 送出」直接說怎麼送出；熟了以後可以換成只有一個點，或一支筆。</div></div>
+            <div class="seg" role="group" aria-label="提示的樣子" data-cfg="composing_indicator_style">
+              <button data-value="enter">● Enter 送出</button><button data-value="dot">●</button><button data-value="pen">✎</button>
+            </div>
+          </div>
+          <div class="row">
             <div><div class="label">游標往回移時顯示按鍵對照</div><div class="desc">例：<span class="tip" style="margin:0">（略過 e）更 ㄍㄥˋ ⌨ e/4</span>，一眼看出多按了哪個鍵。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="key_hint_on_move" aria-label="按鍵對照"><span></span></label>
           </div>
@@ -216,7 +226,7 @@
             <p class="note" style="margin-bottom:0">候選窗由輸入法自己畫：<b style="color:var(--ok)">綠色</b>是你自己的詞（我的詞庫、學過），一組一組排好；<kbd>Tab</kbd> 只看某一組；紅色「略過的鍵」是被當成手滑的鍵，選了就照原樣保留。</p>
           </div></div>
           <div class="row">
-            <div><div class="label">用順打面板顯示候選</div><div class="desc">關閉後改回 PIME 的純文字候選窗（不分組、沒有顏色）。沒在打字時叫出的符號面板一律用 PIME 的。</div></div>
+            <div><div class="label">用順打面板顯示候選</div><div class="desc">關閉後改回 PIME 的純文字候選窗（不分組、沒有顏色）。沒在打字時單按 <kbd>Ctrl</kbd> 叫出的符號面板也一樣。</div></div>
             <label class="switch"><input type="checkbox" data-cfg="panel_candidates" aria-label="順打面板候選窗"><span></span></label>
           </div>
           <div class="row">
@@ -378,14 +388,15 @@
         </div>
 
         <div class="group" id="group-palette">
-          <h3>符號面板 <span class="badge plan" id="badge-palette">即將推出</span></h3>
+          <h3 data-new="palette-idle">符號面板 <span class="badge plan" id="badge-palette">即將推出</span></h3>
           <div class="row"><div class="full preview">
             <div class="palette" aria-label="符號面板預覽">
-              <div class="tabs"><span class="on">常用</span><span>括號引號</span><span>希臘字母</span><span>數學</span><span>箭頭</span><span>單位</span></div>
+              <div class="tabs"><span class="on">常用標點</span><span>錄音暫存</span><span>快速詞</span><span>括號引號</span><span>希臘字母</span><span>數學</span></div>
               <div class="grid" id="palette-grid"></div>
             </div>
             <div style="max-width: 46ch; min-width: 0">
-              <p style="margin-top:0">單按一下 <b data-key-of="palette_hotkey">右 Ctrl</b> 打開面板，再按一次關閉（也可以打 <kbd>:</kbd><kbd>:</kbd>）。<kbd>Tab</kbd> 換分類、<kbd>Shift</kbd>+<kbd>Tab</kbd> 上一類、<kbd>1</kbd>–<kbd>9</kbd> 或方向鍵選。沒在打字時選的符號會直接打出來。</p>
+              <p style="margin-top:0">單按一下 <b data-key-of="palette_hotkey">右 Ctrl</b> 打開面板，再按一次關閉（也可以打 <kbd>:</kbd><kbd>:</kbd>）。<kbd>Tab</kbd> 換分類、<kbd>Shift</kbd>+<kbd>Tab</kbd> 上一類、<kbd>1</kbd>–<kbd>9</kbd> 或方向鍵選。沒在打字時也是同一個面板，選的符號直接打出來。</p>
+              <p class="note">前三頁是最常用的：常用標點、錄音暫存（剛剛語音辨識的結果）、快速詞（忘了觸發字也能從這裡選）。</p>
               <p class="note">希臘字母、數學符號、箭頭、單位（℃、㎡、％）都在這裡，不用記快捷鍵；常用的會自動排前面。片語、顏文字、自己收藏的符號也是面板的分頁，內容在<a href="#snippets" data-goto="snippets">「片語與顏文字」</a>整理。</p>
               <p class="note" style="margin-bottom:0">用哪個鍵打開、要不要 <kbd>:</kbd><kbd>:</kbd>，在<a href="#keys" data-goto="keys">「快捷鍵」</a>選。</p>
             </div>

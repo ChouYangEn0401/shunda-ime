@@ -46,7 +46,7 @@ ID_RESTART = 9  # 重新啟動輸入法: this backend exits, the launcher starts
 ID_WHATSNEW = 50  # 「這一版有 N 項新功能」: the settings page's 關於 (whatsnew). Not 10–14: the mode entries
 TOGGLES = {  # id: (config field, label)
     20: ("autocomplete", "接續建議（Tab 接詞）"),
-    21: ("composing_indicator", "組字中顯示小點"),
+    21: ("composing_indicator", "還沒送出時留提示（Enter 送出）"),
     22: ("learn_notice", "學到新詞時通知我"),
     23: ("correction_mode", "Esc 進修正模式"),
     24: ("smart_suggest", "超智慧推薦（實驗）"),

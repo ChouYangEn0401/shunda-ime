@@ -51,6 +51,12 @@ class Feature:
 
 # Newest first. Only features — never words, phrases or symbol data.
 FEATURES: tuple[Feature, ...] = (
+    Feature("composing-hint", "0.11.0-alpha.1", "typing", "還沒送出的字，提示會說怎麼送出",
+            "游標旁邊的小點旁邊多了「Enter 送出」：看到對了就按 Enter，後面再打什麼都動不到它。"
+            "嫌多可以換回只有一個點，或換成一支筆。標點也不會再改掉你剛看到的英文了。"),
+    Feature("palette-idle", "0.11.0-alpha.1", "punct", "沒在打字時的符號面板也換新了，還多了快速詞",
+            "什麼都沒打時單按 Ctrl，出來的也是新的符號面板（以前是白底清單）。"
+            "分頁變成 常用標點｜錄音暫存｜快速詞｜…，忘了觸發字也能從這裡選。"),
     Feature("practice-steps", "0.11.0-alpha.1", "practice", "練習場多了三步",
             "看到對了就 Shift+Enter 送出、快速詞（打「順」按 Tab）、找回剛剛說的話（錄音暫存）。"
             "標著「新」的就是；不想練也可以點「新」收起來。"),

@@ -19,6 +19,7 @@ TOGGLE_SHIFT_CHOICES = ("left", "right", "both", "none")
 MODE_CHOICES = ("auto", "chinese", "english", "pinyin", "cangjie")
 SCHEME_CHOICES = ("zhuyin", "pinyin", "cangjie")
 DROP_CHOICES = ("off", "conservative", "standard")
+INDICATOR_STYLES = ("enter", "dot", "pen")  # Config.composing_indicator_style
 # The keys the symbol panel (a lone tap) and voice input (hold) can use, with
 # the names the settings page and the voice indicator show. Only the two Ctrl
 # keys: both reach an input method and a low-level hook alike, a lone Ctrl
@@ -137,6 +138,10 @@ class Config:
     # underline under composing text, so a click elsewhere could drop a whole
     # sentence with no warning.
     composing_indicator: bool = True
+    # What it looks like: "enter" a dot and 「Enter 送出」 (says how to send
+    # it — user: 「藍色點點很漂亮乾淨，但不一定大家可以理解」), "dot" the
+    # dot alone, "pen" a ✎.
+    composing_indicator_style: str = "enter"
 
     # Memory (my dictionary)
     learn: bool = True  # remember candidates I pick and continuations I accept
@@ -250,6 +255,8 @@ class Config:
             self.voice_hotkey = "rctrl"
         if self.candidate_expand not in ("grow", "page"):
             self.candidate_expand = "grow"
+        if self.composing_indicator_style not in INDICATOR_STYLES:
+            self.composing_indicator_style = "enter"
         if self.newline_enter not in ("off", "shift", "ctrl", "right-shift"):
             self.newline_enter = "off"
         if len(self.palette_trigger) > 4 or self.palette_trigger.strip() != self.palette_trigger:
