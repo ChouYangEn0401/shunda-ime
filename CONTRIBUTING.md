@@ -134,7 +134,7 @@ PIMETextService.dll）就是順打安裝檔帶來的，解除安裝時會一起�
 ```
 
 圖是用輸入法**自己的繪圖程式**和**真正的設定頁**產生的，不是手動擷取。
-動了面板或設定頁的外觀，跑一次這個，`docs/index.html` 和 README 的圖就跟著對了。
+動了面板或設定頁的外觀，跑一次這個，官網 `docs/index.html`、舊首頁 `docs/classic.html` 和 README 的圖就跟著對了。
 
 ---
 

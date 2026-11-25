@@ -5,9 +5,9 @@
 **中文和英文順著打下去就好，不用切換。**
 Windows 10 / 11 的注音＋英文混打輸入法
 
-[**下載安裝檔**](https://github.com/ChouYangEn0401/shunda-ime/releases/latest) ·
+[**下載安裝檔**](https://github.com/ChouYangEn0401/shunda-ime/releases/download/v0.10.1/ShundaIME-Setup-0.10.1.exe) ·
 [專案首頁](https://chouyangen0401.github.io/shunda-ime/) ·
-[線上預覽](https://claude.ai/artifact/79QoG9YCBxMXNA9LUDsNZm) ·
+[官網](https://claude.ai/artifact/WaM7BicHtmSaqXjybQpi1u) ·
 [按鍵表](docs/keys.md) ·
 [安裝說明](docs/install.md) ·
 [給工程師](CONTRIBUTING.md)

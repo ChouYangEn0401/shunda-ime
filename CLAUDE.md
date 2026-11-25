@@ -8,22 +8,36 @@
 
 ## 1. 專案首頁一定要有本機版本，而且兩邊同步
 
-`docs/index.html` 是**唯一**的首頁原始檔。它同時是：
+兩個頁面，各有自己的 Artifact（2026-11-25 起）：
+
+| 原始檔 | 是什麼 | Artifact |
+|--------|--------|----------|
+| `docs/index.html` | **官網**（Fable 設計的推廣頁），GitHub Pages 的首頁 | https://claude.ai/artifact/WaM7BicHtmSaqXjybQpi1u |
+| `docs/classic.html` | 舊首頁，使用者還喜歡、先留著；打開時問要不要去新官網，完整的版本清單在這裡 | https://claude.ai/artifact/79QoG9YCBxMXNA9LUDsNZm |
+
+每個原始檔同時是：
 
 - repo 裡的本機版本（直接用瀏覽器開得起來，不需要網路、不需要伺服器）
-- GitHub Pages 的首頁（Settings → Pages → deploy from branch `main` / `/docs`）
-- 發佈出去的 Artifact
+- GitHub Pages 上的頁面（Settings → Pages → deploy from branch `main` / `/docs`）
+- 發佈出去的 Artifact（網址寫在檔案自己的 `artifact-url` 標頭）
 
-**動 `docs/index.html` 或發佈 Artifact 之前，第一步載入 `artifact-sync-protocol`，第一則回覆先貼「標頭檢查」（url、線上與本機 rev、鎖）。** 不先對齊、不上鎖，不改這個檔。依據與例外見 home-kit 的 `knowledge/conventions/artifact-sync.md`（裝了 `artifact-sync-guard` hook 之後會由系統擋）。
+**動這兩個檔或發佈 Artifact 之前，第一步載入 `artifact-sync-protocol`，第一則回覆先貼「標頭檢查」（url、線上與本機 rev、鎖）。** 不先對齊、不上鎖，不改這個檔。依據與例外見 home-kit 的 `knowledge/conventions/artifact-sync.md`（裝了 `artifact-sync-guard` hook 之後會由系統擋）。
 
-**改了就三邊一起更新，不可以只改其中一邊。** 發佈 Artifact 時用同一個檔案路徑
+**改了就三邊一起更新，不可以只改其中一邊。** 發佈時帶上檔案標頭裡的網址當 `url`
 （這樣會更新同一個網址，不會長出第二個頁面），並且把 `docs/images/` 底下用到的圖
 一起當附帶檔案送上去。
 
 ```
-Artifact(file_path="docs/index.html", root="docs",
-         files={"images/xxx.png": "images/xxx.png", ...})
+Artifact(file_path="docs/index.html", url="https://claude.ai/artifact/WaM7BicHtmSaqXjybQpi1u",
+         root="docs", files={"images/xxx.png": "images/xxx.png", ...})
 ```
+
+上鎖的做法（使用者 2026-11-25 選的）：對齊後自己跑 `artifact-sync-ack.js … aligned`，
+把加了鎖的副本（scratchpad）發佈到同一個網址，讀回確認是自己的鎖，再跑 `… locked`；
+改完在同一次發佈裡清鎖，讀回確認，跑 `… released`。
+
+**下載按鈕直接給 exe**（使用者要求）：官網的三個「下載安裝檔」連到
+`releases/download/v<版本>/ShundaIME-Setup-<版本>.exe`，不是 `releases/latest`。
 
 頁面裡的文件連結一律用 **GitHub 的絕對網址**，不要用 `install.md` 這種相對路徑：
 相對路徑在 Artifact 裡沒有東西可以指，在 GitHub Pages 上也會因為 Jekyll 把 `.md`
@@ -49,9 +63,11 @@ Artifact(file_path="docs/index.html", root="docs",
    架構 `docs/architecture.md`）、`CHANGELOG.md`
 2. **設定頁**（`src/smartime/settings/ui/`）：每個選項的說明文字、快捷鍵表
    （`app.js` 的 `renderShortcuts`），還有面板自己的說明列（`ui/panels.py` 的 `*_HELP`）
-3. **首頁 Artifact**：重跑 `tools\make_docs_images.py`，更新 `docs/index.html` 的說明與
-   圖說，再照 §1 重新發佈
-4. **首頁的版本籤**（`docs/index.html` 右上角 `<details class="ver">`）：手寫的版本清單。
+3. **首頁 Artifact**：重跑 `tools\make_docs_images.py`，更新 `docs/index.html`（官網）的說明與
+   圖說，再照 §1 重新發佈。新功能也在 `docs/classic.html` 補一句（它還留著）。
+   **出了新的正式版**：官網的版本小籤（`v0.10.1 正式版`）、三個下載按鈕的 exe 連結、
+   hero 下面那行檔名、README 最上面的「下載安裝檔」都要跟著改
+4. **舊首頁的版本籤**（`docs/classic.html` 右上角 `<details class="ver">`）：手寫的版本清單。
    每次 `set_version.py` 改了版號，就把右上角的版號、清單最上面「目前」那一筆一起改，
    舊的那一筆照它的實際狀態標（測試版／候選版／正式版／未發佈／只有標籤）；使用者在
    GitHub 發了 Release 之後，把那一版改成「正式版」並加下載連結。測試版都收在
