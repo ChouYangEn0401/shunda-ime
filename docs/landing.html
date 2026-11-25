@@ -1,6 +1,6 @@
 <title>順打輸入法 — 順著打就行</title>
 <meta name="artifact-url"  content="https://claude.ai/artifact/WaM7BicHtmSaqXjybQpi1u">
-<meta name="artifact-rev"  content="2026-11-25.2">
+<meta name="artifact-rev"  content="2026-11-25.3">
 <meta name="artifact-lock" content="">
 <!-- artifact-lock format when taken:  session=<session-id>; since=<ISO time>; note=<what is being changed> -->
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -136,10 +136,9 @@ a.pill:hover { border-color: var(--accent); }
   opacity: .75;
 }
 .hero-copy { min-width: 0; }
-.hero-brand { display: flex; align-items: center; gap: 14px; margin: 0 0 22px; }
-.hero-brand .keycap { width: 52px; height: 52px; font-size: 25px; }
-.hero-brand b { display: block; font-size: 24px; font-weight: 900; line-height: 1.2; letter-spacing: .02em; }
-.hero-brand small { display: block; font-size: 15.5px; color: var(--muted); letter-spacing: .12em; margin-top: 2px; }
+.hero-tag { display: flex; align-items: center; gap: 12px; margin: 0 0 14px;
+  font-size: clamp(17px, 2vw, 20px); font-weight: 700; letter-spacing: .14em; color: var(--muted); }
+.hero-tag::before { content: ""; flex: none; width: 28px; height: 3px; border-radius: 2px; background: var(--accent); }
 .hero h1 { font-size: clamp(40px, 6.4vw, 68px); line-height: 1.12; letter-spacing: -.02em; }
 .hero h1 em { font-style: normal; color: var(--accent); }
 .hero h1 span { display: block; }
@@ -372,11 +371,10 @@ footer a { color: var(--muted); }
 <!-- ============================================================ hero -->
 <section class="hero" id="top-of-page">
   <div class="hero-copy">
-    <!-- the full slogan in three sizes (user, 2026-11-25): name, promise, reason -->
-    <p class="hero-brand">
-      <span class="keycap" aria-hidden="true">順</span>
-      <span><b>順打輸入法</b><small>順著打就行。</small></span>
-    </p>
+    <!-- the full slogan, read top-down (user, 2026-11-25): the name is the top
+         bar's logo (only there — a second keycap + name here read as pasted
+         twice), then this promise, then the reason as the headline -->
+    <p class="hero-tag">順著打就行。</p>
     <h1><span>打錯了，</span><span><em>它自己會對。</em></span></h1>
     <p class="lede">
       Windows 的注音輸入法。中文、英文順著打，不用按切換鍵。注音打反、英文打錯一鍵、手滑多按一鍵，
