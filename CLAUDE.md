@@ -14,6 +14,8 @@
 - GitHub Pages 的首頁（Settings → Pages → deploy from branch `main` / `/docs`）
 - 發佈出去的 Artifact
 
+**動 `docs/index.html` 或發佈 Artifact 之前，第一步載入 `artifact-sync-protocol`，第一則回覆先貼「標頭檢查」（url、線上與本機 rev、鎖）。** 不先對齊、不上鎖，不改這個檔。依據與例外見 home-kit 的 `knowledge/conventions/artifact-sync.md`（裝了 `artifact-sync-guard` hook 之後會由系統擋）。
+
 **改了就三邊一起更新，不可以只改其中一邊。** 發佈 Artifact 時用同一個檔案路徑
 （這樣會更新同一個網址，不會長出第二個頁面），並且把 `docs/images/` 底下用到的圖
 一起當附帶檔案送上去。
