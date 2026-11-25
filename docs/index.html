@@ -1,6 +1,6 @@
 <title>順打輸入法</title>
 <meta name="artifact-url"  content="https://claude.ai/artifact/79QoG9YCBxMXNA9LUDsNZm">
-<meta name="artifact-rev"  content="2026-11-24.10">
+<meta name="artifact-rev"  content="2026-11-25.2">
 <meta name="artifact-lock" content="">
 <!-- artifact-lock format when taken:  session=<session-id>; since=<ISO time>; note=<what is being changed> -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -294,6 +294,17 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
 .next-items li::before { content: ""; position: absolute; left: 1px; top: .62em; width: 5px; height: 5px; border-radius: 50%; border: 1px solid var(--faint); }
 .next-items b { color: var(--ink); font-weight: 600; }
 .next-card .next-foot { margin-top: 6px; font-size: 11.5px; color: var(--faint); }
+/* ---------------------------------------------------------------- 新版官網 */
+[hidden] { display: none !important; }
+.moved { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px;
+  background: color-mix(in srgb, var(--ink) 38%, transparent); }
+.moved-card { width: min(420px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: var(--shadow); padding: 24px 24px 20px; display: flex; flex-direction: column; gap: 10px; }
+.moved-card h2 { font-size: 22px; margin-top: 4px; }
+.moved-card p { color: var(--muted); font-size: 15px; }
+.moved-card p b { color: var(--ink); font-weight: 500; }
+.moved-btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.moved-btns .btn { font: inherit; font-size: 15px; cursor: pointer; }
 @media (max-width: 520px) {
   .ver { top: 12px }
   .ver-list li { grid-template-columns: 6.6em minmax(0, 1fr) }
@@ -306,13 +317,28 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
 }
 </style>
 
+<!-- 新版官網（2026-11-25）：打開這頁先問一聲要不要過去。這頁照樣留著，
+     選「否」之後同一個瀏覽器不再問。沒有 script 時不會出現。 -->
+<div class="moved" id="moved" role="dialog" aria-modal="true" aria-labelledby="moved-h" hidden>
+  <div class="moved-card">
+    <span class="keycap keycap-sm" aria-hidden="true">順</span>
+    <h2 id="moved-h">順打有新的官網了</h2>
+    <p>新版首頁重新整理過，最新的快速詞也在那裡。這一頁會先留著，想看隨時可以回來。</p>
+    <p><b>要到新版官網嗎？</b></p>
+    <div class="moved-btns">
+      <a class="btn primary" href="https://claude.ai/artifact/WaM7BicHtmSaqXjybQpi1u">是</a>
+      <button class="btn" type="button" id="moved-stay">否，我想看看這裡</button>
+    </div>
+  </div>
+</div>
+
 <div class="wrap">
 
 <section class="hero">
   <!-- Version list: written by hand, updated with every version (CLAUDE.md §3).
        It ships with the page so the local copy opens offline. -->
   <details class="ver" id="ver">
-    <summary aria-label="版本：最新正式版 0.10.1，已在 GitHub 發佈；下一版 0.11.0-alpha.5 測試版可下載。點開看所有版本"><i class="dot"></i><b>v0.10.1</b>已發佈<span class="next" aria-hidden="true">下一版 0.11.0-alpha.5</span><span class="chev" aria-hidden="true">▼</span></summary>
+    <summary aria-label="版本：最新正式版 0.10.1，已在 GitHub 發佈；下一版 0.11.0-alpha.6 測試版可下載。點開看所有版本"><i class="dot"></i><b>v0.10.1</b>已發佈<span class="next" aria-hidden="true">下一版 0.11.0-alpha.6</span><span class="chev" aria-hidden="true">▼</span></summary>
     <div class="ver-pop">
       <h3>版本</h3>
       <p class="intro">「下載安裝檔」拿到的是最新的正式版。測試版、候選版多半只在開發者的電腦上建置、試用；下面有附「下載」連結的，才是在 GitHub 上公開發佈過的。</p>
@@ -320,8 +346,9 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
       <div class="ver-group">
         <p class="eyebrow">下一版</p>
         <div class="next-card">
-          <div class="next-head"><span class="v-name">0.11.0-alpha.5</span><span class="st st-alpha">測試版</span></div>
+          <div class="next-head"><span class="v-name">0.11.0-alpha.6</span><span class="st st-alpha">測試版</span></div>
           <ul class="next-items">
+            <li><b>快速詞打開頭也會建議</b>：打文字的前 3 個字（opu → opus-5.5-medium），按 Tab 才換；有鍵被略過時快速詞也照樣出現</li>
             <li><b>詞庫的整理建議</b>：列出可能用不到的詞，勾選刪除；照規則在本機判斷，不用 AI</li>
             <li><b>＠＃＄％＆＊ 有鍵了</b>：Ctrl+Shift+數字；任何符號後按 ↓ 都有全形</li>
             <li><b>設定頁更好讀</b>：每一列的說明大多剩一兩句</li>
@@ -339,10 +366,12 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
         <p class="eyebrow">開發中 · 0.11.0</p>
         <ul class="ver-list">
           <li class="alphas"><details>
-            <summary><span class="st st-alpha">0.11.0 的測試版</span><span class="v-note">alpha.1 – alpha.5 · 5 個</span><span class="chev" aria-hidden="true">▼</span></summary>
+            <summary><span class="st st-alpha">0.11.0 的測試版</span><span class="v-note">alpha.1 – alpha.6 · 6 個</span><span class="chev" aria-hidden="true">▼</span></summary>
             <ul class="ver-list">
+          <li class="compact"><span class="v-name">alpha.6<span class="v-date">2026-11-25</span></span>
+            <span class="v-body"><span class="st st-alpha">測試版</span><span class="st st-current">目前</span><span class="v-note">快速詞打開頭也會建議（opu → opus-5.5-medium，按 Tab 才換）；觸發字有鍵被略過時，快速詞照樣出現在「略過」旁邊</span><a href="https://github.com/ChouYangEn0401/shunda-ime/releases/tag/v0.11.0-alpha.6">下載</a></span></li>
           <li class="compact"><span class="v-name">alpha.5<span class="v-date">2026-11-24</span></span>
-            <span class="v-body"><span class="st st-alpha">測試版</span><span class="st st-current">目前</span><span class="v-note">詞庫的整理建議；＠＃＄％＆＊ 有鍵了；Ctrl+- Ctrl+/ 沒在打字時還給程式；Word／寫字板反白後單按 Ctrl 不再弄丟反白</span><a href="https://github.com/ChouYangEn0401/shunda-ime/releases/tag/v0.11.0-alpha.5">下載</a></span></li>
+            <span class="v-body"><span class="st st-unpub">未發佈</span><span class="v-note">標點表上 @ # $ % & * 那幾格標出「↓ ＠」；Ctrl 欄的空格子改顯示「·」</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/v0.11.0-alpha.5">原始碼</a></span></li>
           <li class="compact"><span class="v-name">alpha.4<span class="v-date">2026-11-24</span></span>
             <span class="v-body"><span class="st st-unpub">未發佈</span><span class="v-note">詞庫的整理建議；＠＃＄％＆＊ 有鍵了；Ctrl+- Ctrl+/ 沒在打字時還給程式；Word／寫字板反白後單按 Ctrl 不再弄丟反白</span><a href="https://github.com/ChouYangEn0401/shunda-ime/tree/v0.11.0-alpha.4">原始碼</a></span></li>
           <li class="compact"><span class="v-name">alpha.3<span class="v-date">2026-11-24</span></span>
@@ -582,17 +611,20 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
           提醒你這段字還沒送出去、按哪個鍵送出（嫌多可以換成只有一個點）。按標點時送出的也就是畫面上的字，
           不會在按下去的那一瞬間又變。</p>
         <p>你自己的排在前面：建議分兩行，上面一行是你的——<b>快速詞</b>（自己設的觸發字，打 <code>art</code>
-          按 <kbd>Tab</kbd> 就是 artifact）和你打過的詞，下面一行才是詞庫原本的。</p>
+          按 <kbd>Tab</kbd> 就是 artifact）和你打過的詞，下面一行才是詞庫原本的。
+          忘了觸發字也沒關係：直接打那段文字的前 3 個字（<code>opu</code>），一樣會建議整段（opus-5.5-medium），
+          按 <kbd>Tab</kbd> 才換；觸發字裡有鍵被當成雜鍵略過時，快速詞也照樣排在「略過」旁邊。</p>
         <p>輸入法替你做了決定時也在這裡說一聲：紅色是略過了一個鍵，琥珀色是把打錯一鍵的英文字改好了
           （<code>wrold</code> → world），按 <kbd>↓</kbd> 都能改回原樣。</p>
       </div>
       <figure>
         <img src="images/typing-suggestion-rows.png" alt="兩行的提示列：上面一行是快速詞「我們下週二見，記得帶筆電！ Tab」和你打過的「的專案」，下面一行是詞庫的「的、倆」">
+        <img src="images/typing-quick-dropped.png" alt="提示列：紅色「略過 o ↓」旁邊是橘色的快速詞「opus-5.5-medium Tab」" style="margin-top:10px">
         <img src="images/typing-suggestion.png" alt="提示列：淡藍小籤「的 Tab」，後面接「在 · 是」" style="margin-top:10px">
         <img src="images/typing-dropped.png" alt="提示列：紅色小籤「略過 e ↓」，右邊是注音 ㄍㄥ" style="margin-top:10px">
         <img src="images/typing-fixed.png" alt="提示列：琥珀色小籤「更正 wrold → world ↓」" style="margin-top:10px">
         <img src="images/typing-composing.png" alt="提示列只剩一個藍點和「Enter 送出」" style="margin-top:10px">
-        <figcaption>由上而下：你的建議在上一行（橘色快速詞、紫色你打過的詞），詞庫的在下一行；只有詞庫建議時是一行；有一個鍵被當成雜鍵略過了；英文打錯一鍵，自動改好了；沒別的話說時，提醒你字還沒送出。</figcaption>
+        <figcaption>由上而下：你的建議在上一行（橘色快速詞、紫色你打過的詞），詞庫的在下一行；o5m 的 o 被略過，快速詞照樣在旁邊；只有詞庫建議時是一行；有一個鍵被當成雜鍵略過了；英文打錯一鍵，自動改好了；沒別的話說時，提醒你字還沒送出。</figcaption>
       </figure>
     </div>
 
@@ -769,6 +801,7 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
 <footer>
   <span class="keycap keycap-sm" aria-hidden="true">順</span>
   <span>順打輸入法 · Apache License 2.0</span>
+  <span><a href="https://claude.ai/artifact/WaM7BicHtmSaqXjybQpi1u">新版官網</a></span>
   <span>開發者 <a href="https://github.com/ChouYangEn0401">ChouYangEn0401</a></span>
   <span>詞庫 McBopomofo（MIT）· 英文詞頻衍生自 wordfreq（CC BY-SA 4.0）· <a href="https://github.com/EasyIME/PIME">PIME</a>（LGPL 2.1）</span>
   <span>打字手感參考華碩智慧輸入法；本專案獨立開發，與華碩無關。</span>
@@ -777,6 +810,24 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
 </div>
 
 <script>
+// 新版官網的詢問：選過「否」就不再問（存在這個瀏覽器；存不了也沒關係，下次再問一次）
+(() => {
+  const box = document.getElementById("moved");
+  if (!box) return;
+  let stay = false;
+  try { stay = localStorage.getItem("shunda-stay-classic") === "1"; } catch (e) {}
+  if (stay) return;
+  const close = () => {
+    box.hidden = true;
+    try { localStorage.setItem("shunda-stay-classic", "1"); } catch (e) {}
+  };
+  box.hidden = false;
+  box.querySelector(".btn.primary").focus();
+  document.getElementById("moved-stay").addEventListener("click", close);
+  box.addEventListener("click", e => { if (e.target === box) close(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !box.hidden) close(); });
+})();
+
 // The version list closes like a menu: a click elsewhere or Esc. Without this
 // script <details> still opens and closes from its own tag.
 (() => {
