@@ -77,6 +77,7 @@ def sample_data(app) -> None:
     for r, n in zip(rows, [6, 14, 0, 3, 9, 1, 0, 22, 0, 2, 0, 5, 1]):
         for _ in range(n):
             u.used_snippet(r["id"])
+    u.add_quick_word("o5m", "opus-5.5-medium")
     u.add_quick_word("art", "artifact")
     u.add_quick_word("順", "順打輸入法好棒 !!")
     u.add_quick_word("addr", snippet_id=rows[0]["id"])

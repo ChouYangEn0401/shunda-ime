@@ -45,8 +45,13 @@ PANELS = [
     ("voice-recent", "{RCTRL}{TAB}", "candidates"),          # 錄音暫存
     ("quick-tab", "{RCTRL}{TAB}{TAB}", "candidates"),        # 快速詞, also when nothing is typed
     ("typing-composing", "ji3m06ok", "hint"),                # ● Enter 送出: not sent yet
+    ("typing-quick-dropped", "o5m", "hint"),                 # 略過 o and the 快速詞 o5m, side by side
+    ("typing-quick-prefix", "ji3opu", "hint"),               # the start of a 快速詞's text offers the rest
 ]
 SETTINGS_VIEWS = ["general", "dict", "punct", "practice", "about"]
+# One card (.group) of a settings page, cut out of a tall shot of it:
+# file name -> (page, which card from the top, 0-based)
+SETTINGS_CARDS = {"settings-quick-words": ("snippets", 2)}  # 新增片語, 我的片語, 快速詞, ...
 
 
 def render_panels(out: Path, scale: float, themes) -> list[Path]:
@@ -68,6 +73,7 @@ def render_panels(out: Path, scale: float, themes) -> list[Path]:
         engine.lexicon.user.add_snippet("感謝您的來信！我們已經收到，會在兩個工作天內回覆您。", "", "thanks")
         # a 快速詞 and a phrase of mine, so the two-row suggestion strip shows
         engine.lexicon.user.add_quick_word("我們", "我們下週二見，記得帶筆電！")
+        engine.lexicon.user.add_quick_word("o5m", "opus-5.5-medium")
         engine.lexicon.user.add("我們的專案", "ㄨㄛˇ-ㄇㄣ˙-ㄉㄜ˙-ㄓㄨㄢ-ㄢˋ", "zh", "")
         engine.lexicon.invalidate()
         import time
@@ -109,7 +115,55 @@ def render_settings(out: Path, dark: bool) -> list[Path]:
             continue
         made.append(out / f"settings-{view}.png")
         print(" ", (out / f"settings-{view}.png").name)
+    for name, (view, index) in SETTINGS_CARDS.items():
+        path = _settings_card(out / f"{name}.png", view, index)
+        if path is not None:
+            made.append(path)
+            print(" ", path.name)
     return made
+
+
+CARD_EDGE = (214, 219, 229)  # a .group's border (--line, light theme)
+
+
+def _settings_card(path: Path, view: str, index: int) -> Path | None:
+    """Shoot the whole page (tall window, nothing scrolled: a scrolled page
+    comes out blank in headless Edge), then cut out the index-th card by
+    following its left border down the page."""
+    from PIL import Image
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cmd = [sys.executable, "-m", "smartime.devtools.settings_shot", tmp, "--view", view, "--height", "4000"]
+        r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           env={**os.environ, "PYTHONPATH": str(ROOT / "src")})
+        if r.returncode != 0:
+            print(f"  ! {path.name}: {r.stderr.strip().splitlines()[-1:] or r.stdout.strip()}", file=sys.stderr)
+            return None
+        im = Image.open(Path(tmp) / f"settings-{view}.png").convert("RGB")
+        im.load()
+    # the cards' left edge: the first border-coloured column right of the rail
+    y_probe = im.height // 3
+    left = next((x for x in range(300, 400) if im.getpixel((x, y_probe)) == CARD_EDGE), None)
+    if left is None:
+        print(f"  ! {path.name}: no card edge found", file=sys.stderr)
+        return None
+    runs, start = [], None
+    for y in range(im.height):
+        edge = im.getpixel((left, y)) == CARD_EDGE
+        if edge and start is None:
+            start = y
+        elif not edge and start is not None:
+            if y - start > 20:
+                runs.append((start, y))
+            start = None
+    if index >= len(runs):
+        print(f"  ! {path.name}: only {len(runs)} cards on {view}", file=sys.stderr)
+        return None
+    top, bottom = runs[index]
+    right = next(x for x in range(im.width - 1, left, -1) if im.getpixel((x, (top + bottom) // 2)) == CARD_EDGE)
+    pad = 14  # past the rounded corners, onto the page around the card
+    im.crop((left - pad, top - pad, right + pad + 1, bottom + pad)).save(path)
+    return path
 
 
 def main() -> int:
