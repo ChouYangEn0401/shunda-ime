@@ -1,6 +1,6 @@
 <title>順打輸入法 — 順著打就行</title>
 <meta name="artifact-url"  content="https://claude.ai/artifact/WaM7BicHtmSaqXjybQpi1u">
-<meta name="artifact-rev"  content="2026-11-25.3">
+<meta name="artifact-rev"  content="2026-11-25.5">
 <meta name="artifact-lock" content="">
 <!-- artifact-lock format when taken:  session=<session-id>; since=<ISO time>; note=<what is being changed> -->
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -138,6 +138,8 @@ a.pill:hover { border-color: var(--accent); }
 .hero-copy { min-width: 0; }
 .hero-tag { display: flex; align-items: center; gap: 12px; margin: 0 0 14px;
   font-size: clamp(17px, 2vw, 20px); font-weight: 700; letter-spacing: .14em; color: var(--muted); }
+.dl-meta { margin-top: 10px; font-size: 13px; color: var(--faint); }
+.dl-meta code { font-size: 12.5px; }
 .hero-tag::before { content: ""; flex: none; width: 28px; height: 3px; border-radius: 2px; background: var(--accent); }
 .hero h1 { font-size: clamp(40px, 6.4vw, 68px); line-height: 1.12; letter-spacing: -.02em; }
 .hero h1 em { font-style: normal; color: var(--accent); }
@@ -381,11 +383,14 @@ footer a { color: var(--muted); }
       都在同一次判斷裡處理掉，你不用回頭刪掉重打。
     </p>
     <div class="cta">
-      <a class="btn primary" href="https://github.com/ChouYangEn0401/shunda-ime/releases/latest">
+      <!-- the exe itself, not the Releases page (user: 「要直接給 exe 連結才可以」);
+           change all three with each 正式版 (CLAUDE.md §3) -->
+      <a class="btn primary" href="https://github.com/ChouYangEn0401/shunda-ime/releases/download/v0.10.1/ShundaIME-Setup-0.10.1.exe">
         <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>下載安裝檔
       </a>
       <a class="btn" href="#tour">先看它怎麼用</a>
     </div>
+    <p class="dl-meta"><code>ShundaIME-Setup-0.10.1.exe</code> · 20 MB · <a href="https://github.com/ChouYangEn0401/shunda-ime/releases">其他版本</a></p>
     <div class="badges">
       <span><i class="dot" style="background:var(--memory)"></i>免費、開源（Apache-2.0）</span>
       <span><i class="dot" style="background:var(--accent)"></i>Windows 10 / 11</span>
@@ -731,8 +736,8 @@ footer a { color: var(--muted); }
     </ul>
   </details>
   <div class="cta">
-    <a class="btn primary" href="https://github.com/ChouYangEn0401/shunda-ime/releases/latest">
-      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>到 Releases 下載
+    <a class="btn primary" href="https://github.com/ChouYangEn0401/shunda-ime/releases/download/v0.10.1/ShundaIME-Setup-0.10.1.exe">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>下載安裝檔
     </a>
     <a class="btn" href="https://github.com/ChouYangEn0401/shunda-ime/blob/main/docs/install.md">完整安裝說明與疑難排解</a>
   </div>
@@ -796,7 +801,7 @@ footer a { color: var(--muted); }
   <h2>裝起來，打一句試試。</h2>
   <p>正式版 0.10.1，Windows 10 / 11。免費、開源，打的字不離開這台電腦。</p>
   <div class="cta">
-    <a class="btn primary" href="https://github.com/ChouYangEn0401/shunda-ime/releases/latest">
+    <a class="btn primary" href="https://github.com/ChouYangEn0401/shunda-ime/releases/download/v0.10.1/ShundaIME-Setup-0.10.1.exe">
       <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>下載安裝檔
     </a>
     <a class="btn" href="https://github.com/ChouYangEn0401/shunda-ime">
