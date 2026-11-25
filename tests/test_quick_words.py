@@ -87,3 +87,53 @@ def test_my_phrases_come_before_the_dictionarys(engine, u):
     assert v.suggestions[1:] == [s for s in system if s != "的專案"][:len(v.suggestions) - 1]
     panel = v.hint_panel
     assert panel.kinds[0] == "mine" and all(k == "system" for k in panel.kinds[1:])
+
+
+# --------------------------------------------- shown beside a hint / typed out
+@pytest.fixture
+def opus(u):
+    u.add_quick_word("o5m", "opus-5.5-medium")
+    u.add_quick_word("sb", "順打輸入法好棒 !!")
+    lex = Lexicon(paths.system_db_path(), u)
+    yield Engine(lexicon=lex, layout=DACHEN, decoder=Decoder(lex, DACHEN), config=Config())
+    lex.close()
+
+
+def test_a_trigger_is_shown_even_when_a_key_of_it_is_dropped(opus):
+    # o5m: the o is a stray to the decoder (略過 o ↓) and also my trigger —
+    # both are right, so both are on screen (it used to work on Tab unseen)
+    _, v = run(Session(opus), "o5m")
+    assert "略過 o" in v.hint
+    assert v.suggestions == ["opus-5.5-medium"] and v.suggestion_kinds == ["quick"]
+    assert v.hint_panel.dropped == "o" and v.hint_panel.suggestion == "opus-5.5-medium"
+    out, _ = run(Session(opus), "o5m{TAB}")
+    assert out == "opus-5.5-medium"
+
+
+def test_the_dictionarys_guesses_still_give_way_to_a_hint(opus):
+    _, v = run(Session(opus), "ji3a")  # 我 + half a syllable: only the reading
+    assert v.hint and v.suggestions == []
+
+
+def test_typing_the_start_of_a_quick_words_text_offers_the_rest(opus):
+    for typed, before in [("opu", ""), ("opus", ""), ("ji3opu", "我"), ("claude opu", "claude "),
+                          ("opus-5.5-m", "")]:
+        _, v = run(Session(opus), typed)
+        assert v.suggestions[:1] == ["opus-5.5-medium"] and v.suggestion_kinds[0] == "quick", typed
+        out, v = run(Session(opus), typed + "{TAB}")
+        assert out == before + "opus-5.5-medium" and v.composition == "", typed
+
+
+def test_the_start_of_a_text_needs_three_keys_a_word_start_and_not_all_of_it(opus):
+    for typed in ["op", "gopus", "opus-5.5-medium"]:
+        _, v = run(Session(opus), typed)
+        assert "opus-5.5-medium" not in v.suggestions, typed
+    out, _ = run(Session(opus), "opu ")  # never replaced without Tab
+    assert "opus-5.5-medium" not in out
+
+
+def test_a_chinese_text_is_offered_from_its_first_three_characters(opus):
+    _, v = run(Session(opus), "gjp4283")  # 順打
+    assert "順打輸入法好棒 !!" not in v.suggestions
+    out, _ = run(Session(opus), "ji3gjp4283gj {TAB}")  # 我順打輸
+    assert out == "我順打輸入法好棒 !!"

@@ -55,6 +55,7 @@ SELECTION_DIGITS = "123456789"
 RETYPE_WINDOW = 60.0  # seconds: Backspace and the same keys again within this is "not that one"
 SINGLE_CHAR_SUGGEST_MARGIN = 1.5  # stricter autocomplete threshold for 1-char context
 MAX_SUGGESTIONS = 18  # continuations kept (the hint box shows suggestion_count; Shift+Tab lists all)
+QUICK_PREFIX_MIN = 3  # typed start of a 快速詞's text before it is offered (opu → opus-5.5-medium)
 
 # Keys we consume while composing even though they produce no character.
 _COMPOSING_NAV = frozenset(
@@ -424,10 +425,19 @@ class Session(CorrectionMixin):
             v.hint = self._correction_hint()
         else:
             v.hint = self._hint()
-            if not v.hint and self.suggestion is not None:
-                v.suggestion = self.suggestion.text
-                v.suggestions = [x.text for x in self.suggestions[:self.cfg.suggestion_count]]
-                v.suggestion_kinds = [x.kind for x in self.suggestions[:self.cfg.suggestion_count]]
+            # A hint (half a syllable, 略過 o ↓) outranks the dictionary's
+            # guesses, but not my own 快速詞: o5m drops the o as a stray *and*
+            # is my trigger — both are right, so both are shown (reported: the
+            # quick word worked on Tab but was nowhere on screen). One rule for
+            # every 快速詞, no per-item setting.
+            # 快速詞 always lead self.suggestions, so Tab / Ctrl+N still point
+            # at the same items after this filter
+            shown = self.suggestions if not v.hint else [x for x in self.suggestions if x.kind == "quick"]
+            if shown and self.suggestion is not None:
+                shown = shown[:self.cfg.suggestion_count]
+                v.suggestion = shown[0].text
+                v.suggestions = [x.text for x in shown]
+                v.suggestion_kinds = [x.kind for x in shown]
         v.hint_panel = self._hint_panel(v)
         # One-off feedback used to live in PIME's message window; now that we
         # draw everything ourselves it has to ride on whichever panel is up,
@@ -2406,13 +2416,48 @@ class Session(CorrectionMixin):
             n = len(trigger)
             if trigger.isascii() and typed.lower().endswith(trigger.lower()):
                 a = len(typed) - n
-                if a == 0 or not self.keys[a - 1].char.isalnum() or self._word_ends_at(a):
+                if self._starts_word(a):
                     cut = a
             if cut is None and not trigger.isascii() and shown.endswith(trigger) and len(units) >= n:
                 cut = units[-n][0]
             if cut is not None:
                 out.append(Suggestion(q["text"], None, [], kind="quick", quick_id=q["id"], cut=cut))
+        # The start of a 快速詞's text typed out by hand (opu… → opus-5.5-medium):
+        # writing it down as a 快速詞 says it is typed often, so offer the
+        # rest. Only offered — Tab takes it, typing on ignores it.
+        matched = {s.quick_id for s in out}
+        for q in quick:
+            if q["id"] in matched:
+                continue
+            cut = self._quick_prefix_cut(q["text"], typed, shown, units)
+            if cut is not None:
+                out.append(Suggestion(q["text"], None, [], kind="quick", quick_id=q["id"], cut=cut))
         return out
+
+    def _starts_word(self, a: int) -> bool:
+        """Key ``a`` starts a word: the first key, after a space or a symbol,
+        or right after Chinese (我art) — not inside one (st|art, g|opus)."""
+        return a == 0 or not self.keys[a - 1].char.isalnum() or self._word_ends_at(a)
+
+    def _quick_prefix_cut(self, text: str, typed: str, shown: str, units) -> int | None:
+        """Where the typed start of ``text`` begins (the key replaced from),
+        when at least QUICK_PREFIX_MIN of it and not all of it is there.
+
+        English text is matched on the keys, like a trigger: what the screen
+        shows changes as the decoder guesses (opus-5.5-m shows opus-洲5-m).
+        Chinese text is matched on the characters shown."""
+        if not text or text[0].isspace():
+            return None
+        if text[0].isascii():
+            low = typed.lower()
+            for k in range(min(len(typed), len(text) - 1), QUICK_PREFIX_MIN - 1, -1):
+                if low.endswith(text[:k].lower()) and self._starts_word(len(typed) - k):
+                    return len(typed) - k
+            return None
+        for k in range(min(len(units), len(text) - 1), QUICK_PREFIX_MIN - 1, -1):
+            if shown.endswith(text[:k]):
+                return units[-k][0]
+        return None
 
     def _word_ends_at(self, a: int) -> bool:
         """A segment ends right before key ``a`` and it is not part of an

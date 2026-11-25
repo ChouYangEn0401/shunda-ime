@@ -380,6 +380,8 @@ class SmartTextService:
             message = v.candidate_title
         elif v.hint:
             message = v.hint
+            if v.suggestion:  # only a 快速詞 is shown next to a hint (Session.view)
+                message += f"　{v.suggestion}  Tab"
         elif v.suggestion:
             others = v.suggestions[1:]
             message = f"{v.suggestion}  Tab" + "".join(f" · {s}" for s in others)

@@ -550,7 +550,8 @@
         <div class="group">
           <h3 data-new="quick-words">快速詞 <span class="note" style="letter-spacing:0" id="qw-count"></span></h3>
           <div class="row"><div class="full">
-            <p style="margin-top:0">打到觸發字，提示列最前面會用橘色建議這段文字，按 <kbd>Tab</kbd> 直接打出（取代觸發字）。可以自己寫，也可以直接連到一筆片語。</p>
+            <p style="margin-top:0">打到觸發字，提示列最前面會用橘色建議這段文字，按 <kbd>Tab</kbd> 直接打出（取代觸發字）。觸發字裡有鍵被當成雜鍵略過（「略過 o」）時也照樣建議，兩個提示並排。可以自己寫，也可以直接連到一筆片語。</p>
+            <div data-new="quick-prefix" style="margin:0 0 12px"><div class="label">打開頭也會建議</div><div class="desc">沒打觸發字、直接打文字的開頭也可以：打到前 3 個字（<code>opu</code> → <code>opus-5.5-medium</code>、<code>順打輸</code> → 整句），一樣用橘色建議，按 <kbd>Tab</kbd> 才換成整段，不按就照你打的。要從一個字的開頭打起（空白、符號或中文後面），黏在英文字母後面不算。</div></div>
             <form class="qw-form" id="qw-form" autocomplete="off">
               <input type="text" id="qw-trigger" placeholder="觸發字，例如：art" aria-label="觸發字" maxlength="20">
               <select id="qw-link" aria-label="連到片語"></select>

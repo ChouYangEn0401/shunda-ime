@@ -51,6 +51,9 @@ class Feature:
 
 # Newest first. Only features — never words, phrases or symbol data.
 FEATURES: tuple[Feature, ...] = (
+    Feature("quick-prefix", "0.11.0-alpha.6", "snippets", "快速詞：打開頭也會建議",
+            "直接打快速詞文字的前 3 個字（opu → opus-5.5-medium），提示列一樣用橘色建議，按 Tab 才換成整段。"
+            "觸發字裡有鍵被當成雜鍵略過時，快速詞也照樣出現在「略過」旁邊。"),
     Feature("dict-cleanup", "0.11.0-alpha.4", "dict", "詞庫的整理建議",
             "列出可能用不到的詞：只用過一次、很久沒用、英文像打錯的。勾選後刪除；只看自動收集的詞。"),
     Feature("punct-fullwidth", "0.11.0-alpha.4", "punct", "＠＃＄％＆＊ 也有鍵了",

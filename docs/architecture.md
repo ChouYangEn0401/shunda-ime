@@ -153,7 +153,11 @@
   mine（`user.lookup` 有：加過或學過）、system。順序 quick → mine → system，Tab 拿第一個、Ctrl+N 第 N 個；
   提示列（`ui/panels.py` 的 `_hint_rows`）有任何非 system 就分兩行（上：quick＋mine，下：system），編號跨行接續。
   英文觸發字比對最後幾個**按鍵**且要在字的開頭（`_word_ends_at`），中文觸發字比對畫面上最後幾個字；接受時刪掉觸發字的鍵、
-  送出前面的字、再送出文字（`_accept_quick`）。練習場借一個示範快速詞（`practice.DEMO_QUICK`），只在練習框有焦點時存在。
+  送出前面的字、再送出文字（`_accept_quick`）。
+  打文字的開頭也會建議（`_quick_prefix_cut`，至少 `QUICK_PREFIX_MIN` 個、不含整段）：英文開頭的比對按鍵
+  （畫面上的字會隨解碼改變，`opus-5.5-m` 顯示成 `opus-洲5-m`），中文開頭的比對畫面上的字。
+  提示（半個音、「略過 o」）蓋掉詞庫的建議，但**不蓋快速詞**（`Session.view`）：兩個都對，一起顯示；
+  快速詞永遠排在最前面，所以過濾後 Tab／Ctrl+N 的編號不變。練習場借一個示範快速詞（`practice.DEMO_QUICK`），只在練習框有焦點時存在。
 - **含底線的英文字**：`Lexicon.identifiers`（我的詞庫裡含 `_` 的英文字，依第一個字母）讓解碼器整個比對，
   因為一般英文 token 會在 `_` 切開；Ctrl+D 往前找字時底線也算字（`_typed_letter`）。
 - **只從明確的選擇學習**：候選窗選字、Tab 接受、單字選出新詞、修正模式最後停下的字。解碼器猜的、使用者沒動的字不學，
