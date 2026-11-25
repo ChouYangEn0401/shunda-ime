@@ -1,7 +1,7 @@
-<title>順打輸入法</title>
-<meta name="artifact-url"  content="尚無">
-<meta name="artifact-rev"  content="2026-11-25.1">
-<meta name="artifact-lock" content="session=fcc66d6f-3a35-4240-8453-e098e6e03f0d; since=2026-11-25T11:05+08:00; note=首次發佈：Fable 設計的新推廣頁">
+<title>順打輸入法 — 順著打就行</title>
+<meta name="artifact-url"  content="https://claude.ai/artifact/WaM7BicHtmSaqXjybQpi1u">
+<meta name="artifact-rev"  content="2026-11-25.2">
+<meta name="artifact-lock" content="">
 <!-- artifact-lock format when taken:  session=<session-id>; since=<ISO time>; note=<what is being changed> -->
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -136,6 +136,10 @@ a.pill:hover { border-color: var(--accent); }
   opacity: .75;
 }
 .hero-copy { min-width: 0; }
+.hero-brand { display: flex; align-items: center; gap: 14px; margin: 0 0 22px; }
+.hero-brand .keycap { width: 52px; height: 52px; font-size: 25px; }
+.hero-brand b { display: block; font-size: 24px; font-weight: 900; line-height: 1.2; letter-spacing: .02em; }
+.hero-brand small { display: block; font-size: 15.5px; color: var(--muted); letter-spacing: .12em; margin-top: 2px; }
 .hero h1 { font-size: clamp(40px, 6.4vw, 68px); line-height: 1.12; letter-spacing: -.02em; }
 .hero h1 em { font-style: normal; color: var(--accent); }
 .hero h1 span { display: block; }
@@ -213,6 +217,12 @@ a.pill:hover { border-color: var(--accent); }
 .stage.row { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
 .stage.row .shot { flex: 0 1 var(--w); min-width: 0; }
 .stage.flush { padding: 0; }
+.thumb { flex: 0 1 150px; min-width: 0; padding: 0; border: 2px solid transparent; border-radius: 10px; background: none; cursor: pointer; transition: border-color .15s, transform .15s; }
+.thumb .shot { width: 100%; }
+.thumb:hover { transform: translateY(-2px); }
+.thumb[aria-pressed="true"] { border-color: var(--accent); cursor: default; transform: none; }
+.thumb:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .thumb { transition: none } .thumb:hover { transform: none } }
 .stage.flush .shot { border-radius: 0; box-shadow: none; }
 .window { margin: 0; border-radius: 16px; overflow: hidden; border: 1px solid var(--line-2); background: var(--surface); box-shadow: var(--shadow-lg); min-width: 0; }
 .window .bar { display: flex; align-items: center; gap: 7px; padding: 10px 14px; background: var(--sunk); border-bottom: 1px solid var(--line); }
@@ -362,6 +372,11 @@ footer a { color: var(--muted); }
 <!-- ============================================================ hero -->
 <section class="hero" id="top-of-page">
   <div class="hero-copy">
+    <!-- the full slogan in three sizes (user, 2026-11-25): name, promise, reason -->
+    <p class="hero-brand">
+      <span class="keycap" aria-hidden="true">順</span>
+      <span><b>順打輸入法</b><small>順著打就行。</small></span>
+    </p>
     <h1><span>打錯了，</span><span><em>它自己會對。</em></span></h1>
     <p class="lede">
       Windows 的注音輸入法。中文、英文順著打，不用按切換鍵。注音打反、英文打錯一鍵、手滑多按一鍵，
@@ -644,13 +659,15 @@ footer a { color: var(--muted); }
       </div>
       <figure class="window">
         <div class="bar"><i></i><i></i><i></i><span>順打輸入法 設定</span></div>
-        <div class="stage flush"><img class="shot" src="images/settings-general.png" width="1280" height="1100" loading="lazy" alt="設定頁的一般頁面，每種輸入方式一張卡片"></div>
-        <div class="stage row" style="border-top:1px solid var(--line)">
-          <img class="shot" style="--w:200px" src="images/settings-punct.png" width="1280" height="1100" loading="lazy" alt="設定頁的標點與符號頁面">
-          <img class="shot" style="--w:200px" src="images/settings-dict.png" width="1280" height="1100" loading="lazy" alt="設定頁的我的詞庫頁面">
-          <img class="shot" style="--w:200px" src="images/settings-practice.png" width="1280" height="1100" loading="lazy" alt="設定頁的練習場頁面">
+        <div class="stage flush"><img class="shot" id="set-main" src="images/settings-general.png" width="1280" height="1100" loading="lazy" alt="設定頁的一般頁面，每種輸入方式一張卡片"></div>
+        <!-- thumbnails switch the big picture (user: 「我以為…我按了以後會換？」) -->
+        <div class="stage row set-thumbs" style="border-top:1px solid var(--line)">
+          <button type="button" class="thumb" aria-pressed="true" data-name="一般"><img class="shot" src="images/settings-general.png" width="1280" height="1100" loading="lazy" alt="設定頁的一般頁面，每種輸入方式一張卡片"></button>
+          <button type="button" class="thumb" aria-pressed="false" data-name="標點與符號"><img class="shot" src="images/settings-punct.png" width="1280" height="1100" loading="lazy" alt="設定頁的標點與符號頁面：每個鍵 × 四種按法的對照表"></button>
+          <button type="button" class="thumb" aria-pressed="false" data-name="我的詞庫"><img class="shot" src="images/settings-dict.png" width="1280" height="1100" loading="lazy" alt="設定頁的我的詞庫頁面：自動收集與整理過的詞"></button>
+          <button type="button" class="thumb" aria-pressed="false" data-name="練習場"><img class="shot" src="images/settings-practice.png" width="1280" height="1100" loading="lazy" alt="設定頁的練習場頁面"></button>
         </div>
-        <figcaption>上面是「一般」；下面三張小的是標點與符號、我的詞庫、練習場。</figcaption>
+        <figcaption>大圖是「<span id="set-name">一般</span>」；點下面的小圖換成那一頁。</figcaption>
       </figure>
     </div>
   </div>
@@ -817,6 +834,18 @@ footer a { color: var(--muted); }
     play();
     if (replay) { replay.hidden = false; replay.addEventListener("click", play); }
   }
+
+  // 設定頁：點小圖換大圖（沒有 script 時大圖固定是「一般」，小圖照樣看得到）
+  const setMain = document.getElementById("set-main");
+  const setName = document.getElementById("set-name");
+  document.querySelectorAll(".set-thumbs .thumb").forEach((t, _, all) => {
+    t.addEventListener("click", () => {
+      const img = t.querySelector("img");
+      setMain.src = img.src; setMain.alt = img.alt;
+      setName.textContent = t.dataset.name;
+      all.forEach(o => o.setAttribute("aria-pressed", o === t ? "true" : "false"));
+    });
+  });
 
   // 畫面導覽：分頁。沒有這段 script 時六個畫面全部攤開往下排。
   const tabs = document.getElementById("tabs");
