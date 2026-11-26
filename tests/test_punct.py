@@ -119,3 +119,46 @@ def test_down_after_any_symbol_offers_its_full_width_form(session, typed, wanted
 def test_the_taiwanese_interpunct_is_one_down_away(session):
     run(session, "ji3{C-/}{DOWN}")
     assert "‧" in [c.text for c in session.cand.shown]
+
+
+# Found by typing thousands of combinations of the user's own words (their
+# exported memory) and comparing the screen before a mark with what was sent.
+# The decode before the cut was right every time; sending it one segment at
+# a time read what was left again *without the words before it*: 摸 alone is
+# the keys ``ai␣`` — the English "ai" (user: 「ai=摸」「ㄟ=o」「打標點的那一
+# 瞬間會變換…原本我看文字都對了」).
+@pytest.mark.parametrize("keys", [
+    "ji3ai ",                      # 我摸 -> 我ai
+    "1p3au04ru.4aiu 5 ",           # 本面就麼一隻 -> 本面就ai一隻
+    "c.4u42941j6aifm,4g6",         # 後裔代不麼確實 -> 後裔代不ai確實
+    "a84i5; 53",                   # 罵張只 -> 罵i張只
+    "vu0 o ",                      # 先o -> 先ㄟ
+    "pnpm ai fu4yji4gji au/6u,4",  # …ai 氣… -> …摸氣…
+])
+@pytest.mark.parametrize("mark", ["{C-,}", "{C-.}", "{CS-/}", "{CS-1}", "{CS-;}"])
+def test_what_is_left_after_a_cut_is_not_read_again(session, keys, mark):
+    _, v = run(session, keys)
+    shown = v.composition
+    out, v = run(session, mark)
+    assert (out + v.composition)[:-1] == shown
+
+
+def test_overflow_sends_what_was_on_screen(engine, monkeypatch):
+    """The 30-character limit sent the oldest words one at a time too: what
+    is sent plus what is left must be exactly what was there before."""
+    from smartime.engine.session import Session
+
+    engine.config = Config.from_dict({"max_buffer_chars": 8})
+    s = Session(engine)
+    cuts = []
+    real = Session._commit_up_to
+
+    def cut(self, pos):
+        before, sent = self.decoding.text, len(self._commit)
+        real(self, pos)
+        cuts.append((before, self._commit[sent:] + self.decoding.text))
+
+    monkeypatch.setattr(Session, "_commit_up_to", cut)
+    out, v = run(s, "ji3ai 1p3au04ru.4aiu 5 c.4u42941j6aifm,4g6ji3ai su3ai ")
+    assert cuts and all(before == after for before, after in cuts)
+    assert len(v.composition) <= 8

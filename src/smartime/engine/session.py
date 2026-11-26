@@ -13,6 +13,7 @@ fixed with the candidate window.
 
 from __future__ import annotations
 
+import itertools
 import time
 from dataclasses import dataclass, field, replace
 from functools import partial
@@ -904,17 +905,26 @@ class Session(CorrectionMixin):
         self._commit_overflow()
 
     def _commit_up_to(self, pos: int) -> None:
-        """Commit every segment that ends at or before key ``pos``."""
-        while self.decoding.segments:
-            first = self.decoding.segments[0]
-            if first.end > pos:
-                break
-            self._commit += first.text
-            self._text_here += first.text
-            self._delete_keys(0, first.end)
-            pos -= first.end
-            self._forget_history()
-            self._redecode()
+        """Commit every segment that ends at or before key ``pos`` — all at
+        once, exactly as on screen.
+
+        It used to send one segment, decode what was left, and send the
+        next: the rest was read again without the words before it, in the
+        instant it was sent. 我摸， went out as 我ai (摸's keys ``ai␣`` are
+        the English *ai* on their own), 本面就麼一隻 as 本面就ai一隻 (user,
+        after three fixes that only looked at the decode *before* the cut:
+        「打標點的那一瞬間會變換…原本我看文字都對了」)."""
+        done = list(itertools.takewhile(lambda s: s.end <= pos, self.decoding.segments))
+        if not done:
+            return
+        if done[-1].end >= len(self.keys):
+            self.commit_all()
+            return
+        text = "".join(s.text for s in done)
+        self._commit += text
+        self._text_here += text
+        self._delete_range(0, done[-1].end)  # what is left stays as it was on screen
+        self._forget_history()
 
     def _delete_keys(self, a: int, b: int) -> None:
         del self.keys[a:b]
@@ -1090,15 +1100,17 @@ class Session(CorrectionMixin):
         if len(self.decoding.units()) <= limit or not segs or segs[-1].kind is Kind.PENDING:
             return
         target = max(limit // 2, limit - 10)
-        while len(self.decoding.units()) > target and len(self.decoding.segments) > 1:
-            first = self.decoding.segments[0]
-            if first.end > self.cursor:
+        # whole segments from the left, before the cursor, keeping at least
+        # one; sent in one go, as on screen (see _commit_up_to)
+        all_units = self.decoding.units()
+        left, cut = len(all_units), 0
+        for seg in segs[:-1]:
+            if left <= target or seg.end > self.cursor:
                 break
-            self._commit += first.text
-            self._text_here += first.text
-            self._delete_keys(0, first.end)
-            self._forget_history()
-            self._redecode()
+            left -= sum(1 for u in all_units if seg.start <= u[0] < seg.end)
+            cut = seg.end
+        if cut:
+            self._commit_up_to(cut)
 
     def _reset_buffer(self) -> None:
         self._learned_here = []
