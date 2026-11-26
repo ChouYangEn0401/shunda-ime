@@ -134,6 +134,10 @@ def test_the_taiwanese_interpunct_is_one_down_away(session):
     "a84i5; 53",                   # 罵張只 -> 罵i張只
     "vu0 o ",                      # 先o -> 先ㄟ
     "pnpm ai fu4yji4gji au/6u,4",  # …ai 氣… -> …摸氣…
+    # the user's own sentence (alpha.6): 「或至少起碼 .venv 這種應該可以跳過吧」
+    # showed .ven␣這種 and went out as .venㄒ這種 on ？ (argv: venv is a known
+    # word since 0.11.0, the bug did not need it)
+    "cji454gl3fu3a83 .argv 5k45j/3u/ e9 dk3u3wul4eji418 ",
 ])
 @pytest.mark.parametrize("mark", ["{C-,}", "{C-.}", "{CS-/}", "{CS-1}", "{CS-;}"])
 def test_what_is_left_after_a_cut_is_not_read_again(session, keys, mark):
