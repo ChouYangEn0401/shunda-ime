@@ -1,6 +1,6 @@
 <title>順打輸入法 — 順著打就行</title>
 <meta name="artifact-url"  content="https://claude.ai/artifact/WaM7BicHtmSaqXjybQpi1u">
-<meta name="artifact-rev"  content="2026-11-25.5">
+<meta name="artifact-rev"  content="2026-11-26.2">
 <meta name="artifact-lock" content="">
 <!-- artifact-lock format when taken:  session=<session-id>; since=<ISO time>; note=<what is being changed> -->
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -621,6 +621,7 @@ footer a { color: var(--muted); }
         <h3>修正模式：Vim 式的指令，字不會亂跑</h3>
         <p>組字中按 <kbd>Esc</kbd>，鍵盤變成指令。<kbd>←</kbd> <kbd>→</kbd> 移動（英文整個字一格）、<kbd>↓</kbd> 選字、<kbd>j</kbd> <kbd>k</kbd> 只換游標上的字、<kbd>r</kbd> 重打、<kbd>Esc</kbd> 回去打字。只有明確的指令會離開，其他鍵都不會不小心打出字。</p>
         <p>英文或數字跟中文黏在一起（<code>games以</code>、<code>10284</code>）時，<kbd>↓</kbd> 直接列出其他分法（<code>game｜你</code>、<code>10｜大</code>），也可以用 <kbd>Shift</kbd>+<kbd>←</kbd> <kbd>→</kbd> 自己推分界。</p>
+        <p><b>不知道錯在哪？按 <kbd>n</kbd>。</b>游標跳到輸入法自己最拿不準的字（同音字分數很接近的地方），提示列問你「在」還是「再」？<kbd>j</kbd> 換、再按 <kbd>n</kbd> 下一個（0.11.0 測試版）。</p>
         <p>設定頁的「練習場」會帶你把這些親手做一次。</p>
       </div>
       <figure class="window">

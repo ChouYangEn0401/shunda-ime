@@ -1,6 +1,6 @@
 <title>順打輸入法</title>
 <meta name="artifact-url"  content="https://claude.ai/artifact/79QoG9YCBxMXNA9LUDsNZm">
-<meta name="artifact-rev"  content="2026-11-26.2">
+<meta name="artifact-rev"  content="2026-11-26.4">
 <meta name="artifact-lock" content="">
 <!-- artifact-lock format when taken:  session=<session-id>; since=<ISO time>; note=<what is being changed> -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -351,6 +351,8 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
             <li><b>按標點的那一瞬間，字真的不再變</b>：「我摸，」不會變「我ai，」；游標移回句子中間再按標點，旁邊的字也不動</li>
             <li><b>打字比較不卡</b>：每一鍵快一倍，選字之後的下一鍵不再頓一下，詞庫再大也一樣快</li>
             <li><b>開發用的英文字照打</b>：pnpm、venv、pytest、hotfix 等不再被改掉或吃掉字母</li>
+            <li><b>Tab 只在後面接字</b>：「按住」按 Tab 不再變「案住民」；句中打一半的注音、復原再重做也都照畫面</li>
+            <li><b>修正模式按 n：跳到可疑的字</b>：輸入法自己最拿不準的地方，問你「在」還是「再」？j 換、n 下一個</li>
             <li><b>快速詞打開頭也會建議</b>：打文字的前 3 個字（opu → opus-5.5-medium），按 Tab 才換；有鍵被略過時快速詞也照樣出現</li>
             <li><b>詞庫的整理建議</b>：列出可能用不到的詞，勾選刪除；照規則在本機判斷，不用 AI</li>
             <li><b>＠＃＄％＆＊ 有鍵了</b>：Ctrl+Shift+數字；任何符號後按 ↓ 都有全形</li>
@@ -372,7 +374,7 @@ footer .keycap-sm { font-size: 13px; width: 28px; height: 28px; border-radius: 7
             <summary><span class="st st-alpha">0.11.0 的測試版</span><span class="v-note">alpha.1 – alpha.7 · 7 個</span><span class="chev" aria-hidden="true">▼</span></summary>
             <ul class="ver-list">
           <li class="compact"><span class="v-name">alpha.7<span class="v-date">2026-11-26</span></span>
-            <span class="v-body"><span class="st st-alpha">測試版</span><span class="st st-current">目前</span><span class="v-note">按標點的那一刻不再變字（剩下的字不再被重新解讀）；游標在中間打標點旁邊不動；打字、選字更快；開發用英文字照打</span></span></li>
+            <span class="v-body"><span class="st st-alpha">測試版</span><span class="st st-current">目前</span><span class="v-note">按標點的那一刻不再變字（剩下的字不再被重新解讀）；游標在中間打標點旁邊不動；Tab 不再改前面的字；打字、選字更快；開發用英文字照打；修正模式按 n 跳到可疑的字</span></span></li>
           <li class="compact"><span class="v-name">alpha.6<span class="v-date">2026-11-25</span></span>
             <span class="v-body"><span class="st st-alpha">測試版</span><span class="v-note">快速詞打開頭也會建議（opu → opus-5.5-medium，按 Tab 才換）；觸發字有鍵被略過時，快速詞照樣出現在「略過」旁邊</span><a href="https://github.com/ChouYangEn0401/shunda-ime/releases/tag/v0.11.0-alpha.6">下載</a></span></li>
           <li class="compact"><span class="v-name">alpha.5<span class="v-date">2026-11-24</span></span>
