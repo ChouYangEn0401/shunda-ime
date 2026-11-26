@@ -51,6 +51,9 @@ class Feature:
 
 # Newest first. Only features — never words, phrases or symbol data.
 FEATURES: tuple[Feature, ...] = (
+    Feature("suspect-next", "0.11.0-alpha.7", "fix", "修正模式按 n：跳到可疑的字",
+            "按 Esc 進修正模式後按 n，游標跳到輸入法自己最拿不準的字（同音字分數很接近的地方），"
+            "提示列說「在」還是「再」？；j 換、n 下一個。只是一個鍵，不加新模式。"),
     Feature("quick-prefix", "0.11.0-alpha.6", "snippets", "快速詞：打開頭也會建議",
             "直接打快速詞文字的前 3 個字（opu → opus-5.5-medium），提示列一樣用橘色建議，按 Tab 才換成整段。"
             "觸發字裡有鍵被當成雜鍵略過時，快速詞也照樣出現在「略過」旁邊。"),

@@ -1,3 +1,5 @@
+import pytest
+
 """Correction mode (Esc while composing; Vim-like keys)."""
 
 from smartime.devtools.simulate import run
@@ -242,3 +244,31 @@ def test_j_says_so_when_there_is_nothing_else(session):
     if "沒有別的寫法" not in v.notice:
         _, v = run(session, "j")
     assert v.correcting
+
+
+# n (as in Vim: next match): the character the decoder was least sure of.
+# Sentences from docs/keys.md, typed and decoded with nothing learned.
+@pytest.mark.parametrize("keys, shown, fixed", [
+    ("1j6cjo4xu.6u 284dj94dj/ 196", "不會流一大塊空白", "不會留一大塊空白"),
+    ("5j/ jp6c.4au04vu0 283dj/ 196y94283", "中文後面先打空白在打", "中文後面先打空白再打"),
+    ("2041ul 2u031p3gp xu.6y94yj3y4fm ", "但標點本身留在組自區", "但標點本身留在組字區"),
+])
+def test_n_goes_to_the_doubtful_character_and_j_fixes_it(session, keys, shown, fixed):
+    _, v = run(session, keys + "{ESC}")
+    assert v.composition == shown
+    _, v = run(session, "n")
+    wrong = next(i for i, (a, b) in enumerate(zip(shown, fixed)) if a != b)
+    assert v.cursor == wrong and v.notice.startswith("可疑") and fixed[wrong] in v.notice
+    _, v = run(session, "j")
+    assert v.composition == fixed
+
+
+def test_n_walks_on_and_says_when_nothing_is_doubtful(session):
+    _, v = run(session, "2041ul 2u031p3gp xu.6y94yj3y4fm {ESC}n")
+    first = v.cursor
+    assert "（1／" in v.notice
+    _, v = run(session, "n")
+    assert v.cursor != first and "（2／" in v.notice
+    run(session, "{ESC}{ESC}DD")
+    _, v = run(session, "ji3ap7{ESC}n")  # 我們: nothing close
+    assert v.notice == "這句沒有特別可疑的字"
