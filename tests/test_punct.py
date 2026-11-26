@@ -162,3 +162,18 @@ def test_overflow_sends_what_was_on_screen(engine, monkeypatch):
     out, v = run(s, "ji3ai 1p3au04ru.4aiu 5 c.4u42941j6aifm,4g6ji3ai su3ai ")
     assert cuts and all(before == after for before, after in cuts)
     assert len(v.composition) <= 8
+
+
+# The cursor moved back into the text and a mark typed there: 42% of such
+# sentences changed a character beside it (the user's words, thousands of
+# combinations). The same rule as at the end: what is on screen stays.
+@pytest.mark.parametrize("keys, left, mark, want", [
+    ("the5/4au/6c04vm/ xk7m/4ai", 7, "{C-.}", "the證。明和兄了用ai"),   # was the政。明…
+    ("u.3ru.42u03a/6 ul4ej4gitxul6rul q94 ", 6, "{CS-1}", "有就點盟 要故g！it療教派 "),  # the g went
+    ("ck6gitea ", 2, "{C-,}", "合gite，a "),            # gite， corrected to gitea，a
+    ("tj xul6ru031l4q a 5j/3ppt", 1, "{C-,}", "出療簡報 a 種p，t"),  # p of an unfinished syllable went
+])
+def test_a_mark_typed_into_the_middle_changes_nothing_beside_it(session, keys, left, mark, want):
+    _, v = run(session, keys + "{LEFT}" * left)
+    out, v = run(session, mark)
+    assert out + v.composition == want

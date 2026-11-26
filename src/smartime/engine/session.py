@@ -862,13 +862,19 @@ class Session(CorrectionMixin):
         self._run_end = pos + 1 if (continuing or middle or self._retype_at is not None) else None
         self.cursor = pos + 1
         self._redecode()
-        if hold_before and not middle and not self.correcting:
+        if hold_before and not self.correcting:
             # Reported: 「剛剛都看對了，結果因為標點符號他立刻更換，反而改錯」.
             # The mark closes the sentence, and decoding a closed end may
             # read the words before it differently — in the instant it is
             # sent, with no chance to see it. What was read is what is sent —
             # English, skipped keys and raw letters too (see _hold_outside).
-            self._hold_outside(pos, pos + 1, old, exact=True)
+            if middle:
+                # typed between two characters: neither side changes either
+                # (the 正名 of the「正。名」typed into it became 政。明, and a
+                # mark after the g of git dropped the g)
+                self._keep_as_shown(old, pos, pos, 1)
+            else:
+                self._hold_outside(pos, pos + 1, old, exact=True)
         if not middle and not self.correcting:
             self._check_retype()
         here = next((s for s in self.decoding.segments if s.start <= pos < s.end), None)
@@ -1049,22 +1055,40 @@ class Session(CorrectionMixin):
             self._reset_buffer()
             return
         self._redecode()
-        if not stable:
-            return
-        width = b - a
+        if stable:
+            self._keep_as_shown(old, a, b, 0)
+
+    def _keep_as_shown(self, old, a: int, b: int, added: int) -> None:
+        """Keys [a, b) of ``old`` were replaced by ``added`` new keys at
+        ``a`` (a deletion: none; a mark typed into the middle: one). Every
+        other character stays exactly as it was on screen, and no hidden
+        stray key comes back. Where the decoder would read something
+        differently, the old reading is pinned (only there).
+
+        The raw letters of an unfinished syllable are not pinned after a
+        deletion (they are still being typed); around a typed mark they are
+        kept as the letters they were (p|t with a mark between: the p went)."""
+        delta = added - (b - a)
         expected = [(s, e, ch) for s, e, ch, _ in old.units() if e <= a] + \
-                   [(s - width, e - width, ch) for s, e, ch, _ in old.units() if s >= b]
-        hidden = {(s.start - (width if s.start >= b else 0)) for s in old.segments
+                   [(s + delta, e + delta, ch) for s, e, ch, _ in old.units() if s >= b]
+        hidden = {(s.start + (delta if s.start >= b else 0)) for s in old.segments
                   if s.kind is Kind.DROP and (s.end <= a or s.start >= b)}
+        new_end = a + added
 
         def matches() -> bool:
             dec = self.decoding
             now_hidden = {s.start for s in dec.segments if s.kind is Kind.DROP}
-            return [(s, e, ch) for s, e, ch, _ in dec.units()] == expected and hidden <= now_hidden
+            # by segment: a word read differently can spill over the new keys
+            # (gite， made a whole word, corrected to gitea: five characters)
+            shown = [u for seg in dec.segments if not (a <= seg.start and seg.end <= new_end)
+                     for u in seg.units()]
+            return shown == expected and hidden <= now_hidden
 
         if matches():
             return
-        parts = [p for seg in old.segments for p in _parts_outside(seg, a, b) if p.kind is not Kind.PENDING]
+        parts = [p if p.kind is not Kind.PENDING else replace(p, kind=Kind.LITERAL)
+                 for seg in old.segments for p in _parts_outside(seg, a, b, delta)
+                 if p.kind is not Kind.PENDING or added]
         current = {(s.start, s.end, s.text, s.kind) for s in self.decoding.segments}
         for only_changed in (True, False):
             fixed = [p for p in parts if not (only_changed and (p.start, p.end, p.text, p.kind) in current)]
@@ -2907,15 +2931,18 @@ def _shift_segment(seg: Segment, delta: int) -> Segment:
     )
 
 
-def _parts_outside(seg: Segment, a: int, b: int) -> list[Segment]:
-    """The pieces of ``seg`` outside the deleted keys [a, b), positioned for
-    the buffer after the deletion, as pins. A Chinese phrase splits only at
-    syllable edges; everything else has one character per key."""
-    width = b - a
+def _parts_outside(seg: Segment, a: int, b: int, delta: int | None = None) -> list[Segment]:
+    """The pieces of ``seg`` outside keys [a, b), as pins, positioned for the
+    buffer after those keys were replaced: everything from ``b`` on moves by
+    ``delta`` (a deletion: a - b, the default; one key typed at a == b: +1).
+    A Chinese phrase splits only at syllable edges; everything else has one
+    character per key."""
+    if delta is None:
+        delta = a - b
     if seg.end <= a:
         return [replace(seg, pinned=True)]
     if seg.start >= b:
-        return [replace(_shift_segment(seg, -width), pinned=True)]
+        return [replace(_shift_segment(seg, delta), pinned=True)]
     out = []
     if seg.kind is Kind.ZH:
         if seg.start < a and a in seg.bounds:
@@ -2924,13 +2951,15 @@ def _parts_outside(seg: Segment, a: int, b: int) -> list[Segment]:
                                bounds=seg.bounds[:k + 1], pinned=True))
         if seg.end > b and b in seg.bounds:
             k = seg.bounds.index(b)
-            out.append(replace(seg, start=a, end=seg.end - width, text=seg.text[k:], readings=seg.readings[k:],
-                               bounds=tuple(x - width for x in seg.bounds[k:]), pinned=True))
+            out.append(replace(seg, start=b + delta, end=seg.end + delta, text=seg.text[k:],
+                               readings=seg.readings[k:], bounds=tuple(x + delta for x in seg.bounds[k:]),
+                               pinned=True))
     elif seg.kind is not Kind.DROP:
         if seg.start < a:
             out.append(replace(seg, end=a, text=seg.text[:a - seg.start], pinned=True))
         if seg.end > b:
-            out.append(replace(seg, start=a, end=seg.end - width, text=seg.text[b - seg.start:], pinned=True))
+            out.append(replace(seg, start=b + delta, end=seg.end + delta, text=seg.text[b - seg.start:],
+                               pinned=True))
     return out
 
 

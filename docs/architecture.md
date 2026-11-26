@@ -115,7 +115,8 @@
   再讓 `key_down` 回傳 False。libIME 的 `OnKeyDown` 以 `onKeyDown` 的回傳值當 `pfEaten`，所以同一個按鍵內就能
   「先送出、再放行」。組字中點過滑鼠（`text_service._clicked_while_composing`）：下一鍵先把舊組字送出在原處。
 - **Backspace／Delete**（`_delete_unit` → `_delete_range`）：只刪看得到的一個字，連同緊貼著它的被略過雜鍵；
-  刪完若其他字的判讀改變，就把舊的判讀釘住（只釘有變的段落，`_parts_outside`）。未完成的注音不釘。
+  刪完若其他字的判讀改變，就把舊的判讀釘住（只釘有變的段落，`_keep_as_shown` → `_parts_outside`）。未完成的注音不釘。
+  游標在中間打標點也走 `_keep_as_shown`（「一段按鍵換成 N 個新鍵，其餘照畫面」）；那時未完成音節的字母當一般文字釘住。
 - **復原**：`_checkpoint()` 在每個編輯前存 (keys, pins, cursor)；打字以一個字為一步（聲調鍵、空白、標點結束一步）。
   `Ctrl+Z`／`Ctrl+Y` 與修正模式的 `u` 共用；自動送出後作廢。
 - `view()` 回傳前端需要的一切（組字字串、游標、送出字串、候選、提示、Tab 建議、模式）；**呼叫後會清空待送出字串**，每個事件只呼叫一次。
