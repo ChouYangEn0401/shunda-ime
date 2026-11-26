@@ -372,8 +372,8 @@ class Session(CorrectionMixin):
         self._shift_scan = 0
         # Undo inside the composition (Ctrl+Z / Ctrl+Y, and u in correction
         # mode): (keys, pins, cursor, joints) before each edit.
-        self._history: list[tuple[list[Key], list[Segment], int, list[int]]] = []
-        self._redo: list[tuple[list[Key], list[Segment], int, list[int]]] = []
+        self._history: list[tuple[list[Key], list[Segment], int, list[int], int | None]] = []
+        self._redo: list[tuple[list[Key], list[Segment], int, list[int], int | None]] = []
         self._typing_run = False  # the last step is a run of typing that may still grow
         self.hand_back: KeyInput | None = None  # see key_down / take_hand_back
         self.smart: Smart | None = None  # 超智慧推薦 (experimental)
@@ -771,10 +771,12 @@ class Session(CorrectionMixin):
             self._move_unit(+1)
         elif vk == VK_HOME:
             self._typing_run = False
+            self._end_run()
             self.cursor = 0
             self._refresh()
         elif vk == VK_END:
             self._typing_run = False
+            self._end_run()
             self.cursor = len(self.keys)
             self._refresh()
         elif vk in (VK_UP, VK_DOWN):
@@ -800,7 +802,7 @@ class Session(CorrectionMixin):
         punctuation completes something."""
         if typing and self._typing_run:
             return
-        self._history.append((list(self.keys), list(self.pins), self.cursor, list(self.joints)))
+        self._history.append((list(self.keys), list(self.pins), self.cursor, list(self.joints), self._run_end))
         del self._history[:-100]
         self._redo.clear()
         self._typing_run = typing
@@ -816,9 +818,11 @@ class Session(CorrectionMixin):
         if not source:
             self._notice = empty
             return False
-        target.append((list(self.keys), list(self.pins), self.cursor, list(self.joints)))
-        self.keys, self.pins, self.cursor, self.joints = source.pop()
-        self._run_end = None
+        target.append((list(self.keys), list(self.pins), self.cursor, list(self.joints), self._run_end))
+        # where keys were being typed in the middle is part of the state: an
+        # unfinished syllable there reads differently without it, and undo +
+        # redo did not bring back what was on screen (gji多… came back 說多…)
+        self.keys, self.pins, self.cursor, self.joints, self._run_end = source.pop()
         self.cand = None
         if not self.keys:
             history, redo = self._history, self._redo
@@ -1098,10 +1102,27 @@ class Session(CorrectionMixin):
             if matches():
                 return
 
+    def _end_run(self) -> None:
+        """Typing in the middle of the text stops here (the cursor moves
+        away, correction mode). Half a syllable may stand where the keys are
+        being typed and nowhere else inside the text, so the next decode
+        would drop the letters that were on screen: Home, w, End, Esc and the
+        w was gone. They stay as the letters they were."""
+        end = self._run_end
+        self._run_end = None
+        if end is None or end >= len(self.keys):
+            return
+        half = [replace(seg, kind=Kind.LITERAL, pinned=True) for seg in self.decoding.segments
+                if seg.kind is Kind.PENDING and seg.end == end]
+        if half:
+            self.pins = sorted([p for p in self.pins if all(p.end <= h.start or p.start >= h.end for h in half)]
+                               + half, key=lambda p: p.start)
+            self._redecode()
+
     def _move_unit(self, delta: int) -> None:
         self._typing_run = False  # typing somewhere else is a new undo step
         self._retype_at = None
-        self._run_end = None
+        self._end_run()
         units = self.decoding.units()
         if delta < 0:
             prev = [a for a, b, _, _ in units if b <= self.cursor]
@@ -2895,6 +2916,7 @@ class Session(CorrectionMixin):
             self._accept_quick(sug)
             return
         self._checkpoint()
+        old = self.decoding
         start = len(self.keys)
         self.keys.extend(sug.keys)
         pin = sug.pin
@@ -2904,6 +2926,9 @@ class Session(CorrectionMixin):
         assert pin.end == start + len(sug.keys)
         self._learn(pin, origin="tab")  # positive feedback: accepted continuations rank higher
         self._redecode()
+        # Tab adds a word and changes nothing before it: the new context read
+        # 的是機 + 會 as 的視機會, 后羿 + 婷 as 後羿婷
+        self._hold_outside(pin.start, pin.end, old, exact=True)
         self._commit_overflow()
 
 

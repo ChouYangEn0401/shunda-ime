@@ -73,7 +73,7 @@ class CorrectionMixin:
         self._cycle = None
         self._clear_armed = False
         self._retype_at = None
-        self._run_end = None
+        self._end_run()
         if self.keys:
             self._redecode()  # the end is finished now (bye, not by + e); same text
         self.edge = None

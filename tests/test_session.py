@@ -1,3 +1,5 @@
+import pytest
+
 from smartime.devtools.simulate import run
 from smartime.engine.session import Mode
 
@@ -475,3 +477,39 @@ def test_the_whole_word_is_offered_wherever_the_cursor_stands_on_it(session):
     assert v.candidates[0] == "venv"
     run(session, "1")
     assert session.decoding.text == "venv我們"
+
+
+# Found by an action fuzzer (every key checked against what it promises
+# about the screen), after the user asked for 「諸如此類的問題」 to be found.
+@pytest.mark.parametrize("keys, shown", [
+    ("045j4", "按住"), ("u,4au04", "頁面"), ("m06fm06vu04fm,4bp4", "員權限確認"),
+    ("vup dj4up ", "新酷音"),
+])
+def test_tab_adds_a_word_and_changes_nothing_before_it(session, keys, shown):
+    """按住 + Tab became 案住民, 確認 + Tab 卻認為: the new word's context
+    read the characters before it again."""
+    _, v = run(session, keys)
+    assert v.composition == shown and v.suggestion
+    _, v = run(session, "{TAB}")
+    assert v.composition.startswith(shown) and len(v.composition) > len(shown)
+
+
+@pytest.mark.parametrize("after", ["{END}{ESC}", "{END}ji3", "{RIGHT}{RIGHT}{ESC}"])
+def test_half_a_syllable_typed_into_the_middle_stays_when_the_cursor_leaves(session, after):
+    """Home, w, End, Esc: the w was on screen and then gone (half a syllable
+    may only stand where keys are being typed)."""
+    _, v = run(session, "n0 5; ep g3test{HOME}w")
+    assert v.composition.startswith("w")
+    _, v = run(session, after)
+    assert session.decoding.text.startswith("w")
+
+
+def test_undo_then_redo_brings_back_exactly_what_was_on_screen(session):
+    """The history kept the keys but not where they were being typed: half
+    a syllable typed into the middle came back read another way (gji多… →
+    說多…, from the action fuzzer)."""
+    _, v = run(session, "n0 5; ep g3test{HOME}w")
+    shown = v.composition
+    assert shown.startswith("w")
+    _, v = run(session, "{C-z}{C-y}")
+    assert v.composition == shown
