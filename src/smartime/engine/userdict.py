@@ -109,9 +109,14 @@ class UserDict:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._con = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None, timeout=5)
         self._con.execute("PRAGMA journal_mode=WAL")
+        # With WAL, NORMAL never corrupts the file; a power cut can only lose
+        # the last few counts. FULL waited for the disk (and any virus
+        # scanner looking at it) on every word picked, while typing.
+        self._con.execute("PRAGMA synchronous=NORMAL")
         self._con.execute("PRAGMA foreign_keys=ON")
         self._init_schema()
         self.version = 0  # bumped on every reload; caches key on it
+        self.loads = 0
         self._data_version = None
         self._load()
 
@@ -212,10 +217,11 @@ class UserDict:
             max_syl = max(max_syl, len(syl))
             for i in range(1, len(syl)):
                 prefixes.add("-".join(syl[:i]))
-        self.prefixes = frozenset(prefixes)
+        self.prefixes: set[str] = prefixes
         self.max_syllables = max_syl
         self._data_version = self._con.execute("PRAGMA data_version").fetchone()[0]
         self.version += 1
+        self.loads += 1  # whole reloads (Lexicon.learn tells them from one-entry updates)
 
     def refresh(self) -> bool:
         """Reload if another process (the settings app) changed the file."""
@@ -258,8 +264,37 @@ class UserDict:
             "origin = CASE WHEN origin = 'fix' THEN origin ELSE excluded.origin END",
             (phrase, reading, kind, now, now, origin),
         )
-        self._load()
+        self._reload_one(phrase, reading)
         return not known
+
+    def _reload_one(self, phrase: str, reading: str) -> Entry | None:
+        """Bring one entry's in-memory copy up to date after this process
+        wrote it, instead of reading the whole dictionary again: that grew
+        with the dictionary, on every word picked (about 30 ms at 10,000
+        words, before the lexicon rebuilt its own indexes the same way).
+        An entry already in memory is updated in place, so the lexicon's
+        indexes that hold it stay right. Returns the entry if it is new."""
+        rows = self._entries("WHERE e.phrase = ? AND e.reading = ?", (phrase, reading))
+        if not rows or rows[0].blocked or (phrase, reading) in self.blocked:
+            self._load()  # gone or (un)blocked: rare, the slow way
+            return None
+        e = rows[0]
+        if e.kind == "en":
+            old = self.en.get(e.phrase.lower())
+        else:
+            old = self.zh.get(e.reading, {}).get(e.phrase)
+        self.version += 1
+        if old is not None and old.kind == e.kind:
+            old.__dict__.update(e.__dict__)
+            return None
+        if e.kind == "en":
+            self.en[e.phrase.lower()] = e
+        else:
+            self.zh.setdefault(e.reading, {})[e.phrase] = e
+            syl = e.reading.split("-")
+            self.max_syllables = max(self.max_syllables, len(syl))
+            self.prefixes.update("-".join(syl[:i]) for i in range(1, len(syl)))
+        return e
 
     def unlearn_fresh(self, phrase: str, reading: str) -> bool:
         """Drop a learned entry that nothing has used yet.

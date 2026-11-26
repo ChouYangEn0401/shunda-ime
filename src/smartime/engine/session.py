@@ -1897,12 +1897,11 @@ class Session(CorrectionMixin):
         if user is None or not self.cfg.learn or practice.active():
             return False  # 練習場: the sentences are made up, nothing to learn from them
         if seg.kind is Kind.ZH:
-            new = user.learn(seg.text, "-".join(seg.readings), "zh", origin)
+            new = self.engine.lexicon.learn(seg.text, "-".join(seg.readings), "zh", origin)
         elif seg.kind is Kind.EN:
-            new = user.learn(seg.text.lower(), "", "en", origin)
+            new = self.engine.lexicon.learn(seg.text.lower(), "", "en", origin)
         else:
             return False
-        self.engine.lexicon.invalidate()
         if new and origin == "fix":
             # provisional: a later fix in the same sentence may replace the
             # character this pair was built around (see _prune_learned)

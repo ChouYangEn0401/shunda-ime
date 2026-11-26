@@ -91,6 +91,9 @@
   英文掃描逐字累加字串，不再每個前綴重新 `join`。詞庫那邊，系統詞庫是唯讀的，讀過的（`system_phrases`、
   `_system_prefix`、`_system_en`、`_system_completions`、倉頡）永遠留著；`invalidate()` 只重建我的詞庫參與的快取
   ——以前選字、學習後全部清空，下一鍵的解碼慢四倍。改動解碼器時用「改之前錄下輸出、改之後逐筆比對」驗證一模一樣。
+  學習走 `Lexicon.learn`：`UserDict._reload_one` 只讀回那一筆（已在記憶體裡的 `Entry` 原地更新，索引裡拿著它的不必動），
+  新詞才加進各個索引，然後只清分數快取（`_clear_scores`）。以前是 `_load()` 全部重讀加 `invalidate()` 全部重建，
+  成本跟詞庫大小成正比。`tests/test_memory.py` 比對「增量」與「全部重讀」的結果一模一樣。`user.db` 用 WAL + `synchronous=NORMAL`。
 - `decode(allow_english=False)` = 純中文模式：不產生 `EN` 邊，上排數字鍵只當注音（數字只來自數字鍵盤）。
 - `zh_alternatives()` 列出某位置起的所有中文讀法，供候選窗做「英文 → 中文」的跨類別換字。
 - 標點：`config.halfwidth_symbols` 中的符號鍵以半形為首選，其餘全形；`PUNCT_VARIANTS` 是候選窗的相關符號。

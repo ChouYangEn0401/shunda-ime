@@ -153,6 +153,42 @@ class Lexicon:
         """Drop caches after this process changed the user dictionary."""
         self._make_caches()
 
+    def learn(self, phrase: str, reading: str = "", kind: str = "zh", origin: str = "pick") -> bool:
+        """UserDict.learn, and the caches brought up to date for that one
+        entry: indexes of my phrases grow by it (if it is new), scores are
+        looked up afresh. A full invalidate() rebuilt every index from the
+        whole dictionary on each word picked. True if the word was new."""
+        user = self.user
+        known = user.lookup(phrase, reading) is not None
+        loads = user.loads
+        new = user.learn(phrase, reading, kind, origin)
+        if user.loads != loads or (known and new):
+            self._make_caches()  # reloaded the slow way (or out of step): rebuild all
+            return new
+        if new:
+            e = user.lookup(phrase, reading)
+            if e is not None and kind == "zh":
+                if len(user.zh.get(reading, {})) == 1:
+                    self._user_plain.setdefault(plain(reading), []).append(reading)
+                self._user_text.setdefault(phrase, []).append(reading)
+                self._user_abbr.setdefault(abbr_key(reading), []).append((phrase, reading))
+                self._user_by_first.setdefault(phrase[:1], []).append((phrase, reading, e))
+            elif e is not None and "_" in phrase and phrase.strip("_"):
+                word = phrase.lower()
+                self.identifiers = {**self.identifiers, word[0]: tuple(sorted(
+                    (*self.identifiers.get(word[0], ()), word), key=len, reverse=True))}
+        self._clear_scores()
+        return new
+
+    def _clear_scores(self) -> None:
+        """Forget every answer my dictionary takes part in (the system
+        lexicon's own stay: see __init__)."""
+        self.generation += 1
+        for cache in (self.phrases, self.has_reading_prefix, self.en_score, self.plain_phrases,
+                      self.has_plain_prefix, self.text_info, self.abbreviations):
+            cache.cache_clear()
+        self.max_phrase_syllables = max(self._system_max_syllables, self.user.max_syllables if self.user else 0)
+
     def close(self) -> None:
         self._con.close()
 

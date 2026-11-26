@@ -832,3 +832,29 @@ def test_the_decoder_drops_its_word_caches_with_my_dictionary(mem_engine, user):
     user.learn("teh", "", "en", "keep")
     mem_engine.lexicon.invalidate()
     assert dec.decode(keys).text == "teh "
+
+
+def test_learning_one_word_updates_the_indexes_like_a_full_reload(mem_engine, user):
+    """Lexicon.learn updates only the entry it counted (a full reload grew
+    with the dictionary: ~30 ms a pick at 10,000 words, plus the lexicon's
+    own rebuild). Whatever it does must equal reading everything again."""
+    lex = mem_engine.lexicon
+    words = [("視圖", "ㄕˋ-ㄊㄨˊ", "zh"), ("我們", "ㄨㄛˇ-ㄇㄣ˙", "zh"), ("㜣後", "ㄖㄢˊ-ㄏㄡˋ", "zh"),
+             ("視圖表格", "ㄕˋ-ㄊㄨˊ-ㄅㄧㄠˇ-ㄍㄜˊ", "zh"), ("m_index", "", "en"), ("hello", "", "en")]
+
+    def state():
+        return (sorted((k, sorted(v)) for k, v in lex._user_text.items()),
+                sorted((k, sorted((p, r, e.count) for p, r, e in v)) for k, v in lex._user_by_first.items()),
+                sorted((k, sorted(v)) for k, v in lex._user_plain.items()),
+                sorted((k, sorted(v)) for k, v in lex._user_abbr.items()),
+                dict(lex.identifiers), lex.max_phrase_syllables, sorted(user.prefixes),
+                [lex.phrases(r) for _, r, k in words if k == "zh"], lex.completions("視"), lex.completions("㜣"),
+                lex.en_score("hello"), lex.has_reading_prefix("ㄕˋ-ㄊㄨˊ-ㄅㄧㄠˇ"))
+
+    for round_ in range(3):
+        for phrase, reading, kind in words[round_:]:
+            assert lex.learn(phrase, reading, kind, "pick") == (round_ == 0)  # new only the first time
+        incremental = state()
+        user._load()
+        lex.invalidate()
+        assert incremental == state()
