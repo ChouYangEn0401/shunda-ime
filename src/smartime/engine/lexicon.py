@@ -91,18 +91,29 @@ class Lexicon:
         self._abbr: dict[str, list[tuple[str, str]]] | None = None  # 瘋狂模式, built on first use
         self._abbr_lock = threading.Lock()
         self._en_curated: frozenset[str] | None = None
+        # The system lexicon never changes while the IME runs: what is read
+        # from it stays cached for good. Only what my dictionary takes part
+        # in is rebuilt (_make_caches) — that used to drop these too, after
+        # every word picked or learned, and the next keys paid for it (a
+        # cold decode is about four times slower than a warm one).
+        self.system_phrases = lru_cache(maxsize=65536)(self._system_phrases)
+        self._system_prefix = lru_cache(maxsize=65536)(self._system_prefix_q)
+        self._system_en = lru_cache(maxsize=65536)(self._system_en_q)
+        self._system_completions = lru_cache(maxsize=8192)(self._system_completions_q)
+        self.cangjie_chars = lru_cache(maxsize=16384)(self._cangjie_chars)
+        self.cangjie_code = lru_cache(maxsize=16384)(self._cangjie_code)
         self._make_caches()
 
     def _make_caches(self) -> None:
+        # Bumped whenever the caches are rebuilt (my dictionary changed): the
+        # decoder keeps its own per-word caches and drops them on a new one.
+        self.generation = getattr(self, "generation", 0) + 1
         # Per-instance caches (lru_cache on bound methods would leak instances).
         self.phrases = lru_cache(maxsize=65536)(self._phrases)
         self.has_reading_prefix = lru_cache(maxsize=65536)(self._has_reading_prefix)
         self.en_score = lru_cache(maxsize=65536)(self._en_score)
-        self.system_phrases = lru_cache(maxsize=65536)(self._system_phrases)
         self.plain_phrases = lru_cache(maxsize=65536)(self._plain_phrases)
         self.has_plain_prefix = lru_cache(maxsize=65536)(self._has_plain_prefix)
-        self.cangjie_chars = lru_cache(maxsize=16384)(self._cangjie_chars)
-        self.cangjie_code = lru_cache(maxsize=16384)(self._cangjie_code)
         self.text_info = lru_cache(maxsize=65536)(self._text_info)
         self.abbreviations = lru_cache(maxsize=16384)(self._abbreviations)
         self.max_phrase_syllables = max(self._system_max_syllables, self.user.max_syllables if self.user else 0)
@@ -110,12 +121,15 @@ class Lexicon:
         self._user_plain: dict[str, list[str]] = {}
         self._user_text: dict[str, list[str]] = {}
         self._user_abbr: dict[str, list[tuple[str, str]]] = {}
+        # my phrases by first character, in my dictionary's order (completions)
+        self._user_by_first: dict[str, list[tuple[str, str, Entry]]] = {}
         if self.user is not None:
             for reading, by_phrase in self.user.zh.items():
                 self._user_plain.setdefault(plain(reading), []).append(reading)
-                for phrase in by_phrase:
+                for phrase, e in by_phrase.items():
                     self._user_text.setdefault(phrase, []).append(reading)
                     self._user_abbr.setdefault(abbr_key(reading), []).append((phrase, reading))
+                    self._user_by_first.setdefault(phrase[:1], []).append((phrase, reading, e))
         # 快速詞 (userdict.quick_words): looked at on every key, so cached here
         self.quick: list[dict] = self.user.quick_words() if self.user is not None else []
         # my English words with an underscore (m_index, m_): the decoder
@@ -216,6 +230,9 @@ class Lexicon:
         """True if some longer phrase starts with this syllable sequence."""
         if self.user is not None and reading in self.user.prefixes:
             return True
+        return self._system_prefix(reading)
+
+    def _system_prefix_q(self, reading: str) -> bool:
         lo = reading + "-"
         hi = reading + "."  # '.' sorts right after '-'
         row = self._con.execute(
@@ -306,11 +323,7 @@ class Lexicon:
     def completions(self, prefix: str, limit: int = 8) -> list[tuple[str, str, float]]:
         """Phrases that start with ``prefix`` (text) and are longer than it,
         best first. Learned and added phrases count, blocked ones are skipped."""
-        rows = self._con.execute(
-            "SELECT phrase, reading, max(score) AS s FROM zh "
-            "WHERE phrase > ? AND phrase < ? GROUP BY phrase, reading ORDER BY s DESC LIMIT ?",
-            (prefix, prefix + _MAX_CHAR, limit * 2),
-        ).fetchall()
+        rows = self._system_completions(prefix, limit)
         user = self.user
         out: dict[tuple[str, str], float] = {}
         for p, r, s in rows:
@@ -322,12 +335,21 @@ class Lexicon:
                     s = e.score(s)
             out[(p, r)] = s
         if user is not None:
-            for r, by_phrase in user.zh.items():
-                for p, e in by_phrase.items():
-                    if p.startswith(prefix) and len(p) > len(prefix) and (p, r) not in out:
-                        out[(p, r)] = e.score(None)
+            # (asked on every key: only my phrases that can match are looked at)
+            mine = self._user_by_first.get(prefix[:1], ()) if prefix else \
+                [x for xs in self._user_by_first.values() for x in xs]
+            for p, r, e in mine:
+                if p.startswith(prefix) and len(p) > len(prefix) and (p, r) not in out:
+                    out[(p, r)] = e.score(None)
         ranked = sorted(out.items(), key=lambda kv: -kv[1])[:limit]
         return [(p, r, s) for (p, r), s in ranked]
+
+    def _system_completions_q(self, prefix: str, limit: int) -> tuple[tuple[str, str, float], ...]:
+        return tuple(self._con.execute(
+            "SELECT phrase, reading, max(score) AS s FROM zh "
+            "WHERE phrase > ? AND phrase < ? GROUP BY phrase, reading ORDER BY s DESC LIMIT ?",
+            (prefix, prefix + _MAX_CHAR, limit * 2),
+        ).fetchall())
 
     def reading_for(self, text: str) -> str | None:
         """Most likely reading of a Chinese string (for adding a word in
@@ -369,9 +391,12 @@ class Lexicon:
                 self._en_curated = frozenset()
         return word in self._en_curated
 
-    def _en_score(self, word: str) -> float | None:
+    def _system_en_q(self, word: str) -> float | None:
         row = self._con.execute("SELECT score FROM en WHERE word = ?", (word,)).fetchone()
-        system = None if row is None else row[0]
+        return None if row is None else row[0]
+
+    def _en_score(self, word: str) -> float | None:
+        system = self._system_en(word)
         if self.user is not None:
             if self.user.is_blocked(word, ""):
                 return None  # "never as English": scored like an unknown token

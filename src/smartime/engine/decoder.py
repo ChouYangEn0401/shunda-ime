@@ -253,6 +253,15 @@ class Decoder:
         self.en_fix = True  # 英文打錯自動更正
         self.crazy = False  # 瘋狂模式
         self._set_layout(layout)
+        # Built from the weights on first use (see _tables): the decoder runs
+        # on every key over the whole composition, so the per-edge work —
+        # the transition cost, an English word's score — is looked up, not
+        # recomputed. Rebuilt when the weights, the en_fix switch or my
+        # dictionary (Lexicon.generation) change.
+        self._tables_for: tuple | None = None
+        self._trans: dict = {}
+        self._en_cache: dict = {}
+        self._fix_cache: dict = {}
 
     def _set_layout(self, layout: Layout) -> None:
         self.layout = layout
@@ -281,6 +290,41 @@ class Decoder:
             en_single_letter=base.en_single_letter if cfg.single_letter_context else 0.0,
             pending=base.pending_crazy if self.crazy else base.pending,
         )
+
+    def _tables(self) -> dict:
+        """{kind: {(lang, prev_kind): (transition cost, state after)}}, and
+        empty word caches whenever what they were computed from changed."""
+        key = (self.w, self.en_fix, getattr(self.lex, "generation", None), id(self.lex))
+        if self._tables_for != key:
+            self._tables_for = key
+            self._en_cache = {}
+            self._fix_cache = {}
+            states = [(lang, prev) for lang in (_NONE, _ZH, _EN) for prev in (None, *Kind)]
+            trans: dict = {}
+            for kind in Kind:
+                if kind is Kind.DROP:
+                    trans[kind] = {st: (self.w.drop_after_space if st[1] is Kind.SPACE else 0.0, st)
+                                   for st in states}
+                    continue
+                trans[kind] = {st: (self._transition(st[0], st[1], kind),
+                                    (_ZH if kind is Kind.ZH else _EN if kind is Kind.EN else st[0], kind))
+                               for st in states}
+            self._trans = trans
+        return self._trans
+
+    def _en_score_cached(self, word: str, delimited: bool = False) -> float:
+        key = (word, delimited)
+        score = self._en_cache.get(key)
+        if score is None:
+            score = self._en_cache[key] = self._en_score(word, delimited)
+        return score
+
+    def _en_fix_cached(self, word: str) -> tuple[str, bool] | None:
+        try:
+            return self._fix_cache[word]
+        except KeyError:
+            fix = self._fix_cache[word] = en_fix.correction(self.lex, word)
+            return fix
 
     # ------------------------------------------------------------------
     def decode(self, keys: Sequence[Key], pins: Sequence[Segment] = (), allow_english: bool = True,
@@ -336,35 +380,36 @@ class Decoder:
         ]
         best[0][(_NONE, None)] = (0.0, -1, None, None)
 
+        trans = self._tables()
+        after_english = self.w.symbol_after_english
+        zh, en = Kind.ZH, Kind.EN
         for i in range(n):
-            if not best[i] or inside[i]:
+            here = best[i]
+            if not here or inside[i]:
                 continue
             if i in pin_at:
                 edges: list[Segment] = [pin_at[i]]
             else:
                 edges = list(self._edges_from(keys, i, limit[i], syllables, allow_english, scheme,
                                               cut, open_set))
+            states = list(here.items())
             for seg in edges:
-                for state, (score, _, _, _) in best[i].items():
-                    lang, prev_kind = state
-                    if seg.kind is Kind.DROP:
-                        # Invisible: the context continues as if the key were
-                        # not there (so dropping can't split an English word
-                        # for free — en_adjacent still applies across it).
-                        total = score + seg.score
-                        if prev_kind is Kind.SPACE:
-                            total += self.w.drop_after_space
-                        new_state = state
-                    else:
-                        total = score + seg.score + self._transition(lang, prev_kind, seg.kind)
-                        if prev_kind is Kind.EN and seg.kind is Kind.ZH and len(seg.readings) == 1 \
-                                and seg.text == seg.readings[0]:
-                            total += self.w.symbol_after_english
-                        new_lang = _ZH if seg.kind is Kind.ZH else _EN if seg.kind is Kind.EN else lang
-                        new_state = (new_lang, seg.kind)
-                    cur = best[seg.end].get(new_state)
+                # A dropped key is invisible: the context goes on as if it
+                # were not there (so dropping can't split an English word for
+                # free — en_adjacent still applies across it); see _tables.
+                by_state = trans[seg.kind]
+                # a bare zhuyin symbol glued to an English word (venv␣)
+                bare = seg.kind is zh and len(seg.readings) == 1 and seg.text == seg.readings[0]
+                there = best[seg.end]
+                s_score = seg.score
+                for state, entry in states:
+                    cost, new_state = by_state[state]
+                    total = entry[0] + s_score + cost
+                    if bare and state[1] is en:
+                        total += after_english
+                    cur = there.get(new_state)
                     if cur is None or total > cur[0]:
-                        best[seg.end][new_state] = (total, i, state, seg)
+                        there[new_state] = (total, i, state, seg)
 
         # Backtrack from the best final state.
         final_state, (final_score, _, _, _) = max(best[n].items(), key=lambda kv: kv[1][0])
@@ -710,32 +755,34 @@ class Decoder:
         if allow_english and ch in _EN_CHARS and not k.numpad:
             j = i
             has_letter = False
+            word = ""  # keys[i:j], built as it goes (every prefix is a reading)
+            space_before = i > 0 and keys[i - 1].char == " "
             while j < tok and j - i < MAX_EN_LEN:
                 c = keys[j].char
                 if c in _EN_CHARS and not keys[j].numpad:
                     has_letter = has_letter or c in _LETTERS
+                    word += c
                     j += 1
                 elif c == "'" and j > i and j + 1 < tok and keys[j + 1].char in _LETTERS:
+                    word += c
                     j += 1  # apostrophe inside a word: don't, it's
                     continue
                 else:
                     break
                 if has_letter:
-                    word = "".join(x.char for x in keys[i:j])
                     # "delimited": the user put a space on each side themselves.
                     # Only a real space counts — at the start of the buffer
                     # there is no separator, so "o␣" is still ㄟ.
-                    delimited = i > 0 and keys[i - 1].char == " " and (j >= n or keys[j].char == " ")
-                    score = self._en_score(word, delimited)
-                    fix = en_fix.correction(self.lex, word) if self.en_fix and self._whole_word(
-                        keys, i, j) else None
+                    delimited = space_before and (j >= n or keys[j].char == " ")
+                    score = self._en_score_cached(word, delimited)
+                    fix = self._en_fix_cached(word) if self.en_fix and self._whole_word(keys, i, j) else None
                     if fix is None:
                         yield Segment(i, j, word, Kind.EN, score)
                     elif fix[1]:  # a known misspelling: read as the word meant
                         yield Segment(i, j, fix[0], Kind.EN, score)
                     else:  # an unknown word: one more reading, the common word one slip away
                         yield Segment(i, j, word, Kind.EN, score)
-                        yield Segment(i, j, fix[0], Kind.EN, self._en_score(fix[0], delimited) + w.en_typo)
+                        yield Segment(i, j, fix[0], Kind.EN, self._en_score_cached(fix[0], delimited) + w.en_typo)
 
         # --- My identifiers with an underscore (m_index), whole: added with
         #     Ctrl+D, so the user said "this is one word".

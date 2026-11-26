@@ -793,3 +793,39 @@ def test_cleanup_suggestions_rules(tmp_path):
     assert u.lookup("開新", "ㄎㄞ-ㄒㄧㄣ") is None and u.lookup("跟屎", "ㄍㄣ-ㄕˇ") is None
     assert [r["phrase"] for r in u.cleanup_suggestions(is_word, fix, now=now)["rows"]] == ["今天", "teh"]
     u.close()
+
+
+# ------------------------------------------------------------- speed
+def test_learning_keeps_what_was_read_from_the_system_lexicon(mem_engine, user):
+    """Learning a word used to drop every cache, the system lexicon's too,
+    and the keys right after a pick decoded about four times slower
+    (「之前就跟妳說會有點卡」). Only what my dictionary takes part in is
+    rebuilt; what changed is still seen at once."""
+    lex = mem_engine.lexicon
+    old = dict(lex.phrases("ㄕˋ-ㄊㄨˊ"))
+    lex.completions("㜣")
+    hits = lex.system_phrases.cache_info().currsize
+    before = lex.generation
+    user.learn("視圖", "ㄕˋ-ㄊㄨˊ", "zh", "pick")
+    lex.invalidate()
+    assert lex.generation == before + 1
+    assert lex.system_phrases.cache_info().currsize == hits  # kept
+    assert dict(lex.phrases("ㄕˋ-ㄊㄨˊ"))["視圖"] > old.get("視圖", -99.0)  # my memory, right away
+    assert lex.completions("㜣") == []
+    user.learn("㜣後", "ㄖㄢˊ-ㄏㄡˋ", "zh", "fix")  # (a rare character: nothing else starts with it)
+    lex.invalidate()
+    assert [p for p, _, _ in lex.completions("㜣")] == ["㜣後"]
+    assert lex.has_reading_prefix("ㄖㄢˊ")
+
+
+def test_the_decoder_drops_its_word_caches_with_my_dictionary(mem_engine, user):
+    """The decoder keeps each English word's score and correction; a word I
+    keep as typed must stop being corrected at once."""
+    from smartime.engine.decoder import Key
+
+    dec = mem_engine.decoder
+    keys = [Key(c) for c in "teh "]
+    assert dec.decode(keys).text == "the "
+    user.learn("teh", "", "en", "keep")
+    mem_engine.lexicon.invalidate()
+    assert dec.decode(keys).text == "teh "
